@@ -7,7 +7,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
-	_ "embed"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -22,9 +21,6 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
 	"golang.org/x/oauth2"
 )
-
-//go:embed schema.sql
-var schema string
 
 type Config struct {
 	Origin, ClientID, ClientSecret string
@@ -64,8 +60,7 @@ func New(ctx context.Context, pool *pgxpool.Pool, api *identity.OIDC, issuer str
 	}
 	return &Service{pool: pool, api: api, id: provider.Verifier(&oidc.Config{ClientID: c.ClientID, SupportedSigningAlgs: []string{"RS256"}}), oauth: oauth2.Config{ClientID: c.ClientID, ClientSecret: c.ClientSecret, Endpoint: provider.Endpoint(), RedirectURL: c.Origin + "/auth/callback", Scopes: []string{oidc.ScopeOpenID, "profile", "aigw:manage"}}, origin: c.Origin, host: u.Host, cookieName: name, secure: secure, client: client}, nil
 }
-func (s *Service) Init(ctx context.Context) error { _, err := s.pool.Exec(ctx, schema); return err }
-func digest(v string) []byte                      { h := sha256.Sum256([]byte(v)); return h[:] }
+func digest(v string) []byte { h := sha256.Sum256([]byte(v)); return h[:] }
 func csrf(v string) string {
 	h := sha256.Sum256([]byte("aigw:csrf:" + v))
 	return hex.EncodeToString(h[:])

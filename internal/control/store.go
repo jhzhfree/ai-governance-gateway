@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
-	_ "embed"
 	"errors"
 	"fmt"
 	"strings"
@@ -26,14 +25,10 @@ var (
 // int64 internally; this development API caps amounts at Number.MAX_SAFE_INTEGER.
 const MaxAPIAmount int64 = 9007199254740991
 
-//go:embed schema.sql
-var schema string
-
 type Store struct{ pool *pgxpool.Pool }
 
-func New(p *pgxpool.Pool) *Store                { return &Store{pool: p} }
-func (s *Store) Init(ctx context.Context) error { _, err := s.pool.Exec(ctx, schema); return err }
-func validName(v string) bool                   { return strings.TrimSpace(v) == v && len(v) > 0 && len(v) <= 100 }
+func New(p *pgxpool.Pool) *Store { return &Store{pool: p} }
+func validName(v string) bool    { return strings.TrimSpace(v) == v && len(v) > 0 && len(v) <= 100 }
 func validPrincipal(p identity.Principal) bool {
 	return p.Issuer != "" && p.Subject != "" && len(p.Issuer) <= 2048 && len(p.Subject) <= 256
 }

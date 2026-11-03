@@ -38,9 +38,6 @@ func setup(t *testing.T) fixture {
 	t.Helper()
 	pool, ledger, _ := testutil.Database(t)
 	store := control.New(pool)
-	if err := store.Init(context.Background()); err != nil {
-		t.Fatal(err)
-	}
 	issuer := testutil.NewIssuer(t)
 	auth, err := identity.NewOIDC(context.Background(), issuer.URL, "aigw-management")
 	if err != nil {

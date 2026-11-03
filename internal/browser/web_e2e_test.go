@@ -23,9 +23,6 @@ import (
 func TestConsoleBrowser(t *testing.T) {
 	pool, _, _ := testutil.Database(t)
 	store := control.New(pool)
-	if err := store.Init(context.Background()); err != nil {
-		t.Fatal(err)
-	}
 	issuer := testutil.NewIssuer(t)
 	api, err := identity.NewOIDC(context.Background(), issuer.URL, "aigw-management")
 	if err != nil {
@@ -36,9 +33,6 @@ func TestConsoleBrowser(t *testing.T) {
 	origin := "http://" + server.Listener.Addr().String()
 	svc, err := browser.New(context.Background(), pool, api, issuer.URL, browser.Config{Origin: origin, ClientID: "web-e2e", AllowLoopbackHTTP: true})
 	if err != nil {
-		t.Fatal(err)
-	}
-	if err := svc.Init(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	webDir, err := filepath.Abs("../../web")

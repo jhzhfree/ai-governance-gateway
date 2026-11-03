@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -20,6 +21,7 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
 	"github.com/jhzhfree/ai-governance-gateway/internal/console"
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
+	"github.com/jhzhfree/ai-governance-gateway/internal/database"
 	"github.com/jhzhfree/ai-governance-gateway/internal/gateway"
 	"github.com/jhzhfree/ai-governance-gateway/internal/httpapi"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
@@ -73,13 +75,14 @@ func run(ctx context.Context, c config) error {
 	ledger := budget.New(pool)
 	store := control.New(pool)
 	if c.initSchema {
-		if err := ledger.Init(setup); err != nil {
-			return errors.New("budget schema initialization failed")
-		}
-		if err := store.Init(setup); err != nil {
-			return errors.New("management schema initialization failed")
+		if err := database.Migrate(setup, pool); err != nil {
+			return fmt.Errorf("database migration failed: %w", err)
 		}
 	}
+	if err := database.Check(setup, pool); err != nil {
+		return fmt.Errorf("database schema is not ready: %w", err)
+	}
+
 	client := &http.Client{Timeout: 6 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
 	auth, err := identity.NewOIDC(oidc.ClientContext(setup, client), c.issuer, c.audience)
 	if err != nil {
@@ -91,11 +94,6 @@ func run(ctx context.Context, c config) error {
 		sessions, err = browser.New(setup, pool, auth, c.issuer, browser.Config{Origin: c.browserOrigin, ClientID: c.clientID, ClientSecret: c.clientSecret, AllowLoopbackHTTP: c.allowLoopbackHTTP, HTTPClient: client})
 		if err != nil {
 			return err
-		}
-		if c.initSchema {
-			if err := sessions.Init(setup); err != nil {
-				return errors.New("browser schema initialization failed")
-			}
 		}
 		assets, e := console.New(c.webDir)
 		if e != nil {
@@ -109,17 +107,8 @@ func run(ctx context.Context, c config) error {
 	}
 	mux.Handle("/v1/", &gateway.Handler{Ledger: ledger, Authorize: store.ResolveKey, Client: client, Upstream: c.upstream, Report: func(id, code string) { log.Printf("request_id=%s code=%s", id, code) }})
 	mux.HandleFunc("GET /health/live", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) })
-	mux.HandleFunc("GET /health/ready", func(w http.ResponseWriter, r *http.Request) {
-		check, cancel := context.WithTimeout(r.Context(), time.Second)
-		defer cancel()
-		var ready bool
-		err := pool.QueryRow(check, `SELECT to_regclass('budget_reservations') IS NOT NULL AND to_regclass('project_keys') IS NOT NULL AND (NOT $1::boolean OR (to_regclass('browser_sessions') IS NOT NULL AND to_regclass('browser_login_flows') IS NOT NULL))`, c.browserOrigin != "").Scan(&ready)
-		if err != nil || !ready {
-			http.Error(w, "not ready", 503)
-			return
-		}
-		w.WriteHeader(204)
-	})
+	mux.HandleFunc("GET /health/ready", readiness(pool))
+
 	server := &http.Server{Addr: c.listen, Handler: mux, ReadHeaderTimeout: 3 * time.Second, ReadTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 32 << 10}
 	failed := make(chan error, 1)
 	go func() { failed <- server.ListenAndServe() }()
@@ -146,7 +135,8 @@ func main() {
 	c.clientID = os.Getenv("AIGW_OIDC_CLIENT_ID")
 	c.clientSecret = os.Getenv("AIGW_OIDC_CLIENT_SECRET")
 	flag.StringVar(&c.listen, "listen", "127.0.0.1:8080", "development loopback listener")
-	flag.BoolVar(&c.initSchema, "init-schema", false, "initialize prototype schema in a dedicated development database")
+	flag.BoolVar(&c.initSchema, "migrate", false, "apply embedded database migrations before development startup")
+	flag.BoolVar(&c.initSchema, "init-schema", false, "deprecated alias for --migrate; includes legacy schema validation")
 	flag.BoolVar(&c.mockOnly, "mock-only", false, "explicitly enable the mock-only development service")
 	flag.StringVar(&c.webDir, "web-dir", "web/dist", "built console assets directory")
 	flag.BoolVar(&c.allowLoopbackHTTP, "allow-loopback-browser-http", false, "allow non-secure browser cookies only on an explicit loopback HTTP origin")

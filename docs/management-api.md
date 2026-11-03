@@ -71,12 +71,13 @@ go run ./cmd/mock-provider
 再启动网关：
 
 ```bash
-go run ./cmd/gateway --mock-only --init-schema
+go run ./cmd/migrate up
+go run ./cmd/gateway --mock-only
 ```
 
-默认监听 `127.0.0.1:8080`，只允许 loopback listener 与固定路径的 loopback HTTP 模拟上游，拒绝重定向。`--init-schema` 只用于专用开发库；仍是幂等原型建表，不是生产版本迁移系统。既有预算原型表不需要清空。
+默认监听 `127.0.0.1:8080`，只允许 loopback listener 与固定路径的 loopback HTTP 模拟上游，拒绝重定向。先执行[版本化迁移](database-migrations.md)；原 `--init-schema` 是 `--migrate` 的弃用别名，也会严格核对旧结构。不要清空既有原型数据。
 
-`/health/live` 检查进程存活，`/health/ready` 检查数据库和核心表存在。readiness 不等同完整 schema 迁移校验、IdP 可达性或上游健康。没有 OIDC 配置时拒绝启动，不提供无鉴权降级模式。
+`/health/live` 检查进程存活，`/health/ready` 只读核对数据库版本、迁移文件校验和和受管表结构。它不代表 IdP 可达性或上游健康。没有 OIDC 配置时拒绝启动，不提供无鉴权降级模式。
 
 获得符合 audience/scope 的管理 API JWT 后，可以按契约依次创建组织、项目、密钥，再用项目密钥完成 SSE 调用、查看用量并撤销。浏览器 Cookie 会话/CSRF 已提供；CLI Device Flow 与令牌安全存储仍待实现。
 
@@ -88,4 +89,4 @@ go run ./cmd/gateway --mock-only --init-schema
 
 验证覆盖：跨组织/跨项目访问、成员角色和权限升级拒绝、开发者撤销归属、密钥摘要与一次性展示、有效期、撤销、实时模型授权、数据库失败关闭、审计故障回滚、分页和输入边界；同时保留前一轮预算/SSE/race 测试。
 
-尚未验证真实企业 IdP；目前只支持 RS256 JWT。生产仍需版本化迁移、身份登录客户端、速率限制、完整审计 diff、密钥轮转运维、真实供应商与计价、可观测性及部署验收。本阶段是认证治理纵向切片，不能标记完整 M1/M2 或生产就绪。
+尚未验证真实企业 IdP；目前只支持 RS256 JWT。版本化迁移和 Web 登录客户端已补充，生产仍需速率限制、完整审计 diff、密钥轮转运维、真实供应商与计价、可观测性及部署验收，不能标记整个产品生产就绪。

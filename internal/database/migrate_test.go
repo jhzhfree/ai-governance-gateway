@@ -1,0 +1,304 @@
+package database_test
+
+import (
+	"context"
+	"crypto/sha256"
+	"errors"
+	"os"
+	"reflect"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
+	"github.com/jhzhfree/ai-governance-gateway/internal/control"
+	"github.com/jhzhfree/ai-governance-gateway/internal/database"
+	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
+	"github.com/jhzhfree/ai-governance-gateway/internal/testutil"
+)
+
+func execSQL(t *testing.T, pool *pgxpool.Pool, sql string, args ...any) {
+	t.Helper()
+	if _, err := pool.Exec(context.Background(), sql, args...); err != nil {
+		t.Fatal("test SQL failed: ", err)
+	}
+}
+func legacy(t *testing.T, pool *pgxpool.Pool, parts ...string) {
+	t.Helper()
+	for _, part := range parts {
+		sql, err := os.ReadFile("testdata/legacy_" + part + ".sql")
+		if err != nil {
+			t.Fatal(err)
+		}
+		execSQL(t, pool, string(sql))
+	}
+}
+func relation(t *testing.T, pool *pgxpool.Pool, name string) bool {
+	t.Helper()
+	var exists bool
+	if err := pool.QueryRow(context.Background(), `SELECT pg_catalog.to_regclass($1) IS NOT NULL`, name).Scan(&exists); err != nil {
+		t.Fatal(err)
+	}
+	return exists
+}
+func status(t *testing.T, pool *pgxpool.Pool) database.Report {
+	t.Helper()
+	r, err := database.Status(context.Background(), pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
+}
+
+func TestFreshSchemaAndReadOnlyStatus(t *testing.T) {
+	pool := testutil.EmptyDatabase(t)
+	ctx := context.Background()
+	initial := status(t, pool)
+	if initial.Managed || initial.Ready || initial.CurrentVersion != 0 || len(initial.Pending) != 4 {
+		t.Fatal("unexpected unmanaged status")
+	}
+	if relation(t, pool, "aigw_schema_migrations") {
+		t.Fatal("status created migration ledger")
+	}
+	if err := database.Check(ctx, pool); !errors.Is(err, database.ErrUnmanaged) {
+		t.Fatalf("unmanaged check: %v", err)
+	}
+	if err := database.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	before := status(t, pool)
+	if !before.Ready || before.CurrentVersion != 4 || len(before.Applied) != 4 {
+		t.Fatal("fresh migration incomplete")
+	}
+	for _, a := range before.Applied {
+		if a.Adopted {
+			t.Fatal("new schema marked adopted")
+		}
+	}
+	if err := database.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	if after := status(t, pool); !reflect.DeepEqual(before, after) {
+		t.Fatal("repeated migration changed history")
+	}
+	if err := database.Check(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLegacyUpgradePreservesGovernanceAndLedgerData(t *testing.T) {
+	pool := testutil.EmptyDatabase(t)
+	legacy(t, pool, "budget", "control", "browser")
+	ctx := context.Background()
+	p := identity.Principal{Issuer: "https://test-idp.example", Subject: "owner"}
+	store := control.New(pool)
+	org, err := store.CreateOrganization(ctx, p, "Legacy organization", "2026-11", 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	project, err := store.CreateProject(ctx, p, org.ID, "Legacy project", 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := store.CreateKey(ctx, p, org.ID, project.ID, "Legacy key", []string{"mock-text"}, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ledger := budget.New(pool)
+	scope := budget.Scope{Organization: org.ID, Project: project.ID, Period: org.Period, Currency: org.Currency}
+	if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "legacy-request", PriceVersion: "mock-v1", Amount: 10}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ledger.Dispatch(ctx, "legacy-request"); err != nil {
+		t.Fatal(err)
+	}
+	if err := ledger.Settle(ctx, "legacy-request", 4); err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256([]byte("synthetic-migration-fixture"))
+	execSQL(t, pool, `INSERT INTO browser_sessions(digest,issuer,subject,expires_at) VALUES($1,$2,$3,clock_timestamp()+interval '1 hour')`, digest[:], p.Issuer, p.Subject)
+	if err := database.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	r := status(t, pool)
+	for i, a := range r.Applied {
+		if a.Adopted != (i < 3) {
+			t.Fatal("legacy adoption record incorrect")
+		}
+	}
+	if _, err := store.ResolveKey(ctx, key.Secret, "mock-text"); err != nil {
+		t.Fatal("existing key no longer authorizes")
+	}
+	u, err := store.Usage(ctx, p, org.ID, project.ID)
+	if err != nil || u.Spent != 4 || u.Held != 0 {
+		t.Fatal("budget data changed")
+	}
+	reservation, err := ledger.Get(ctx, "legacy-request")
+	if err != nil || reservation.State != "settled" || reservation.Actual == nil || *reservation.Actual != 4 {
+		t.Fatal("reservation changed")
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM browser_sessions WHERE digest=$1`, digest[:]).Scan(&count); err != nil || count != 1 {
+		t.Fatal("browser session lost")
+	}
+	audit, err := store.ListAudit(ctx, p, org.ID, 0, 100)
+	if err != nil || len(audit) != 3 {
+		t.Fatal("audit history changed")
+	}
+	if !relation(t, pool, "budget_recovery_idx") || !relation(t, pool, "browser_login_flows_expiry_idx") {
+		t.Fatal("new migration indexes missing")
+	}
+}
+
+func TestBudgetOnlyLegacyStageCanUpgrade(t *testing.T) {
+	pool := testutil.EmptyDatabase(t)
+	legacy(t, pool, "budget")
+	execSQL(t, pool, `INSERT INTO budget_accounts(organization_id,project_id,period_id,currency,limit_amount,spent) VALUES('legacy','project','2026-11','MOCK',100,8)`)
+	if err := database.Migrate(context.Background(), pool); err != nil {
+		t.Fatal(err)
+	}
+	r := status(t, pool)
+	if !r.Applied[0].Adopted || r.Applied[1].Adopted || r.Applied[2].Adopted {
+		t.Fatal("unexpected adoption stages")
+	}
+	var spent int
+	if err := pool.QueryRow(context.Background(), `SELECT spent FROM budget_accounts WHERE organization_id='legacy'`).Scan(&spent); err != nil || spent != 8 {
+		t.Fatal("legacy account overwritten")
+	}
+}
+
+func TestLegacyMismatchIsNotStampedOrRepaired(t *testing.T) {
+	for _, change := range []struct{ name, sql string }{
+		{"partial_stage", `DROP TABLE budget_outbox`},
+		{"changed_constraint", `ALTER TABLE budget_accounts DROP CONSTRAINT budget_accounts_check`},
+		{"extra_column", `ALTER TABLE budget_accounts ADD COLUMN unexpected text`},
+		{"changed_default", `ALTER TABLE budget_accounts ALTER COLUMN spent SET DEFAULT 10`},
+	} {
+		t.Run(change.name, func(t *testing.T) {
+			pool := testutil.EmptyDatabase(t)
+			legacy(t, pool, "budget")
+			execSQL(t, pool, change.sql)
+			if err := database.Migrate(context.Background(), pool); !errors.Is(err, database.ErrLegacy) {
+				t.Fatalf("mismatch error=%v", err)
+			}
+			if relation(t, pool, "aigw_schema_migrations") || relation(t, pool, "organizations") {
+				t.Fatal("mismatch caused partial upgrade")
+			}
+		})
+	}
+}
+
+func TestConcurrentMigrationsRunExactlyOnce(t *testing.T) {
+	pool := testutil.EmptyDatabase(t)
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			if err := database.Migrate(context.Background(), pool); err != nil {
+				t.Error(err)
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+	r := status(t, pool)
+	if len(r.Applied) != 4 || !r.Ready {
+		t.Fatal("concurrent migration history invalid")
+	}
+}
+
+func TestMigrationBatchRollsBackDDLAndHistory(t *testing.T) {
+	pool := testutil.EmptyDatabase(t)
+	ctx := context.Background()
+	if err := database.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	execSQL(t, pool, `DROP INDEX budget_recovery_idx; DROP INDEX browser_login_flows_expiry_idx; DELETE FROM aigw_schema_migrations WHERE version=4; ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v4 CHECK(version<>4)`)
+	if err := database.Check(ctx, pool); !errors.Is(err, database.ErrPending) {
+		t.Fatalf("pending check: %v", err)
+	}
+	if err := database.Migrate(ctx, pool); err == nil {
+		t.Fatal("expected ledger insertion failure")
+	}
+	if relation(t, pool, "budget_recovery_idx") || relation(t, pool, "browser_login_flows_expiry_idx") {
+		t.Fatal("failed migration left index DDL committed")
+	}
+	r := status(t, pool)
+	if r.CurrentVersion != 3 || len(r.Applied) != 3 {
+		t.Fatal("failed migration left history committed")
+	}
+	execSQL(t, pool, `ALTER TABLE aigw_schema_migrations DROP CONSTRAINT reject_v4`)
+	if err := database.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Check(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestHistoryAndSchemaDriftFailClosed(t *testing.T) {
+	for _, change := range []struct {
+		name, sql string
+		want      error
+	}{
+		{"checksum", `UPDATE aigw_schema_migrations SET checksum=repeat('0',64) WHERE version=1`, database.ErrChecksum},
+		{"gap", `DELETE FROM aigw_schema_migrations WHERE version=2`, database.ErrHistory},
+		{"newer", `INSERT INTO aigw_schema_migrations(version,name,checksum,schema_hash,adopted) VALUES(5,'0005_future.sql',repeat('0',64),repeat('0',64),false)`, database.ErrNewer},
+		{"missing_index", `DROP INDEX budget_recovery_idx`, database.ErrSchemaDrift},
+		{"extra_column", `ALTER TABLE browser_sessions ADD COLUMN unexpected text`, database.ErrSchemaDrift},
+		{"missing_table", `DROP TABLE browser_sessions`, database.ErrSchemaDrift},
+	} {
+		t.Run(change.name, func(t *testing.T) {
+			pool := testutil.EmptyDatabase(t)
+			ctx := context.Background()
+			if err := database.Migrate(ctx, pool); err != nil {
+				t.Fatal(err)
+			}
+			execSQL(t, pool, change.sql)
+			if err := database.Check(ctx, pool); !errors.Is(err, change.want) {
+				t.Fatalf("check=%v want %v", err, change.want)
+			}
+			if err := database.Migrate(ctx, pool); !errors.Is(err, change.want) {
+				t.Fatalf("migration=%v want %v", err, change.want)
+			}
+		})
+	}
+}
+
+func TestCanceledAndLockWaitingMigrationsLeaveNoChanges(t *testing.T) {
+	pool := testutil.EmptyDatabase(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := database.Migrate(ctx, pool); err == nil {
+		t.Fatal("canceled migration succeeded")
+	}
+	if relation(t, pool, "aigw_schema_migrations") {
+		t.Fatal("canceled migration wrote ledger")
+	}
+	lock, err := pool.Begin(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lock.Rollback(context.Background())
+	if _, err := lock.Exec(context.Background(), `SELECT pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('aigw:migrations:'||current_schema(),0))`); err != nil {
+		t.Fatal(err)
+	}
+	waiting, stop := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer stop()
+	if err := database.Migrate(waiting, pool); err == nil {
+		t.Fatal("migration ignored lock timeout")
+	}
+	if relation(t, pool, "aigw_schema_migrations") {
+		t.Fatal("blocked migration changed schema")
+	}
+	if err := lock.Rollback(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Migrate(context.Background(), pool); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -4,7 +4,6 @@ package budget
 
 import (
 	"context"
-	_ "embed"
 	"errors"
 	"fmt"
 	"time"
@@ -20,18 +19,9 @@ var (
 	ErrCostBound = errors.New("actual cost exceeds reserved bound")
 )
 
-//go:embed schema.sql
-var schema string
-
 type Store struct{ pool *pgxpool.Pool }
 
 func New(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
-
-// Init is for isolated prototype databases, not a production migration runner.
-func (s *Store) Init(ctx context.Context) error {
-	_, err := s.pool.Exec(ctx, schema)
-	return err
-}
 
 type Scope struct {
 	Organization, Project, Period, Currency string

@@ -11,9 +11,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
+	"github.com/jhzhfree/ai-governance-gateway/internal/database"
 )
 
-func Database(t testing.TB) (*pgxpool.Pool, *budget.Store, budget.Scope) {
+func EmptyDatabase(t testing.TB) *pgxpool.Pool {
 	t.Helper()
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
@@ -51,11 +52,18 @@ func Database(t testing.TB) (*pgxpool.Pool, *budget.Store, budget.Scope) {
 		}
 		admin.Close()
 	})
-	store := budget.New(pool)
-	if err := store.Init(ctx); err != nil {
+	return pool
+}
+
+func Database(t testing.TB) (*pgxpool.Pool, *budget.Store, budget.Scope) {
+	t.Helper()
+	pool := EmptyDatabase(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := database.Migrate(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
-	return pool, store, budget.Scope{Organization: "org-test", Project: "project-test", Period: "2026-11", Currency: "MOCK"}
+	return pool, budget.New(pool), budget.Scope{Organization: "org-test", Project: "project-test", Period: "2026-11", Currency: "MOCK"}
 }
 
 func Accounts(t testing.TB, store *budget.Store, scope budget.Scope, orgLimit, projectLimit int64) {

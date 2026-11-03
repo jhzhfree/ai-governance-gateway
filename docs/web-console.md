@@ -57,12 +57,13 @@ go run ./cmd/mock-provider
 在另一终端加载环境配置后启动：
 
 ```bash
-go run ./cmd/gateway --mock-only --init-schema --web-dir web/dist
+go run ./cmd/migrate up
+go run ./cmd/gateway --mock-only --web-dir web/dist
 ```
 
 本机 HTTP 开发可将 origin 设为 `http://127.0.0.1:8080` 并显式增加 `--allow-loopback-browser-http`。真实 IdP issuer 仍要求 HTTPS；不存在跳过证书/签名验证的选项。Vite 开发代理可用，但浏览器 origin 和回调必须对应实际前端端口；生产风格复验使用 Go 同源服务构建产物。
 
-构建目录未提交到 Git，发布前必须构建。服务仅开放构建入口与 assets，不提供源文件目录浏览；配置 CSP、no-sniff 和 Referrer-Policy。浏览器启用后 readiness 也检查会话表存在，但它不是版本化迁移或真实 IdP 健康检查。
+构建目录未提交到 Git，发布前必须构建。服务仅开放构建入口与 assets，不提供源文件目录浏览；配置 CSP、no-sniff 和 Referrer-Policy。当前 readiness 已接入[迁移版本与结构核对](database-migrations.md)，仍不代表真实 IdP 健康。
 
 ## 验证
 
@@ -80,6 +81,6 @@ AIGW_VERIFY_WEB=1 bash scripts/verify.sh
 
 ## 后续边界
 
-仍需版本化数据库迁移、真实 IdP 验收、真实供应商、TUI/CLI、成员与策略编辑界面、限流和生产部署。当前 schema 初始化仍为显式开发建表，不应直接承担生产升级。
+版本化数据库迁移已补充；仍需真实 IdP 验收、真实供应商、TUI/CLI、成员与策略编辑界面、限流和生产部署。迁移执行器尚未验收生产大库和非事务 DDL，不代表部署已经就绪。
 
 阶段完成后按用户要求先提交并推送 GitHub，再进入后续开发。浏览器测试数据、截图、会话与依赖缓存均不提交。

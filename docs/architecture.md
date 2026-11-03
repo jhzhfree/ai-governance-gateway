@@ -63,10 +63,11 @@ Web 管理登录优先对接 OIDC，服务端持有会话并设置 Secure、Http
 
 ```text
 cmd/gateway/              服务入口
+cmd/migrate/              独立数据库迁移与状态检查
 cmd/aigw/                 CLI / TUI 入口
 internal/<domain>/        领域模块与适配器
 api/openapi/              管理 API 契约
-db/migrations/            数据库迁移
+internal/database/        版本化迁移、旧库接管与只读结构核对
 web/src/App.tsx           会话入口与失效清理
 web/src/features/         按项目、密钥、预算等业务组织
 web/src/shared/           反馈组件、格式和资源分页 Hook
@@ -88,3 +89,5 @@ Web 服务端状态由 TanStack Query 管理；筛选、分页放 URL；局部�
 OpenTelemetry 串联管理 API、推理链路及供应商调用；指标包括请求量、错误分类、首 token 延迟、端到端延迟、token 用量、预留预算和结算积压。指标标签禁用 request_id、密钥等高基数/敏感值，request_id 只进入日志和 trace。
 
 部署前执行独立迁移任务；采用向后兼容的 expand/contract 变更，应用回滚不依赖破坏性数据库回滚。配置启动时校验；生产密钥缺失直接拒绝启动。备份与恢复演练属于上线验收。
+
+当前已提供[事务型版本迁移](database-migrations.md)与独立命令，正常启动/readiness 不做 DDL。结构核对覆盖已登记的受管表；生产大库、非事务 DDL 与数据库大版本升级仍需专项验收。
