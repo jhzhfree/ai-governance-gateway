@@ -1,5 +1,5 @@
 // Package budget implements the PostgreSQL budget consistency prototype.
-// Amounts are integer mock billing units, never floating point money.
+// Amounts use an explicit account currency and integer minor units, never floats.
 package budget
 
 import (

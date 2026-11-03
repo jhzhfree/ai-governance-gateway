@@ -30,6 +30,9 @@ func New(store *control.Store, auth identity.Authenticator) http.Handler {
 func NewWithSession(store *control.Store, auth identity.Authenticator, session SessionAuthenticator) http.Handler {
 	h := &Handler{Store: store, Auth: auth}
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/models", func(w http.ResponseWriter, r *http.Request) {
+		send(w, 200, map[string]any{"data": store.Models(), "next_cursor": ""})
+	})
 	mux.HandleFunc("GET /api/v1/organizations", h.organizations)
 	mux.HandleFunc("POST /api/v1/organizations", h.createOrganization)
 	mux.HandleFunc("PUT /api/v1/organizations/{org}/members", h.orgMember)
@@ -153,9 +156,10 @@ func (h *Handler) organizations(w http.ResponseWriter, r *http.Request) {
 }
 func (h *Handler) createOrganization(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		Name   string `json:"name"`
-		Period string `json:"period"`
-		Limit  *int64 `json:"limit_amount"`
+		Currency string `json:"currency"`
+		Name     string `json:"name"`
+		Period   string `json:"period"`
+		Limit    *int64 `json:"limit_amount"`
 	}
 	if !decode(w, r, &in) {
 		return
@@ -164,7 +168,10 @@ func (h *Handler) createOrganization(w http.ResponseWriter, r *http.Request) {
 		failure(w, r, control.ErrInvalid)
 		return
 	}
-	o, err := h.Store.CreateOrganization(r.Context(), principal(r), in.Name, in.Period, *in.Limit)
+	if in.Currency == "" {
+		in.Currency = "MOCK"
+	}
+	o, err := h.Store.CreateOrganizationWithCurrency(r.Context(), principal(r), in.Name, in.Period, in.Currency, *in.Limit)
 	if err != nil {
 		failure(w, r, err)
 		return

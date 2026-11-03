@@ -55,7 +55,7 @@ func TestFreshSchemaAndReadOnlyStatus(t *testing.T) {
 	pool := testutil.EmptyDatabase(t)
 	ctx := context.Background()
 	initial := status(t, pool)
-	if initial.Managed || initial.Ready || initial.CurrentVersion != 0 || len(initial.Pending) != 5 {
+	if initial.Managed || initial.Ready || initial.CurrentVersion != 0 || len(initial.Pending) != 6 {
 		t.Fatal("unexpected unmanaged status")
 	}
 	if relation(t, pool, "aigw_schema_migrations") {
@@ -68,7 +68,7 @@ func TestFreshSchemaAndReadOnlyStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := status(t, pool)
-	if !before.Ready || before.CurrentVersion != 5 || len(before.Applied) != 5 {
+	if !before.Ready || before.CurrentVersion != 6 || len(before.Applied) != 6 {
 		t.Fatal("fresh migration incomplete")
 	}
 	for _, a := range before.Applied {
@@ -206,7 +206,7 @@ func TestConcurrentMigrationsRunExactlyOnce(t *testing.T) {
 	close(start)
 	wg.Wait()
 	r := status(t, pool)
-	if len(r.Applied) != 5 || !r.Ready {
+	if len(r.Applied) != 6 || !r.Ready {
 		t.Fatal("concurrent migration history invalid")
 	}
 }
@@ -217,6 +217,7 @@ func TestMigrationBatchRollsBackDDLAndHistory(t *testing.T) {
 	if err := database.Migrate(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
+	execSQL(t, pool, `ALTER TABLE organizations DROP CONSTRAINT organizations_currency_check; ALTER TABLE organizations ADD CONSTRAINT organizations_currency_check CHECK(currency='MOCK'); ALTER TABLE project_models DROP CONSTRAINT project_models_model_check; ALTER TABLE project_models ADD CONSTRAINT project_models_model_check CHECK(model='mock-text'); DELETE FROM aigw_schema_migrations WHERE version=6`)
 	execSQL(t, pool, `DROP INDEX budget_project_history_idx; DROP INDEX budget_recovery_idx; DROP INDEX browser_login_flows_expiry_idx; DELETE FROM aigw_schema_migrations WHERE version>=4; ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v4 CHECK(version<>4)`)
 	if err := database.Check(ctx, pool); !errors.Is(err, database.ErrPending) {
 		t.Fatalf("pending check: %v", err)
@@ -247,7 +248,7 @@ func TestHistoryAndSchemaDriftFailClosed(t *testing.T) {
 	}{
 		{"checksum", `UPDATE aigw_schema_migrations SET checksum=repeat('0',64) WHERE version=1`, database.ErrChecksum},
 		{"gap", `DELETE FROM aigw_schema_migrations WHERE version=2`, database.ErrHistory},
-		{"newer", `INSERT INTO aigw_schema_migrations(version,name,checksum,schema_hash,adopted) VALUES(6,'0006_future.sql',repeat('0',64),repeat('0',64),false)`, database.ErrNewer},
+		{"newer", `INSERT INTO aigw_schema_migrations(version,name,checksum,schema_hash,adopted) VALUES(7,'0007_future.sql',repeat('0',64),repeat('0',64),false)`, database.ErrNewer},
 		{"missing_index", `DROP INDEX budget_recovery_idx`, database.ErrSchemaDrift},
 		{"extra_column", `ALTER TABLE browser_sessions ADD COLUMN unexpected text`, database.ErrSchemaDrift},
 		{"missing_table", `DROP TABLE browser_sessions`, database.ErrSchemaDrift},
@@ -309,6 +310,7 @@ func TestRequestHistoryIndexUpgradePreservesData(t *testing.T) {
 	if _, err := ledger.Reserve(context.Background(), budget.Quote{Scope: scope, RequestID: "history-upgrade", PriceVersion: "mock-v1", Amount: 10}); err != nil {
 		t.Fatal(err)
 	}
+	execSQL(t, pool, `ALTER TABLE organizations DROP CONSTRAINT organizations_currency_check; ALTER TABLE organizations ADD CONSTRAINT organizations_currency_check CHECK(currency='MOCK'); ALTER TABLE project_models DROP CONSTRAINT project_models_model_check; ALTER TABLE project_models ADD CONSTRAINT project_models_model_check CHECK(model='mock-text'); DELETE FROM aigw_schema_migrations WHERE version=6`)
 	execSQL(t, pool, `DROP INDEX budget_project_history_idx; DELETE FROM aigw_schema_migrations WHERE version=5`)
 	if err := database.Check(context.Background(), pool); !errors.Is(err, database.ErrPending) {
 		t.Fatal("v4 database did not require migration")
@@ -325,5 +327,32 @@ func TestRequestHistoryIndexUpgradePreservesData(t *testing.T) {
 	}
 	if !relation(t, pool, "budget_project_history_idx") {
 		t.Fatal("history index missing")
+	}
+}
+
+func TestMainlandCurrencyMigrationRollsBackAndPreservesMockLedger(t *testing.T) {
+	pool, ledger, scope := testutil.Database(t)
+	testutil.Accounts(t, ledger, scope, 100, 100)
+	if _, err := ledger.Reserve(context.Background(), budget.Quote{Scope: scope, RequestID: "mock-before-currencies", PriceVersion: "mock-v1", Amount: 10}); err != nil {
+		t.Fatal(err)
+	}
+	execSQL(t, pool, `ALTER TABLE organizations DROP CONSTRAINT organizations_currency_check; ALTER TABLE organizations ADD CONSTRAINT organizations_currency_check CHECK(currency='MOCK'); ALTER TABLE project_models DROP CONSTRAINT project_models_model_check; ALTER TABLE project_models ADD CONSTRAINT project_models_model_check CHECK(model='mock-text'); DELETE FROM aigw_schema_migrations WHERE version=6; ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v6 CHECK(version<>6)`)
+	if err := database.Migrate(context.Background(), pool); err == nil {
+		t.Fatal("expected migration history failure")
+	}
+	if _, err := pool.Exec(context.Background(), `INSERT INTO organizations(id,name,period_id,currency) VALUES('cny-org','Currency fixture','2026-11','CNY_MICRO')`); err == nil {
+		t.Fatal("failed migration committed widened currency constraint")
+	}
+	execSQL(t, pool, `ALTER TABLE aigw_schema_migrations DROP CONSTRAINT reject_v6`)
+	if err := database.Migrate(context.Background(), pool); err != nil {
+		t.Fatal(err)
+	}
+	execSQL(t, pool, `INSERT INTO organizations(id,name,period_id,currency) VALUES('cny-org','Currency fixture','2026-11','CNY_MICRO')`)
+	record, err := ledger.Get(context.Background(), "mock-before-currencies")
+	if err != nil || record.Currency != "MOCK" || record.Amount != 10 || record.State != "reserved" {
+		t.Fatal("currency migration converted or reset a historical MOCK account")
+	}
+	if err := database.Check(context.Background(), pool); err != nil {
+		t.Fatal(err)
 	}
 }

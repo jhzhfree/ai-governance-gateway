@@ -3,7 +3,10 @@
 package browser_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -19,12 +22,14 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/httpapi"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
 	"github.com/jhzhfree/ai-governance-gateway/internal/mockprovider"
+	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 	"github.com/jhzhfree/ai-governance-gateway/internal/testutil"
 )
 
 func TestConsoleBrowser(t *testing.T) {
 	pool, ledger, _ := testutil.Database(t)
-	store := control.New(pool)
+	catalog, _ := testutil.MainlandCatalog(t, testutil.SupplierFixture(t))
+	store := control.NewWithCatalog(pool, combinedFixtureCatalog{catalog})
 	issuer := testutil.NewIssuer(t)
 	api, err := identity.NewOIDC(context.Background(), issuer.URL, "aigw-management")
 	if err != nil {
@@ -50,7 +55,28 @@ func TestConsoleBrowser(t *testing.T) {
 	mux.Handle("/api/v1/", httpapi.NewWithSession(store, api, svc))
 	upstream := httptest.NewServer(http.HandlerFunc(mockprovider.Handler))
 	t.Cleanup(upstream.Close)
-	mux.Handle("/v1/", &gateway.Handler{Ledger: ledger, Authorize: store.ResolveKey, Client: upstream.Client(), Upstream: upstream.URL + "/v1/chat/completions"})
+	mockGateway := &gateway.Handler{Ledger: ledger, Authorize: store.ResolveKey, Client: upstream.Client(), Upstream: upstream.URL + "/v1/chat/completions"}
+	realGateway := &gateway.Handler{Ledger: ledger, Authorize: store.ResolveKey, Providers: catalog}
+	// Mixed mode exists in this synthetic fixture only, to regress the legacy UI.
+	mux.HandleFunc("/v1/", func(w http.ResponseWriter, r *http.Request) {
+		data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 64<<10))
+		if err != nil {
+			w.WriteHeader(400)
+			return
+		}
+		r.Body.Close()
+		r.Body = io.NopCloser(bytes.NewReader(data))
+		var in struct{ Model string }
+		if json.Unmarshal(data, &in) != nil {
+			w.WriteHeader(400)
+			return
+		}
+		if in.Model == "mock-text" {
+			mockGateway.ServeHTTP(w, r)
+		} else {
+			realGateway.ServeHTTP(w, r)
+		}
+	})
 	server.Start()
 	t.Cleanup(server.Close)
 	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
@@ -63,4 +89,10 @@ func TestConsoleBrowser(t *testing.T) {
 	if err != nil {
 		t.Fatal("console browser tests failed")
 	}
+}
+
+type combinedFixtureCatalog struct{ real *provider.Catalog }
+
+func (c combinedFixtureCatalog) Models() []provider.ModelInfo {
+	return append([]provider.ModelInfo{provider.MockInfo()}, c.real.Models()...)
 }

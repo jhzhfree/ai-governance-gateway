@@ -1018,3 +1018,33 @@ input:invalid:not(:placeholder-shown) {
   font-family: monospace;
   font-size: 13px;
 }
+
+.model-selection fieldset,
+fieldset.model-selection {
+  border: 1px solid #dce4df;
+  border-radius: 6px;
+  padding: 14px;
+}
+.model-selection label {
+  display: flex;
+  align-items: start;
+  gap: 10px;
+  overflow-wrap: anywhere;
+}
+.model-selection input[type='checkbox'] {
+  width: auto;
+  margin-top: 3px;
+  flex: none;
+}
+.model-selection small {
+  display: block;
+  margin-top: 6px;
+  color: #526259;
+  font-weight: normal;
+}
+.model-strip {
+  flex-wrap: wrap;
+}
+.model-strip p {
+  overflow-wrap: anywhere;
+}

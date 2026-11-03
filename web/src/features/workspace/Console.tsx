@@ -12,6 +12,8 @@ import {
   type ProjectKey,
   type Session,
   type Usage,
+  type ModelInfo,
+  type Page,
 } from '../../api';
 import { Mark, ErrorBox, Empty } from '../../shared/Feedback';
 import { usePage } from '../../shared/useResourcePage';
@@ -19,6 +21,7 @@ import { roleNames, number } from '../../shared/format';
 import { SecretDialog } from '../keys/SecretDialog';
 import { KeyPanel } from '../keys/KeyPanel';
 import { RequestPanel } from '../requests/RequestPanel';
+import { ModelAccessPanel, currencyLabel } from '../models/ModelAccessPanel';
 import { AuditPanel } from '../audit/AuditPanel';
 
 export function Console({ session }: { session: Session }) {
@@ -26,6 +29,11 @@ export function Console({ session }: { session: Session }) {
   const client = useQueryClient();
   const [params, setParams] = useSearchParams();
   const identity = [session.user.issuer, session.user.subject];
+  const catalog = useQuery({
+    queryKey: [...identity, 'models'],
+    queryFn: ({ signal }) => api<Page<ModelInfo>>('/api/v1/models', { signal }),
+  });
+  const currencies = [...new Set(catalog.data?.data.map((model) => model.currency) ?? [])];
   const organizations = usePage<Organization>(
     identity,
     'organizations',
@@ -71,6 +79,7 @@ export function Console({ session }: { session: Session }) {
     Boolean(orgID && view === 'audit'),
   );
   const [modal, setModal] = useState<'organization' | 'project' | 'key' | null>(null);
+  const [createCurrency, setCreateCurrency] = useState('MOCK');
   const [pending, setPending] = useState(false);
   const [formError, setFormError] = useState<unknown>(null);
   const [notice, setNotice] = useState('');
@@ -87,6 +96,7 @@ export function Console({ session }: { session: Session }) {
     returnFocus.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setFormError(null);
+    if (value === 'organization') setCreateCurrency(currencies[0] ?? 'MOCK');
     setModal(value);
   };
   const refresh = () => {
@@ -111,7 +121,12 @@ export function Console({ session }: { session: Session }) {
         const item = await api<Organization>('/api/v1/organizations', {
           method: 'POST',
           csrf: session.csrf_token,
-          body: { name, period: data.get('period'), limit_amount: amount },
+          body: {
+            name,
+            period: data.get('period'),
+            currency: data.get('currency'),
+            limit_amount: amount,
+          },
         });
         choose({ org: item.id });
         setNotice('组织已创建，可以继续添加项目。');
@@ -128,7 +143,11 @@ export function Console({ session }: { session: Session }) {
         const item = await api<IssuedKey>(`${projectPath}/keys`, {
           method: 'POST',
           csrf: session.csrf_token,
-          body: { name, models: ['mock-text'], ttl_seconds: Number(data.get('days')) * 86400 },
+          body: {
+            name,
+            models: data.getAll('models').map(String),
+            ttl_seconds: Number(data.get('days')) * 86400,
+          },
         });
         setIssued(item);
       }
@@ -207,7 +226,9 @@ export function Console({ session }: { session: Session }) {
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <span className="status-dot" /> 模拟模型环境<small>权限与预算使用真实治理链路</small>
+          <span className="status-dot" />{' '}
+          {currencies.includes('CNY_MICRO') ? '中国大陆供应商配置' : '模拟模型环境'}
+          <small>权限与预算使用真实治理链路</small>
         </div>
       </aside>
       <div className="workspace">
@@ -238,6 +259,14 @@ export function Console({ session }: { session: Session }) {
           </div>
         </header>
         <main id="main" className="main-content">
+          {catalog.error && (
+            <ErrorBox
+              error={catalog.error}
+              retry={() => {
+                void catalog.refetch();
+              }}
+            />
+          )}
           <div className="page-heading">
             <div>
               <div className="eyebrow">WORKSPACE / GOVERNANCE</div>
@@ -257,7 +286,12 @@ export function Console({ session }: { session: Session }) {
                   : '从访问权限到预算用量，掌握项目的模型调用边界。'}
               </p>
             </div>
-            <Button theme="primary" variant="outline" onClick={() => open('organization')}>
+            <Button
+              theme="primary"
+              variant="outline"
+              disabled={!catalog.isSuccess || currencies.length === 0}
+              onClick={() => open('organization')}
+            >
               ＋ 新建组织
             </Button>
           </div>
@@ -304,6 +338,9 @@ export function Console({ session }: { session: Session }) {
             </label>
             {organization && <Tag variant="light">{roleNames[organization.role]}</Tag>}
             <div className="context-actions">
+              <Button size="small" variant="text" onClick={refresh}>
+                刷新
+              </Button>
               {organizations.hasNextPage && (
                 <Button
                   size="small"
@@ -356,7 +393,11 @@ export function Console({ session }: { session: Session }) {
                 description="创建组织，设置预算，再为团队的应用添加项目。"
               />
               <div className="empty-action">
-                <Button theme="primary" onClick={() => open('organization')}>
+                <Button
+                  theme="primary"
+                  disabled={!catalog.isSuccess || currencies.length === 0}
+                  onClick={() => open('organization')}
+                >
                   创建组织
                 </Button>
               </div>
@@ -461,7 +502,9 @@ export function Console({ session }: { session: Session }) {
                             <section className="budget-strip">
                               <div>
                                 <strong>预算使用情况</strong>
-                                <span>{usage.data.period} · 模拟计费单位</span>
+                                <span>
+                                  {usage.data.period} · {currencyLabel(usage.data.currency)}
+                                </span>
                               </div>
                               <progress
                                 aria-label="预算占用比例"
@@ -485,20 +528,17 @@ export function Console({ session }: { session: Session }) {
                             正在加载用量…
                           </div>
                         )}
-                        <section className="model-strip">
-                          <span className="model-icon" aria-hidden="true">
-                            ✳
-                          </span>
-                          <div>
-                            <strong>已授权模型</strong>
-                            <p>
-                              {project.data.models.length
-                                ? project.data.models.join(' · ')
-                                : '当前未授权模型，项目不能发起新的模型调用。'}
-                            </p>
-                          </div>
-                          <Tag variant="outline">项目白名单</Tag>
-                        </section>
+                        <ModelAccessPanel
+                          key={projectPath}
+                          project={project.data}
+                          path={projectPath}
+                          currency={organization?.currency ?? usage.data?.currency ?? ''}
+                          models={catalog.data?.data ?? []}
+                          error={catalog.error}
+                          canManage={Boolean(canManage)}
+                          csrf={session.csrf_token}
+                          onSaved={refresh}
+                        />
                       </>
                     )}
                     {view !== 'requests' && (
@@ -572,9 +612,32 @@ export function Console({ session }: { session: Session }) {
                   max={Number.MAX_SAFE_INTEGER}
                   step={1}
                   required
-                  defaultValue={1000}
+                  key={`${modal}-${createCurrency}`}
+                  defaultValue={
+                    (modal === 'organization' ? createCurrency : organization?.currency) ===
+                    'CNY_MICRO'
+                      ? 1000000
+                      : 1000
+                  }
                 />
               </label>
+              {modal === 'organization' && (
+                <label>
+                  预算单位
+                  <select
+                    name="currency"
+                    aria-label="预算单位"
+                    value={createCurrency}
+                    onChange={(event) => setCreateCurrency(event.target.value)}
+                  >
+                    {currencies.map((currency) => (
+                      <option key={currency} value={currency}>
+                        {currencyLabel(currency)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               {modal === 'organization' && (
                 <label>
                   预算周期
@@ -586,7 +649,7 @@ export function Console({ session }: { session: Session }) {
                   />
                 </label>
               )}
-              <small>当前以模拟计费单位统计，预算不会自动跨周期重置。</small>
+              <small>预算按所选最小计价单位填写，不会自动跨周期重置；创建后不能更换币种。</small>
             </>
           ) : (
             <>
@@ -599,9 +662,15 @@ export function Console({ session }: { session: Session }) {
                   <option value="90">90 天</option>
                 </select>
               </label>
-              <div className="model-note">
-                授权模型 <Tag variant="light">mock-text</Tag>
-              </div>
+              <fieldset className="model-selection">
+                <legend>授权模型</legend>
+                {project.data?.models.map((model) => (
+                  <label key={model}>
+                    <input type="checkbox" name="models" value={model} defaultChecked />
+                    {model}
+                  </label>
+                ))}
+              </fieldset>
             </>
           )}
           {Boolean(formError) && <ErrorBox error={formError} />}

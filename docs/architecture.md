@@ -95,3 +95,5 @@ OpenTelemetry 串联管理 API、推理链路及供应商调用；指标包括�
 当前已提供[事务型版本迁移](database-migrations.md)与独立命令，正常启动/readiness 不做 DDL。结构核对覆盖已登记的受管表；生产大库、非事务 DDL 与数据库大版本升级仍需专项验收。
 
 终端只读查询与设备登录已实现，具体安全边界与测试证据见 [ADR 0004](adr/0004-terminal-client-and-device-login.md) 和[终端使用文档](terminal-client.md)。
+
+第七轮引入 `internal/provider` 的不可变模型/价格/区域目录，三家中国大陆服务的受限文本适配与独立 CNY_MICRO 账户，见 [ADR 0006](adr/0006-mainland-suppliers-and-yuan-pricing.md)。模型授权仍由 control 执行，gateway 负责预留/派发/结算。配置审查声明不被描述为独立数据驻留证明；未核验真实账号及大陆部署前不传送真实业务数据。

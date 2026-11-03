@@ -1,6 +1,6 @@
 # 管理 API、权限与项目密钥
 
-管理/推理后端闭环使用 mock-text。OpenAPI 3.0.3 契约见 [management.json](../api/openapi/management.json)。后续已增加 [Web 与浏览器会话](web-console.md)，TUI 和真实模型尚未实现。下文 JWT 描述适用于直接 API 客户端，浏览器另外使用 Cookie + CSRF。
+管理/推理后端保留 mock-text 闭环，另支持显式配置的三家大陆供应商及 CNY_MICRO。OpenAPI 3.0.3 契约见 [management.json](../api/openapi/management.json)。后续已增加 [Web 与浏览器会话](web-console.md)，另有 [CLI/TUI](terminal-client.md) 与[大陆供应商适配](mainland-providers.md)，真实账号与驻留仍待验收。下文 JWT 描述适用于直接 API 客户端，浏览器另外使用 Cookie + CSRF。
 
 ## 身份与权限
 
@@ -26,11 +26,12 @@
 
 | 方法与路径 | 功能 |
 | --- | --- |
+| GET /api/v1/models | 当前启用的模型/供应商/区域/价格元数据，无密钥与合同编号 |
 | GET /api/v1/organizations | 当前身份所属组织 |
 | POST /api/v1/organizations | 创建组织、Owner、组织预算与审计 |
 | PUT /api/v1/organizations/{org}/members | 添加或更改非 Owner 成员 |
 | GET /api/v1/organizations/{org}/projects | 按权限过滤项目列表 |
-| POST /api/v1/organizations/{org}/projects | 创建项目与项目预算，默认授权 mock-text |
+| POST /api/v1/organizations/{org}/projects | 创建项目与项目预算；MOCK 默认授权 mock-text，真实币种默认空白名单 |
 | GET /api/v1/organizations/{org}/projects/{project} | 项目详情、有效角色与模型列表 |
 | PUT /api/v1/organizations/{org}/projects/{project}/members | 设置项目角色 |
 | PUT /api/v1/organizations/{org}/projects/{project}/models | 设置模型白名单，空数组禁用 |
@@ -44,7 +45,7 @@
 
 资源不可见时返回 404，已可见资源的操作权限不足返回 403。无效凭证为 401，数据库不可用为 503，均不回显底层异常。管理响应统一 `Cache-Control: no-store`，错误包含 request_id；未知路径或未实现方法返回结构化 404。
 
-金额单位仍是 MOCK 整数，不是真实币种。管理 API 金额上限为 JavaScript 安全整数，避免未来前端舍入；底层账本仍使用 int64。组织创建时固定预算周期；本阶段不自动跨月轮转，不应把配置周期的预算当作当前自然月预算。
+金额单位由组织 currency 明确区分 MOCK 测试整数与 CNY_MICRO（1 元 = 1,000,000 单位），不进行币种兑换。管理 API 金额上限为 JavaScript 安全整数，避免未来前端舍入；底层账本仍使用 int64。组织创建时固定预算周期；本阶段不自动跨月轮转，不应把配置周期的预算当作当前自然月预算。
 
 ## 密钥生命周期
 
@@ -92,3 +93,5 @@ go run ./cmd/gateway --mock-only
 尚未验证真实企业 IdP；目前只支持 RS256 JWT。版本化迁移和 Web 登录客户端已补充，生产仍需速率限制、完整审计 diff、密钥轮转运维、真实供应商与计价、可观测性及部署验收，不能标记整个产品生产就绪。
 
 项目调用账本列表/详情已通过同一管理身份与项目授权接入，含状态筛选及复合游标，见[查询契约](request-history.md)。账本结算状态不能替代协议成功或客户端送达状态。
+
+组织创建可显式选择 currency=MOCK 或 CNY_MICRO，部署目录须支持该单位，组织创建后不可通过 API 换币种。模型和项目密钥支持最多 32 个不重复的目录别名；模型授权要求与组织币种一致。真实模式、定价/usage 及区域限制见[大陆接入说明](mainland-providers.md)。

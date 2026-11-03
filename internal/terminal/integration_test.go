@@ -282,3 +282,15 @@ func TestCLIAndTUIReadSameDurableRequestLedger(t *testing.T) {
 		t.Fatal("TUI detail differs from actual API")
 	}
 }
+
+func TestCLIModelCatalogMatchesManagementContract(t *testing.T) {
+	f := fixture(t)
+	code, out, _ := f.execute(t, f.token, "models", "list", "--output", "json")
+	var page types.ModelPage
+	if code != 0 || json.Unmarshal([]byte(out), &page) != nil || len(page.Data) != 1 || page.Data[0].Id != "mock-text" || page.Data[0].Currency != "MOCK" {
+		t.Fatal("CLI model catalog differs from management API")
+	}
+	if strings.Contains(out, "api_key") || strings.Contains(out, "evidence_ref") {
+		t.Fatal("catalog leaked internal configuration")
+	}
+}

@@ -1,5 +1,6 @@
 import type { components } from './generated/api';
 
+export type ModelInfo = components['schemas']['ModelInfo'];
 export type Organization = components['schemas']['Organization'];
 export type Project = components['schemas']['Project'];
 export type ProjectDetails = components['schemas']['ProjectDetails'];

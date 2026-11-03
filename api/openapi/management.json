@@ -3,7 +3,7 @@
   "info": {
     "title": "AI Governance Gateway development API",
     "version": "0.1.0",
-    "description": "Management requires RS256 JWTs for the configured issuer/audience and aigw:manage scope. Business roles come from PostgreSQL. Amounts are MOCK integer units, not real provider billing. List cursors are keyset cursors, not snapshots."
+    "description": "Management requires RS256 JWTs for the configured issuer/audience and aigw:manage scope. Business roles come from PostgreSQL. Amounts use the organization currency: MOCK integer test units or CNY_MICRO (one yuan = 1,000,000 units). Provider prices are operator-configured, not a supplier invoice. List cursors are keysets, not snapshots."
   },
   "paths": {
     "/api/v1/organizations": {
@@ -408,7 +408,7 @@
       },
       "post": {
         "operationId": "createProject",
-        "description": "Organization owner/admin only. Enables mock-text by default.",
+        "description": "Organization owner/admin only. MOCK projects enable mock-text by default; real-currency projects require explicit model authorization.",
         "security": [
           {
             "management": []
@@ -1352,7 +1352,7 @@
     "/v1/chat/completions": {
       "post": {
         "operationId": "streamMockChat",
-        "description": "Mock-only SSE. Authorization derives scope from the key; client scope headers are ignored. DONE requires durable settlement. Errors after streaming begins are SSE error events without DONE.",
+        "description": "Explicit MOCK SSE-only mode, or reviewed mainland provider text mode (JSON or SSE). Only plain text system/user/assistant messages and max_tokens are supported. Provider currency must match project; usage and finish marker must be validated before durable settlement.",
         "security": [
           {
             "projectKey": []
@@ -1415,6 +1415,11 @@
               "text/event-stream": {
                 "schema": {
                   "type": "string"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InferenceResponse"
                 }
               }
             }
@@ -1946,6 +1951,85 @@
           }
         ]
       }
+    },
+    "/api/v1/models": {
+      "get": {
+        "operationId": "listModels",
+        "description": "Enabled deployment model catalog, filtered by current residency review validity. Contains no supplier credentials or internal contract references. Region is the configured service profile; it is not an independent residency certification.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelPage"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2039,7 +2123,8 @@
           "currency": {
             "type": "string",
             "enum": [
-              "MOCK"
+              "MOCK",
+              "CNY_MICRO"
             ]
           },
           "role": {
@@ -2079,6 +2164,15 @@
             "format": "int64",
             "minimum": 0,
             "maximum": 9007199254740991
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "MOCK",
+              "CNY_MICRO"
+            ],
+            "default": "MOCK",
+            "description": "Immutable organization/account unit; choose CNY_MICRO for real mainland providers. Currency must be enabled by the deployment catalog."
           }
         },
         "required": [
@@ -2155,11 +2249,10 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": [
-                "mock-text"
-              ]
+              "minLength": 1,
+              "maxLength": 128
             },
-            "maxItems": 1,
+            "maxItems": 32,
             "uniqueItems": true
           }
         },
@@ -2230,11 +2323,10 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": [
-                "mock-text"
-              ]
+              "minLength": 1,
+              "maxLength": 128
             },
-            "maxItems": 1,
+            "maxItems": 32,
             "uniqueItems": true
           }
         },
@@ -2256,11 +2348,10 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": [
-                "mock-text"
-              ]
+              "minLength": 1,
+              "maxLength": 128
             },
-            "maxItems": 1,
+            "maxItems": 32,
             "uniqueItems": true,
             "minItems": 1
           },
@@ -2301,11 +2392,10 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": [
-                "mock-text"
-              ]
+              "minLength": 1,
+              "maxLength": 128
             },
-            "maxItems": 1,
+            "maxItems": 32,
             "uniqueItems": true,
             "minItems": 1
           },
@@ -2362,11 +2452,10 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": [
-                "mock-text"
-              ]
+              "minLength": 1,
+              "maxLength": 128
             },
-            "maxItems": 1,
+            "maxItems": 32,
             "uniqueItems": true,
             "minItems": 1
           },
@@ -2416,7 +2505,8 @@
           "currency": {
             "type": "string",
             "enum": [
-              "MOCK"
+              "MOCK",
+              "CNY_MICRO"
             ]
           },
           "limit_amount": {
@@ -2500,26 +2590,23 @@
         "properties": {
           "model": {
             "type": "string",
-            "enum": [
-              "mock-text"
-            ]
+            "minLength": 1,
+            "maxLength": 128
           },
           "stream": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "default": false
           },
           "max_tokens": {
             "type": "integer",
             "format": "int64",
             "minimum": 1,
-            "maximum": 8
+            "maximum": 1000000
           },
           "messages": {
             "type": "array",
             "minItems": 1,
-            "maxItems": 1,
+            "maxItems": 64,
             "items": {
               "type": "object",
               "additionalProperties": false,
@@ -2527,11 +2614,15 @@
                 "role": {
                   "type": "string",
                   "enum": [
-                    "user"
+                    "user",
+                    "system",
+                    "assistant"
                   ]
                 },
                 "content": {
-                  "type": "string"
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 16384
                 }
               },
               "required": [
@@ -2543,7 +2634,6 @@
         },
         "required": [
           "model",
-          "stream",
           "max_tokens",
           "messages"
         ]
@@ -2762,6 +2852,198 @@
           },
           "next_cursor": {
             "type": "string"
+          }
+        }
+      },
+      "ModelInfo": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "provider",
+          "currency",
+          "region",
+          "price_version",
+          "input_per_million",
+          "output_per_million",
+          "max_input_tokens",
+          "max_output_tokens"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "mock",
+              "aliyun",
+              "volcengine",
+              "zhipu"
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "MOCK",
+              "CNY_MICRO"
+            ]
+          },
+          "region": {
+            "type": "string",
+            "enum": [
+              "local",
+              "cn-beijing",
+              "cn-mainland"
+            ]
+          },
+          "price_version": {
+            "type": "string"
+          },
+          "input_per_million": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "output_per_million": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "max_input_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          }
+        }
+      },
+      "ModelPage": {
+        "type": "object",
+        "required": [
+          "data",
+          "next_cursor"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelInfo"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        }
+      },
+      "InferenceUsage": {
+        "type": "object",
+        "required": [
+          "prompt_tokens",
+          "completion_tokens",
+          "total_tokens"
+        ],
+        "properties": {
+          "prompt_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "completion_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "total_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "InferenceResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "object",
+          "model",
+          "choices",
+          "usage"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "chat.completion"
+            ]
+          },
+          "model": {
+            "type": "string"
+          },
+          "created": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/InferenceUsage"
+          },
+          "choices": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "index",
+                "message",
+                "finish_reason"
+              ],
+              "properties": {
+                "index": {
+                  "type": "integer",
+                  "enum": [
+                    0
+                  ]
+                },
+                "message": {
+                  "type": "object",
+                  "required": [
+                    "role",
+                    "content"
+                  ],
+                  "properties": {
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "assistant"
+                      ]
+                    },
+                    "content": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "finish_reason": {
+                  "type": "string",
+                  "enum": [
+                    "stop",
+                    "length",
+                    "content_filter"
+                  ]
+                }
+              }
+            }
           }
         }
       }

@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "deployment_residency": {
+    "region": "cn-mainland",
+    "evidence_ref": "",
+    "expires_at": "2000-01-01T00:00:00Z"
+  },
+  "models": [
+    {
+      "id": "aliyun/qwen-plus",
+      "provider": "aliyun",
+      "upstream_model": "qwen-plus",
+      "price_version": "example-not-a-current-quote",
+      "input_per_million": 2000000,
+      "output_per_million": 8000000,
+      "max_input_tokens": 131072,
+      "max_output_tokens": 4096,
+      "residency": {
+        "region": "cn-mainland",
+        "evidence_ref": "",
+        "expires_at": "2000-01-01T00:00:00Z"
+      }
+    },
+    {
+      "id": "volcengine/doubao-text",
+      "provider": "volcengine",
+      "upstream_model": "ep-replace-with-your-beijing-endpoint",
+      "price_version": "example-not-a-current-quote",
+      "input_per_million": 2000000,
+      "output_per_million": 8000000,
+      "max_input_tokens": 131072,
+      "max_output_tokens": 4096,
+      "residency": {
+        "region": "cn-mainland",
+        "evidence_ref": "",
+        "expires_at": "2000-01-01T00:00:00Z"
+      }
+    },
+    {
+      "id": "zhipu/glm-text",
+      "provider": "zhipu",
+      "upstream_model": "glm-4.5-air",
+      "price_version": "example-not-a-current-quote",
+      "input_per_million": 2000000,
+      "output_per_million": 8000000,
+      "max_input_tokens": 131072,
+      "max_output_tokens": 4096,
+      "residency": {
+        "region": "cn-mainland",
+        "evidence_ref": "",
+        "expires_at": "2000-01-01T00:00:00Z"
+      }
+    }
+  ]
+}

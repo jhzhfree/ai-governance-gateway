@@ -1,5 +1,4 @@
-// Package gateway is a mock-only SSE lifecycle prototype. It deliberately does
-// not implement general tokenization or production supplier routing.
+// Package gateway enforces project authorization and durable budget settlement.
 package gateway
 
 import (
@@ -16,6 +15,7 @@ import (
 
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
+	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 )
 
 type Ledger interface {
@@ -26,6 +26,7 @@ type Ledger interface {
 }
 
 type Handler struct {
+	Providers *provider.Catalog
 	Ledger    Ledger
 	Authorize func(context.Context, string, string) (budget.Scope, error)
 	Client    *http.Client
@@ -34,16 +35,8 @@ type Handler struct {
 	Report func(requestID, code string)
 }
 
-type Message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-type Request struct {
-	Model     string    `json:"model"`
-	Stream    bool      `json:"stream"`
-	MaxTokens int       `json:"max_tokens"`
-	Messages  []Message `json:"messages"`
-}
+type Message = provider.Message
+type Request = provider.Request
 
 func problem(w http.ResponseWriter, status int, code, id string) {
 	w.Header().Set("Content-Type", "application/json")
@@ -69,7 +62,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		problem(w, 405, "method_not_allowed", id)
 		return
 	}
-	if h.Ledger == nil || h.Client == nil || h.Upstream == "" || h.Authorize == nil {
+	if h.Ledger == nil || h.Authorize == nil || (h.Providers == nil && (h.Client == nil || h.Upstream == "")) {
 		problem(w, 503, "not_configured", id)
 		return
 	}
@@ -93,6 +86,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if dec.Decode(&struct{}{}) != io.EOF {
 		problem(w, 400, "invalid_request", id)
+		return
+	}
+	if h.Providers != nil {
+		h.serveProvider(w, r, id, token, req)
 		return
 	}
 	if req.Model != "mock-text" || !req.Stream || req.MaxTokens < 1 || req.MaxTokens > 8 || len(req.Messages) != 1 || req.Messages[0].Role != "user" {

@@ -1,4 +1,4 @@
-// gateway serves the authenticated mock-model development slice on loopback.
+// gateway serves explicit mock or reviewed mainland-provider routes on loopback.
 package main
 
 import (
@@ -25,29 +25,33 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/gateway"
 	"github.com/jhzhfree/ai-governance-gateway/internal/httpapi"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
+	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 )
 
 type config struct {
 	database, issuer, audience, upstream, listen  string
+	providerConfig                                string
 	initSchema, mockOnly                          bool
 	browserOrigin, clientID, clientSecret, webDir string
 	allowLoopbackHTTP                             bool
 }
 
 func (c config) validate() error {
-	if !c.mockOnly {
-		return errors.New("only --mock-only is supported in this development stage")
+	if c.mockOnly == (c.providerConfig != "") {
+		return errors.New("choose exactly one of --mock-only or --providers configuration")
 	}
-	if c.database == "" || c.issuer == "" || c.audience == "" || c.upstream == "" {
+	if c.database == "" || c.issuer == "" || c.audience == "" || (c.mockOnly && c.upstream == "") {
 		return errors.New("AIGW_DATABASE_URL, AIGW_OIDC_ISSUER, AIGW_OIDC_AUDIENCE and AIGW_UPSTREAM_URL are required")
 	}
 	u, err := url.Parse(c.issuer)
 	if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
 		return errors.New("OIDC issuer must be a credential-free HTTPS URL")
 	}
-	u, err = url.Parse(c.upstream)
-	if err != nil || u.Scheme != "http" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != "/v1/chat/completions" || !net.ParseIP(u.Hostname()).IsLoopback() {
-		return errors.New("mock upstream must be a loopback HTTP /v1/chat/completions URL")
+	if c.mockOnly {
+		u, err = url.Parse(c.upstream)
+		if err != nil || u.Scheme != "http" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != "/v1/chat/completions" || !net.ParseIP(u.Hostname()).IsLoopback() {
+			return errors.New("mock upstream must be a loopback HTTP /v1/chat/completions URL")
+		}
 	}
 	host, _, err := net.SplitHostPort(c.listen)
 	if err != nil || !net.ParseIP(host).IsLoopback() {
@@ -74,6 +78,18 @@ func run(ctx context.Context, c config) error {
 	}
 	ledger := budget.New(pool)
 	store := control.New(pool)
+	var providers *provider.Catalog
+	if c.providerConfig != "" {
+		cfg, err := provider.ReadConfig(c.providerConfig)
+		if err != nil {
+			return err
+		}
+		providers, err = provider.New(cfg, os.Getenv, nil)
+		if err != nil {
+			return err
+		}
+		store = control.NewWithCatalog(pool, providers)
+	}
 	if c.initSchema {
 		if err := database.Migrate(setup, pool); err != nil {
 			return fmt.Errorf("database migration failed: %w", err)
@@ -105,14 +121,21 @@ func run(ctx context.Context, c config) error {
 	} else {
 		mux.Handle("/api/v1/", httpapi.New(store, auth))
 	}
-	mux.Handle("/v1/", &gateway.Handler{Ledger: ledger, Authorize: store.ResolveKey, Client: client, Upstream: c.upstream, Report: func(id, code string) { log.Printf("request_id=%s code=%s", id, code) }})
+	mux.Handle("/v1/", &gateway.Handler{Providers: providers, Ledger: ledger, Authorize: store.ResolveKey, Client: client, Upstream: c.upstream, Report: func(id, code string) { log.Printf("request_id=%s code=%s", id, code) }})
 	mux.HandleFunc("GET /health/live", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) })
-	mux.HandleFunc("GET /health/ready", readiness(pool))
+	dbReady := readiness(pool)
+	mux.HandleFunc("GET /health/ready", func(w http.ResponseWriter, r *http.Request) {
+		if providers != nil && !providers.Ready() {
+			w.WriteHeader(503)
+			return
+		}
+		dbReady(w, r)
+	})
 
 	server := &http.Server{Addr: c.listen, Handler: mux, ReadHeaderTimeout: 3 * time.Second, ReadTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 32 << 10}
 	failed := make(chan error, 1)
 	go func() { failed <- server.ListenAndServe() }()
-	log.Printf("authenticated mock gateway listening on %s", c.listen)
+	log.Printf("authenticated gateway listening on %s", c.listen)
 	select {
 	case err := <-failed:
 		if errors.Is(err, http.ErrServerClosed) {
@@ -138,6 +161,7 @@ func main() {
 	flag.BoolVar(&c.initSchema, "migrate", false, "apply embedded database migrations before development startup")
 	flag.BoolVar(&c.initSchema, "init-schema", false, "deprecated alias for --migrate; includes legacy schema validation")
 	flag.BoolVar(&c.mockOnly, "mock-only", false, "explicitly enable the mock-only development service")
+	flag.StringVar(&c.providerConfig, "providers", "", "explicit mainland provider configuration file; mutually exclusive with --mock-only")
 	flag.StringVar(&c.webDir, "web-dir", "web/dist", "built console assets directory")
 	flag.BoolVar(&c.allowLoopbackHTTP, "allow-loopback-browser-http", false, "allow non-secure browser cookies only on an explicit loopback HTTP origin")
 	flag.Parse()

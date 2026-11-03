@@ -366,6 +366,9 @@ func (m Model) View() tea.View {
 			name = m.details.Name
 		}
 		prefix = append(prefix, "项目："+SafeText(name))
+		if m.details != nil {
+			prefix = append(prefix, "授权模型："+SafeText(strings.Join(m.details.Models, " · ")))
+		}
 		if m.usage != nil {
 			u := m.usage
 			prefix = append(prefix, fmt.Sprintf("周期 %s / %s", SafeText(u.Period), SafeText(string(u.Currency))), fmt.Sprintf("预算 %d  已用 %d  预留 %d", u.LimitAmount, u.Spent, u.Held), fmt.Sprintf("可用 %d", u.LimitAmount-u.Spent-u.Held), "", "访问密钥（只显示元数据）")

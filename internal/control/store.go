@@ -25,7 +25,10 @@ var (
 // int64 internally; this development API caps amounts at Number.MAX_SAFE_INTEGER.
 const MaxAPIAmount int64 = 9007199254740991
 
-type Store struct{ pool *pgxpool.Pool }
+type Store struct {
+	pool    *pgxpool.Pool
+	catalog ModelCatalog
+}
 
 func New(p *pgxpool.Pool) *Store { return &Store{pool: p} }
 func validName(v string) bool    { return strings.TrimSpace(v) == v && len(v) > 0 && len(v) <= 100 }
@@ -137,13 +140,16 @@ type Audit struct {
 }
 
 func (s *Store) CreateOrganization(ctx context.Context, p identity.Principal, name, period string, limit int64) (o Organization, err error) {
-	if !validPrincipal(p) || !validName(name) || limit < 0 || limit > MaxAPIAmount {
+	return s.CreateOrganizationWithCurrency(ctx, p, name, period, "MOCK", limit)
+}
+func (s *Store) CreateOrganizationWithCurrency(ctx context.Context, p identity.Principal, name, period, currency string, limit int64) (o Organization, err error) {
+	if !validPrincipal(p) || !validName(name) || limit < 0 || limit > MaxAPIAmount || !s.allowsCurrency(currency) {
 		return o, ErrInvalid
 	}
 	if _, e := time.Parse("2006-01", period); e != nil {
 		return o, ErrInvalid
 	}
-	o = Organization{ID: rand.Text(), Name: name, Period: period, Currency: "MOCK", Role: "owner"}
+	o = Organization{ID: rand.Text(), Name: name, Period: period, Currency: currency, Role: "owner"}
 	err = transaction(ctx, s.pool, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `INSERT INTO organizations(id,name,period_id,currency) VALUES($1,$2,$3,$4)`, o.ID, o.Name, o.Period, o.Currency); err != nil {
 			return err
@@ -212,7 +218,7 @@ func (s *Store) CreateProject(ctx context.Context, p identity.Principal, org, na
 		if _, err := tx.Exec(ctx, `INSERT INTO budget_accounts(organization_id,project_id,period_id,currency,limit_amount) SELECT id,$2,period_id,currency,$3 FROM organizations WHERE id=$1`, org, project.ID, limit); err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO project_models VALUES($1,$2,'mock-text')`, org, project.ID); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO project_models SELECT $1,$2,'mock-text' FROM organizations WHERE id=$1 AND currency='MOCK'`, org, project.ID); err != nil {
 			return err
 		}
 		return audit(ctx, tx, org, p, "project.created", project.ID)
@@ -292,12 +298,21 @@ func (s *Store) PutProjectMember(ctx context.Context, p identity.Principal, org,
 	})
 }
 func (s *Store) SetModels(ctx context.Context, p identity.Principal, org, project string, models []string) error {
-	if len(models) > 1 || (len(models) == 1 && models[0] != "mock-text") {
+	if !s.validModels(models, true) {
 		return ErrInvalid
 	}
 	return transaction(ctx, s.pool, func(tx pgx.Tx) error {
 		if err := orgAdmin(ctx, tx, p, org); err != nil {
 			return err
+		}
+		var currency string
+		if err := tx.QueryRow(ctx, `SELECT currency FROM organizations WHERE id=$1`, org).Scan(&currency); err != nil {
+			return err
+		}
+		for _, model := range models {
+			if s.modelCurrency(model) != currency {
+				return ErrInvalid
+			}
 		}
 		var id string
 		if err := tx.QueryRow(ctx, `SELECT id FROM projects WHERE organization_id=$1 AND id=$2 FOR UPDATE`, org, project).Scan(&id); errors.Is(err, pgx.ErrNoRows) {
@@ -318,7 +333,7 @@ func (s *Store) SetModels(ctx context.Context, p identity.Principal, org, projec
 }
 
 func (s *Store) CreateKey(ctx context.Context, p identity.Principal, org, project, name string, models []string, ttl time.Duration) (issued IssuedKey, err error) {
-	if !validName(name) || len(models) != 1 || models[0] != "mock-text" || ttl < time.Minute || ttl > 90*24*time.Hour {
+	if !validName(name) || !s.validModels(models, false) || ttl < time.Minute || ttl > 90*24*time.Hour {
 		return issued, ErrInvalid
 	}
 	secret := "aigw_pk_" + rand.Text() + rand.Text()

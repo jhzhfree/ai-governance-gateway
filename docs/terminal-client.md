@@ -26,6 +26,7 @@ HTTPS 为默认要求。本机开发可显式指定 `--allow-loopback-http`，�
 ## 查询与脚本
 
 ```sh
+./bin/aigw models list --output json
 ./bin/aigw organizations list
 ./bin/aigw projects list --org ORGANIZATION_ID
 ./bin/aigw context use --org ORGANIZATION_ID --project PROJECT_ID
@@ -64,3 +65,5 @@ NO_COLOR=1 ./bin/aigw tui
 这不是企业 IdP 或原生系统钥匙串的上线验收：钥匙串适配器使用内存替身测试，企业接入、Windows/macOS、屏幕阅读器及真实运维终端人工体验仍待验证。本终端阶段未新增写入业务命令、真实模型适配或自动令牌刷新。后续调用账本与索引迁移见独立文档。
 
 阶段验收（2026-11-03）：完整后端校验通过，56 个顶层测试及 39 个子测试，无失败/跳过；Web 冻结安装、类型差异、TS/ESLint/Prettier、生产构建及 3 个 Chromium 场景通过；`cmd/aigw` 二进制构建和 `--help` 冒烟通过。未以 mock 供应商证明真实模型已接通。
+
+模型目录与 CNY_MICRO 计价已作为后续阶段接入，`models list` 不返回供应商凭证或内部驻留证据编号；TUI 项目概览显示授权别名与实际预算单位。区域/真实供应商验收边界见[大陆供应商说明](mainland-providers.md)。

@@ -205,3 +205,79 @@ test('request ledger follows real inference, filters, pages and isolates project
   await expect(detail.getByRole('alert')).toBeVisible();
   await expect(detail.getByText('10 / 4', { exact: true })).toHaveCount(0);
 });
+
+test('mainland catalog authorizes three suppliers and preserves CNY accounting', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: /使用组织账号登录/ }).click();
+  await expect(page.getByRole('heading', { name: '项目概览.' })).toBeVisible();
+  await page.getByRole('button', { name: /新建组织/ }).click();
+  await page.getByLabel('组织名称', { exact: true }).fill('大陆供应商验收');
+  await page.getByLabel('预算单位', { exact: true }).selectOption('CNY_MICRO');
+  await expect(page.getByLabel('预算上限', { exact: true })).toHaveValue('1000000');
+  await page.getByRole('button', { name: '确认创建', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: '组织已创建' })).toBeVisible();
+  await page.getByRole('button', { name: /新建项目/ }).click();
+  await page.getByLabel('项目名称', { exact: true }).fill('三家适配项目');
+  await page.getByRole('button', { name: '确认创建', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '三家适配项目' })).toBeVisible();
+  await page.getByRole('button', { name: '配置模型', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '项目模型授权' });
+  await expect(dialog.getByRole('checkbox').first()).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(dialog.getByRole('button', { name: '保存模型授权', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(dialog.getByRole('checkbox').first()).toBeFocused();
+  await page.keyboard.press('Space');
+  for (const supplier of ['aliyun', 'volcengine', 'zhipu'])
+    await dialog.getByRole('checkbox', { name: new RegExp(`${supplier}/fixture`) }).check();
+  await expect(dialog.getByText(/供应商、网关、数据库、日志与备份/)).toBeVisible();
+  await page.getByRole('button', { name: '保存模型授权', exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(
+    page.getByText('aliyun/fixture · volcengine/fixture · zhipu/fixture', { exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: /创建密钥/ }).click();
+  await page.getByLabel('密钥名称', { exact: true }).fill('三家协议测试密钥');
+  await page.getByRole('button', { name: '确认创建', exact: true }).click();
+  const key = await page.getByLabel('新密钥', { exact: true }).inputValue();
+  await page.getByRole('button', { name: '我已保存，关闭', exact: true }).click();
+  for (const supplier of ['aliyun', 'volcengine', 'zhipu']) {
+    const response = await page.request.post('/v1/chat/completions', {
+      headers: { Authorization: `Bearer ${key}` },
+      data: {
+        model: `${supplier}/fixture`,
+        max_tokens: 8,
+        messages: [{ role: 'user', content: 'synthetic mainland protocol fixture' }],
+      },
+    });
+    expect(response.status()).toBe(200);
+    const result = (await response.json()) as { model: string; usage: { total_tokens: number } };
+    expect(result.model).toBe(`${supplier}/fixture`);
+    expect(result.usage.total_tokens).toBe(5);
+  }
+  await page.getByRole('button', { name: '调用账本', exact: true }).click();
+  await expect(page.locator('tbody tr')).toHaveCount(3);
+  await expect(page.getByRole('cell', { name: '2026-11 / CNY_MICRO', exact: true })).toHaveCount(3);
+  await page.getByRole('button', { name: '项目概览', exact: true }).click();
+  await page.getByRole('button', { name: '刷新', exact: true }).click();
+  await expect(page.getByRole('progressbar', { name: '预算占用比例' })).toHaveAttribute(
+    'value',
+    '42',
+  );
+  await page.screenshot({ path: '/tmp/aigw-mainland-providers-desktop.png', fullPage: true });
+  await page.getByRole('button', { name: '配置模型', exact: true }).click();
+  await dialog.getByRole('checkbox', { name: /zhipu\/fixture/ }).uncheck();
+  await page.getByRole('button', { name: '保存模型授权', exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  const denied = await page.request.post('/v1/chat/completions', {
+    headers: { Authorization: `Bearer ${key}` },
+    data: {
+      model: 'zhipu/fixture',
+      max_tokens: 8,
+      messages: [{ role: 'user', content: 'synthetic denied request' }],
+    },
+  });
+  expect(denied.status()).toBe(403);
+});

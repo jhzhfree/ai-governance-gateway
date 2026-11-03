@@ -20,3 +20,14 @@ func TestDevelopmentConfigFailsClosed(t *testing.T) {
 		}
 	}
 }
+
+func TestMainlandModeRequiresExplicitMutuallyExclusiveConfiguration(t *testing.T) {
+	c := config{database: "postgres://unused", issuer: "https://idp.example/realm", audience: "aigw-management", listen: "127.0.0.1:8080", providerConfig: "reviewed-mainland.json"}
+	if err := c.validate(); err != nil {
+		t.Fatal("explicit real provider mode was rejected")
+	}
+	c.mockOnly = true
+	if c.validate() == nil {
+		t.Fatal("mock/real ambiguous mode accepted")
+	}
+}

@@ -62,3 +62,5 @@
 | github.com/creack/pty | v1.1.24 | MIT | Linux 真实 PTY 恢复测试 |
 
 版本选择、Go 最低版本影响及替代方案见 [ADR 0004](adr/0004-terminal-client-and-device-login.md)。本地签名 IdP 和真实 PostgreSQL 已集成；原生钥匙串仅用适配器替身验证，不代表桌面环境实测。Bubbles 未引入。
+
+三家大陆供应商另有固定官方 SDK 源码参考，仅读取北京端点、参数与协议说明，没有引入 SDK 或复制实现。来源、SHA-256 与驻留证明局限见[接入证据](mainland-providers.md#证据及待验收)。

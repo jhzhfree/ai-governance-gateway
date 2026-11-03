@@ -51,7 +51,7 @@ export interface paths {
         };
         get: operations["listProjects"];
         put?: never;
-        /** @description Organization owner/admin only. Enables mock-text by default. */
+        /** @description Organization owner/admin only. MOCK projects enable mock-text by default; real-currency projects require explicit model authorization. */
         post: operations["createProject"];
         delete?: never;
         options?: never;
@@ -206,7 +206,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Mock-only SSE. Authorization derives scope from the key; client scope headers are ignored. DONE requires durable settlement. Errors after streaming begins are SSE error events without DONE. */
+        /** @description Explicit MOCK SSE-only mode, or reviewed mainland provider text mode (JSON or SSE). Only plain text system/user/assistant messages and max_tokens are supported. Provider currency must match project; usage and finish marker must be validated before durable settlement. */
         post: operations["streamMockChat"];
         delete?: never;
         options?: never;
@@ -318,6 +318,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Enabled deployment model catalog, filtered by current residency review validity. Contains no supplier credentials or internal contract references. Region is the configured service profile; it is not an independent residency certification. */
+        get: operations["listModels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -335,7 +352,7 @@ export interface components {
             name: string;
             period: string;
             /** @enum {string} */
-            currency: "MOCK";
+            currency: "MOCK" | "CNY_MICRO";
             /** @enum {string} */
             role: "owner" | "admin" | "developer" | "viewer";
         };
@@ -345,6 +362,12 @@ export interface components {
             period: string;
             /** Format: int64 */
             limit_amount: number;
+            /**
+             * @description Immutable organization/account unit; choose CNY_MICRO for real mainland providers. Currency must be enabled by the deployment catalog.
+             * @default MOCK
+             * @enum {string}
+             */
+            currency: "MOCK" | "CNY_MICRO";
         };
         Project: {
             id: string;
@@ -361,7 +384,7 @@ export interface components {
             name: string;
             /** @enum {string} */
             role: "admin" | "developer" | "viewer";
-            models: "mock-text"[];
+            models: string[];
         };
         CreateProject: {
             /** @description Nonblank name, at most 100 UTF-8 bytes, no surrounding whitespace. */
@@ -376,12 +399,12 @@ export interface components {
             role: "admin" | "developer" | "viewer";
         };
         SetModels: {
-            models: "mock-text"[];
+            models: string[];
         };
         CreateKey: {
             /** @description Nonblank name, at most 100 UTF-8 bytes, no surrounding whitespace. */
             name: string;
-            models: "mock-text"[];
+            models: string[];
             /** Format: int64 */
             ttl_seconds: number;
         };
@@ -390,7 +413,7 @@ export interface components {
             /** @description Nonblank name, at most 100 UTF-8 bytes, no surrounding whitespace. */
             name: string;
             prefix: string;
-            models: "mock-text"[];
+            models: string[];
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
@@ -405,7 +428,7 @@ export interface components {
             /** @description Nonblank name, at most 100 UTF-8 bytes, no surrounding whitespace. */
             name: string;
             prefix: string;
-            models: "mock-text"[];
+            models: string[];
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
@@ -420,7 +443,7 @@ export interface components {
         Usage: {
             period: string;
             /** @enum {string} */
-            currency: "MOCK";
+            currency: "MOCK" | "CNY_MICRO";
             /** Format: int64 */
             limit_amount: number;
             /** Format: int64 */
@@ -441,15 +464,14 @@ export interface components {
             created_at: string;
         };
         InferenceRequest: {
-            /** @enum {string} */
-            model: "mock-text";
-            /** @enum {boolean} */
-            stream: true;
+            model: string;
+            /** @default false */
+            stream: boolean;
             /** Format: int64 */
             max_tokens: number;
             messages: {
                 /** @enum {string} */
-                role: "user";
+                role: "user" | "system" | "assistant";
                 content: string;
             }[];
         };
@@ -508,6 +530,56 @@ export interface components {
         RequestPage: {
             data: components["schemas"]["RequestRecord"][];
             next_cursor: string;
+        };
+        ModelInfo: {
+            id: string;
+            /** @enum {string} */
+            provider: "mock" | "aliyun" | "volcengine" | "zhipu";
+            /** @enum {string} */
+            currency: "MOCK" | "CNY_MICRO";
+            /** @enum {string} */
+            region: "local" | "cn-beijing" | "cn-mainland";
+            price_version: string;
+            /** Format: int64 */
+            input_per_million: number;
+            /** Format: int64 */
+            output_per_million: number;
+            /** Format: int64 */
+            max_input_tokens: number;
+            /** Format: int64 */
+            max_output_tokens: number;
+        };
+        ModelPage: {
+            data: components["schemas"]["ModelInfo"][];
+            next_cursor: string;
+        };
+        InferenceUsage: {
+            /** Format: int64 */
+            prompt_tokens: number;
+            /** Format: int64 */
+            completion_tokens: number;
+            /** Format: int64 */
+            total_tokens: number;
+        };
+        InferenceResponse: {
+            id: string;
+            /** @enum {string} */
+            object: "chat.completion";
+            model: string;
+            /** Format: int64 */
+            created?: number;
+            usage: components["schemas"]["InferenceUsage"];
+            choices: {
+                /** @enum {integer} */
+                index: 0;
+                message: {
+                    /** @enum {string} */
+                    role: "assistant";
+                    content: string;
+                };
+                /** @enum {string} */
+                finish_reason: "stop" | "length" | "content_filter";
+            }[];
         };
     };
     responses: never;
@@ -1441,6 +1513,7 @@ export interface operations {
                 };
                 content: {
                     "text/event-stream": string;
+                    "application/json": components["schemas"]["InferenceResponse"];
                 };
             };
             /** @description Invalid input */
@@ -1808,6 +1881,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RequestRecord"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listModels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelPage"];
                 };
             };
             /** @description Invalid input */

@@ -16,34 +16,39 @@ const (
 	ProjectKeyScopes        = "projectKey.Scopes"
 )
 
-// Defines values for CreateKeyModels.
+// Defines values for CreateOrganizationCurrency.
 const (
-	CreateKeyModelsMockText CreateKeyModels = "mock-text"
+	CreateOrganizationCurrencyCNYMICRO CreateOrganizationCurrency = "CNY_MICRO"
+	CreateOrganizationCurrencyMOCK     CreateOrganizationCurrency = "MOCK"
 )
 
 // Defines values for InferenceRequestMessagesRole.
 const (
-	User InferenceRequestMessagesRole = "user"
+	InferenceRequestMessagesRoleAssistant InferenceRequestMessagesRole = "assistant"
+	InferenceRequestMessagesRoleSystem    InferenceRequestMessagesRole = "system"
+	InferenceRequestMessagesRoleUser      InferenceRequestMessagesRole = "user"
 )
 
-// Defines values for InferenceRequestModel.
+// Defines values for InferenceResponseChoicesFinishReason.
 const (
-	InferenceRequestModelMockText InferenceRequestModel = "mock-text"
+	ContentFilter InferenceResponseChoicesFinishReason = "content_filter"
+	Length        InferenceResponseChoicesFinishReason = "length"
+	Stop          InferenceResponseChoicesFinishReason = "stop"
 )
 
-// Defines values for InferenceRequestStream.
+// Defines values for InferenceResponseChoicesIndex.
 const (
-	True InferenceRequestStream = true
+	N0 InferenceResponseChoicesIndex = 0
 )
 
-// Defines values for IssuedKeyModels.
+// Defines values for InferenceResponseChoicesMessageRole.
 const (
-	IssuedKeyModelsMockText IssuedKeyModels = "mock-text"
+	InferenceResponseChoicesMessageRoleAssistant InferenceResponseChoicesMessageRole = "assistant"
 )
 
-// Defines values for KeyModels.
+// Defines values for InferenceResponseObject.
 const (
-	KeyModelsMockText KeyModels = "mock-text"
+	ChatCompletion InferenceResponseObject = "chat.completion"
 )
 
 // Defines values for MemberRole.
@@ -53,9 +58,31 @@ const (
 	MemberRoleViewer    MemberRole = "viewer"
 )
 
+// Defines values for ModelInfoCurrency.
+const (
+	ModelInfoCurrencyCNYMICRO ModelInfoCurrency = "CNY_MICRO"
+	ModelInfoCurrencyMOCK     ModelInfoCurrency = "MOCK"
+)
+
+// Defines values for ModelInfoProvider.
+const (
+	Aliyun     ModelInfoProvider = "aliyun"
+	Mock       ModelInfoProvider = "mock"
+	Volcengine ModelInfoProvider = "volcengine"
+	Zhipu      ModelInfoProvider = "zhipu"
+)
+
+// Defines values for ModelInfoRegion.
+const (
+	CnBeijing  ModelInfoRegion = "cn-beijing"
+	CnMainland ModelInfoRegion = "cn-mainland"
+	Local      ModelInfoRegion = "local"
+)
+
 // Defines values for OrganizationCurrency.
 const (
-	OrganizationCurrencyMOCK OrganizationCurrency = "MOCK"
+	OrganizationCurrencyCNYMICRO OrganizationCurrency = "CNY_MICRO"
+	OrganizationCurrencyMOCK     OrganizationCurrency = "MOCK"
 )
 
 // Defines values for OrganizationRole.
@@ -71,11 +98,6 @@ const (
 	ProjectRoleAdmin     ProjectRole = "admin"
 	ProjectRoleDeveloper ProjectRole = "developer"
 	ProjectRoleViewer    ProjectRole = "viewer"
-)
-
-// Defines values for ProjectDetailsModels.
-const (
-	ProjectDetailsModelsMockText ProjectDetailsModels = "mock-text"
 )
 
 // Defines values for ProjectDetailsRole.
@@ -95,14 +117,10 @@ const (
 	RequestRecordStateUncertain      RequestRecordState = "uncertain"
 )
 
-// Defines values for SetModelsModels.
-const (
-	SetModelsModelsMockText SetModelsModels = "mock-text"
-)
-
 // Defines values for UsageCurrency.
 const (
-	UsageCurrencyMOCK UsageCurrency = "MOCK"
+	UsageCurrencyCNYMICRO UsageCurrency = "CNY_MICRO"
+	UsageCurrencyMOCK     UsageCurrency = "MOCK"
 )
 
 // Defines values for ListRequestsParamsState.
@@ -156,24 +174,26 @@ type BrowserSession struct {
 
 // CreateKey defines model for CreateKey.
 type CreateKey struct {
-	Models []CreateKeyModels `json:"models"`
+	Models []string `json:"models"`
 
 	// Name Nonblank name, at most 100 UTF-8 bytes, no surrounding whitespace.
 	Name       string `json:"name"`
 	TtlSeconds int64  `json:"ttl_seconds"`
 }
 
-// CreateKeyModels defines model for CreateKey.Models.
-type CreateKeyModels string
-
 // CreateOrganization defines model for CreateOrganization.
 type CreateOrganization struct {
-	LimitAmount int64 `json:"limit_amount"`
+	// Currency Immutable organization/account unit; choose CNY_MICRO for real mainland providers. Currency must be enabled by the deployment catalog.
+	Currency    *CreateOrganizationCurrency `json:"currency,omitempty"`
+	LimitAmount int64                       `json:"limit_amount"`
 
 	// Name Nonblank name, at most 100 UTF-8 bytes, no surrounding whitespace.
 	Name   string `json:"name"`
 	Period string `json:"period"`
 }
+
+// CreateOrganizationCurrency Immutable organization/account unit; choose CNY_MICRO for real mainland providers. Currency must be enabled by the deployment catalog.
+type CreateOrganizationCurrency string
 
 // CreateProject defines model for CreateProject.
 type CreateProject struct {
@@ -199,27 +219,57 @@ type InferenceRequest struct {
 		Content string                       `json:"content"`
 		Role    InferenceRequestMessagesRole `json:"role"`
 	} `json:"messages"`
-	Model  InferenceRequestModel  `json:"model"`
-	Stream InferenceRequestStream `json:"stream"`
+	Model  string `json:"model"`
+	Stream *bool  `json:"stream,omitempty"`
 }
 
 // InferenceRequestMessagesRole defines model for InferenceRequest.Messages.Role.
 type InferenceRequestMessagesRole string
 
-// InferenceRequestModel defines model for InferenceRequest.Model.
-type InferenceRequestModel string
+// InferenceResponse defines model for InferenceResponse.
+type InferenceResponse struct {
+	Choices []struct {
+		FinishReason InferenceResponseChoicesFinishReason `json:"finish_reason"`
+		Index        InferenceResponseChoicesIndex        `json:"index"`
+		Message      struct {
+			Content string                              `json:"content"`
+			Role    InferenceResponseChoicesMessageRole `json:"role"`
+		} `json:"message"`
+	} `json:"choices"`
+	Created *int64                  `json:"created,omitempty"`
+	Id      string                  `json:"id"`
+	Model   string                  `json:"model"`
+	Object  InferenceResponseObject `json:"object"`
+	Usage   InferenceUsage          `json:"usage"`
+}
 
-// InferenceRequestStream defines model for InferenceRequest.Stream.
-type InferenceRequestStream bool
+// InferenceResponseChoicesFinishReason defines model for InferenceResponse.Choices.FinishReason.
+type InferenceResponseChoicesFinishReason string
+
+// InferenceResponseChoicesIndex defines model for InferenceResponse.Choices.Index.
+type InferenceResponseChoicesIndex int
+
+// InferenceResponseChoicesMessageRole defines model for InferenceResponse.Choices.Message.Role.
+type InferenceResponseChoicesMessageRole string
+
+// InferenceResponseObject defines model for InferenceResponse.Object.
+type InferenceResponseObject string
+
+// InferenceUsage defines model for InferenceUsage.
+type InferenceUsage struct {
+	CompletionTokens int64 `json:"completion_tokens"`
+	PromptTokens     int64 `json:"prompt_tokens"`
+	TotalTokens      int64 `json:"total_tokens"`
+}
 
 // IssuedKey defines model for IssuedKey.
 type IssuedKey struct {
 	// CanRevoke Whether this caller may revoke the key; authorization is enforced again on DELETE.
-	CanRevoke bool              `json:"can_revoke"`
-	CreatedAt time.Time         `json:"created_at"`
-	ExpiresAt time.Time         `json:"expires_at"`
-	Id        string            `json:"id"`
-	Models    []IssuedKeyModels `json:"models"`
+	CanRevoke bool      `json:"can_revoke"`
+	CreatedAt time.Time `json:"created_at"`
+	ExpiresAt time.Time `json:"expires_at"`
+	Id        string    `json:"id"`
+	Models    []string  `json:"models"`
 
 	// Name Nonblank name, at most 100 UTF-8 bytes, no surrounding whitespace.
 	Name      string     `json:"name"`
@@ -230,26 +280,20 @@ type IssuedKey struct {
 	Secret *string `json:"secret,omitempty"`
 }
 
-// IssuedKeyModels defines model for IssuedKey.Models.
-type IssuedKeyModels string
-
 // Key defines model for Key.
 type Key struct {
 	// CanRevoke Whether this caller may revoke the key; authorization is enforced again on DELETE.
-	CanRevoke bool        `json:"can_revoke"`
-	CreatedAt time.Time   `json:"created_at"`
-	ExpiresAt time.Time   `json:"expires_at"`
-	Id        string      `json:"id"`
-	Models    []KeyModels `json:"models"`
+	CanRevoke bool      `json:"can_revoke"`
+	CreatedAt time.Time `json:"created_at"`
+	ExpiresAt time.Time `json:"expires_at"`
+	Id        string    `json:"id"`
+	Models    []string  `json:"models"`
 
 	// Name Nonblank name, at most 100 UTF-8 bytes, no surrounding whitespace.
 	Name      string     `json:"name"`
 	Prefix    string     `json:"prefix"`
 	RevokedAt *time.Time `json:"revoked_at"`
 }
-
-// KeyModels defines model for Key.Models.
-type KeyModels string
 
 // KeyPage defines model for KeyPage.
 type KeyPage struct {
@@ -268,6 +312,34 @@ type Member struct {
 
 // MemberRole defines model for Member.Role.
 type MemberRole string
+
+// ModelInfo defines model for ModelInfo.
+type ModelInfo struct {
+	Currency         ModelInfoCurrency `json:"currency"`
+	Id               string            `json:"id"`
+	InputPerMillion  int64             `json:"input_per_million"`
+	MaxInputTokens   int64             `json:"max_input_tokens"`
+	MaxOutputTokens  int64             `json:"max_output_tokens"`
+	OutputPerMillion int64             `json:"output_per_million"`
+	PriceVersion     string            `json:"price_version"`
+	Provider         ModelInfoProvider `json:"provider"`
+	Region           ModelInfoRegion   `json:"region"`
+}
+
+// ModelInfoCurrency defines model for ModelInfo.Currency.
+type ModelInfoCurrency string
+
+// ModelInfoProvider defines model for ModelInfo.Provider.
+type ModelInfoProvider string
+
+// ModelInfoRegion defines model for ModelInfo.Region.
+type ModelInfoRegion string
+
+// ModelPage defines model for ModelPage.
+type ModelPage struct {
+	Data       []ModelInfo `json:"data"`
+	NextCursor string      `json:"next_cursor"`
+}
 
 // Organization defines model for Organization.
 type Organization struct {
@@ -309,17 +381,14 @@ type ProjectRole string
 
 // ProjectDetails defines model for ProjectDetails.
 type ProjectDetails struct {
-	Id     string                 `json:"id"`
-	Models []ProjectDetailsModels `json:"models"`
+	Id     string   `json:"id"`
+	Models []string `json:"models"`
 
 	// Name Nonblank name, at most 100 UTF-8 bytes, no surrounding whitespace.
 	Name           string             `json:"name"`
 	OrganizationId string             `json:"organization_id"`
 	Role           ProjectDetailsRole `json:"role"`
 }
-
-// ProjectDetailsModels defines model for ProjectDetails.Models.
-type ProjectDetailsModels string
 
 // ProjectDetailsRole defines model for ProjectDetails.Role.
 type ProjectDetailsRole string
@@ -356,11 +425,8 @@ type RequestRecordState string
 
 // SetModels defines model for SetModels.
 type SetModels struct {
-	Models []SetModelsModels `json:"models"`
+	Models []string `json:"models"`
 }
-
-// SetModelsModels defines model for SetModels.Models.
-type SetModelsModels string
 
 // Usage defines model for Usage.
 type Usage struct {
