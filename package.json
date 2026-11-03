@@ -1,0 +1,14 @@
+{
+  "name": "ai-governance-gateway",
+  "version": "0.1.0-alpha.1",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24.0.0 <25" },
+  "scripts": {
+    "start": "node src/main.ts",
+    "test": "node --test test/*.test.ts",
+    "demo:init": "node scripts/init-demo.ts",
+    "demo:upstream": "node scripts/mock-higress.ts",
+    "verify": "npm test && node scripts/verify-demo.ts"
+  }
+}

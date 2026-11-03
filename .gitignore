@@ -1,0 +1,11 @@
+node_modules/
+var/
+.env
+*.db
+*.db-shm
+*.db-wal
+coverage/
+*.pem
+*.key
+*.p12
+*.log

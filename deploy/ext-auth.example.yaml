@@ -1,0 +1,16 @@
+# Plugin configuration body; not a complete Kubernetes manifest.
+# For front-door identity-only experimentation, NOT the alpha internal route.
+failure_mode_allow: false
+status_on_error: 503
+http_service:
+  endpoint_mode: forward_auth
+  endpoint:
+    service_name: governance.backend.svc.cluster.local
+    service_port: 8090
+    request_method: GET
+    path: /internal/admission/check
+  timeout: 1000
+  authorization_response:
+    allowed_upstream_headers:
+      - exact: x-agw-tenant
+      - exact: x-agw-subject

@@ -1,0 +1,12 @@
+{
+  "models": {
+    "approved-chat": {
+      "upstreamModel": "approved-chat",
+      "inputRate": 1,
+      "outputRate": 2,
+      "maxOutput": 2048,
+      "rateVersion": "demo-microcny-v1"
+    }
+  },
+  "blockedTerms": ["DEMO_SECRET_DO_NOT_SEND"]
+}

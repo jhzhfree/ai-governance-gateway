@@ -1,0 +1,7 @@
+.git
+.env*
+var
+test
+docs
+node_modules
+*.zip

@@ -1,0 +1,37 @@
+# Invoke from repository root with --env-file .env. Higress still needs route
+# and provider configuration through its local console; this is NOT auto-provisioned.
+services:
+  governance:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:?Set reviewed Node 24 image with digest}
+    environment:
+      HOST: 0.0.0.0
+      BOOTSTRAP_ADMIN_TOKEN: ${BOOTSTRAP_ADMIN_TOKEN:?Run demo:init}
+      BOOTSTRAP_TENANT: ${BOOTSTRAP_TENANT:-demo}
+      HIGRESS_URL: http://higress:8080
+      HIGRESS_ACCESS_TOKEN: ${HIGRESS_ACCESS_TOKEN:?Set internal gateway credential}
+    ports:
+      - "127.0.0.1:8090:8090"
+    volumes:
+      - governance-data:/app/var
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    depends_on: [higress]
+  higress:
+    image: ${HIGRESS_IMAGE:?Set reviewed Higress all-in-one image with digest}
+    # Internal model port is not published. Local console is for administrators.
+    ports:
+      - "127.0.0.1:8001:8001"
+    volumes:
+      - higress-data:/data
+    restart: unless-stopped
+volumes:
+  governance-data:
+  higress-data:
