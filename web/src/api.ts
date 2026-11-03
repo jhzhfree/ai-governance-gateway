@@ -5,6 +5,7 @@ export type Project = components['schemas']['Project'];
 export type ProjectDetails = components['schemas']['ProjectDetails'];
 export type ProjectKey = components['schemas']['Key'];
 export type IssuedKey = components['schemas']['IssuedKey'];
+export type RequestRecord = components['schemas']['RequestRecord'];
 export type Usage = components['schemas']['Usage'];
 export type Audit = components['schemas']['Audit'];
 export type Page<T> = { data: T[]; next_cursor: string };

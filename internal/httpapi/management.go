@@ -42,6 +42,8 @@ func NewWithSession(store *control.Store, auth identity.Authenticator, session S
 	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/keys", h.keys)
 	mux.HandleFunc("DELETE /api/v1/organizations/{org}/projects/{project}/keys/{key}", h.revokeKey)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/usage", h.usage)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/requests", h.requests)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/requests/{request}", h.request)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/audit", h.audit)
 	mux.HandleFunc("/api/v1/", func(w http.ResponseWriter, r *http.Request) { failure(w, r, control.ErrNotFound) })
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -109,6 +111,9 @@ func decode(w http.ResponseWriter, r *http.Request, dst any) bool {
 	return true
 }
 func page(w http.ResponseWriter, r *http.Request) (after string, limit int, ok bool) {
+	return pageWithCursorLimit(w, r, 128)
+}
+func pageWithCursorLimit(w http.ResponseWriter, r *http.Request, maxCursor int) (after string, limit int, ok bool) {
 	q := r.URL.Query()
 	limit = 50
 	if v := q.Get("limit"); v != "" {
@@ -120,7 +125,7 @@ func page(w http.ResponseWriter, r *http.Request) (after string, limit int, ok b
 		limit = n
 	}
 	after = q.Get("after")
-	if len(after) > 128 {
+	if len(after) > maxCursor {
 		failure(w, r, control.ErrInvalid)
 		return "", 0, false
 	}

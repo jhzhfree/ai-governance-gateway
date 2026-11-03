@@ -19,6 +19,8 @@ type ReadAPI interface {
 	Project(context.Context, string, string) (types.ProjectDetails, error)
 	Usage(context.Context, string, string) (types.Usage, error)
 	Keys(context.Context, string, string, string, int) (types.KeyPage, error)
+	Requests(context.Context, string, string, string, string, int) (types.RequestPage, error)
+	Request(context.Context, string, string, string) (types.RequestRecord, error)
 }
 type screen int
 
@@ -26,9 +28,13 @@ const (
 	organizationsScreen screen = iota
 	projectsScreen
 	dashboardScreen
+	requestsScreen
+	requestDetailScreen
 )
 
 type dataMessage struct {
+	requests      types.RequestPage
+	record        types.RequestRecord
 	generation    uint64
 	screen        screen
 	err           error
@@ -39,6 +45,9 @@ type dataMessage struct {
 	project       types.ProjectDetails
 }
 type Model struct {
+	records              []types.RequestRecord
+	record               *types.RequestRecord
+	detailID             string
 	api                  ReadAPI
 	ctx                  context.Context
 	config               Config
@@ -87,6 +96,10 @@ func (m Model) fetch() tea.Cmd {
 			result.organizations, result.err = m.api.Organizations(ctx, m.cursor, 20)
 		case projectsScreen:
 			result.projects, result.err = m.api.Projects(ctx, m.config.Organization, m.cursor, 20)
+		case requestsScreen:
+			result.requests, result.err = m.api.Requests(ctx, m.config.Organization, m.config.Project, m.cursor, "", 20)
+		case requestDetailScreen:
+			result.record, result.err = m.api.Request(ctx, m.config.Organization, m.config.Project, m.detailID)
 		case dashboardScreen:
 			result.project, result.err = m.api.Project(ctx, m.config.Organization, m.config.Project)
 			if result.err != nil {
@@ -125,6 +138,8 @@ func (m *Model) reset() {
 	m.organizations = nil
 	m.projects = nil
 	m.keys = nil
+	m.records = nil
+	m.record = nil
 	m.usage = nil
 	m.details = nil
 	m.stale = false
@@ -155,6 +170,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case projectsScreen:
 			m.projects = v.projects.Data
 			m.next = v.projects.NextCursor
+		case requestsScreen:
+			m.records = v.requests.Data
+			m.next = v.requests.NextCursor
+		case requestDetailScreen:
+			m.record = &v.record
 		case dashboardScreen:
 			m.usage = &v.usage
 			m.details = &v.project
@@ -182,13 +202,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, tea.Quit
 			}
-			if m.screen == dashboardScreen {
+			if m.screen == requestDetailScreen {
+				m.screen = requestsScreen
+			} else if m.screen == requestsScreen {
+				m.screen = dashboardScreen
+			} else if m.screen == dashboardScreen {
 				m.screen = projectsScreen
 			} else {
 				m.screen = organizationsScreen
 			}
 			m.reset()
 			return m.load()
+		case "t":
+			if m.screen == dashboardScreen {
+				m.screen = requestsScreen
+				m.reset()
+				return m.load()
+			}
 		case "r":
 			return m.load()
 		case "up", "k":
@@ -212,6 +242,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			if m.busy {
 				return m, nil
+			}
+			if m.screen == requestsScreen {
+				if len(m.records) == 0 {
+					return m, nil
+				}
+				m.detailID = m.records[m.position].RequestId
+				m.screen = requestDetailScreen
+				m.reset()
+				return m.load()
 			}
 			org, project := m.config.Organization, m.config.Project
 			switch m.screen {
@@ -254,6 +293,15 @@ func (m Model) itemCount() int {
 	}
 	if m.screen == projectsScreen {
 		return len(m.projects)
+	}
+	if m.screen == requestsScreen {
+		return len(m.records)
+	}
+	if m.screen == requestDetailScreen {
+		if m.record != nil {
+			return 8
+		}
+		return 0
 	}
 	return len(m.keys)
 }
@@ -298,6 +346,20 @@ func (m Model) View() tea.View {
 			}
 			rows = append(rows, marker+SafeText(p.Name)+"  ["+SafeText(string(p.Role))+"]")
 		}
+	case requestsScreen:
+		prefix = append(prefix, "调用账本 / "+SafeText(m.config.Project), "结算状态不代表客户端收到响应")
+		for i, r := range m.records {
+			marker := "  "
+			if i == m.position {
+				marker = "› "
+			}
+			rows = append(rows, marker+SafeText(r.RequestId)+"  "+requestState(string(r.State))+"  "+actualAmount(r.Actual)+" / "+SafeText(r.Currency))
+		}
+	case requestDetailScreen:
+		prefix = append(prefix, "调用账本详情", "结算状态不代表客户端收到响应")
+		if r := m.record; r != nil {
+			rows = []string{"请求编号：" + SafeText(r.RequestId), "账本状态：" + requestState(string(r.State)), "周期：" + SafeText(r.Period), "单位：" + SafeText(r.Currency), "价格版本：" + SafeText(r.PriceVersion), fmt.Sprintf("预留：%d / 实际：%s", r.Reserved, actualAmount(r.Actual)), "创建：" + r.CreatedAt.UTC().Format(time.RFC3339), "更新：" + r.UpdatedAt.UTC().Format(time.RFC3339)}
+		}
 	case dashboardScreen:
 		name := m.config.Project
 		if m.details != nil {
@@ -325,12 +387,21 @@ func (m Model) View() tea.View {
 	if len(rows) == 0 && !m.busy && m.err == nil {
 		rows = append(rows, "暂无可显示的数据")
 	}
-	help := "↑↓ 选择  Enter 打开  Esc 返回  r 刷新  n 下一页  p 上一页  q 退出"
-	if m.width < 65 {
-		help = "↑↓选择 Enter打开 Esc返回 r刷新 q退出"
+	help := "↑↓选择 Enter打开 Esc返回 r刷新 n/p翻页 q退出"
+	if m.screen == dashboardScreen {
+		help = "t调用账本  " + help
+	}
+	if m.screen == requestDetailScreen {
+		help = "↑↓滚动 Esc返回 r刷新 q退出"
+	}
+	if m.width < 65 && m.screen == dashboardScreen {
+		help = "t账本 Esc返回 r刷新 q退出"
 	}
 	if m.width < 30 {
 		help = "r刷新 q退出"
+		if m.screen == dashboardScreen {
+			help = "t账本 " + help
+		}
 	}
 	footer := []string{"", help}
 	capacity := max(0, m.height-len(footer))

@@ -15,13 +15,15 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/browser"
 	"github.com/jhzhfree/ai-governance-gateway/internal/console"
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
+	"github.com/jhzhfree/ai-governance-gateway/internal/gateway"
 	"github.com/jhzhfree/ai-governance-gateway/internal/httpapi"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
+	"github.com/jhzhfree/ai-governance-gateway/internal/mockprovider"
 	"github.com/jhzhfree/ai-governance-gateway/internal/testutil"
 )
 
 func TestConsoleBrowser(t *testing.T) {
-	pool, _, _ := testutil.Database(t)
+	pool, ledger, _ := testutil.Database(t)
 	store := control.New(pool)
 	issuer := testutil.NewIssuer(t)
 	api, err := identity.NewOIDC(context.Background(), issuer.URL, "aigw-management")
@@ -46,6 +48,9 @@ func TestConsoleBrowser(t *testing.T) {
 	mux.Handle("/", assets)
 	mux.Handle("/auth/", svc.Handler())
 	mux.Handle("/api/v1/", httpapi.NewWithSession(store, api, svc))
+	upstream := httptest.NewServer(http.HandlerFunc(mockprovider.Handler))
+	t.Cleanup(upstream.Close)
+	mux.Handle("/v1/", &gateway.Handler{Ledger: ledger, Authorize: store.ResolveKey, Client: upstream.Client(), Upstream: upstream.URL + "/v1/chat/completions"})
 	server.Start()
 	t.Cleanup(server.Close)
 	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)

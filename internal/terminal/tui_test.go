@@ -42,6 +42,12 @@ func (f fakeAPI) Usage(ctx context.Context, org, project string) (types.Usage, e
 func (f fakeAPI) Keys(context.Context, string, string, string, int) (types.KeyPage, error) {
 	return types.KeyPage{Data: []types.Key{{Id: "key-1", Name: "Metadata only", Prefix: "aigw_pk_TEST"}}}, nil
 }
+func (f fakeAPI) Requests(context.Context, string, string, string, string, int) (types.RequestPage, error) {
+	return types.RequestPage{Data: []types.RequestRecord{{RequestId: "request-1", State: types.RequestRecordStateUncertain, Reserved: 10, Currency: "MOCK"}}}, nil
+}
+func (f fakeAPI) Request(context.Context, string, string, string) (types.RequestRecord, error) {
+	return types.RequestRecord{RequestId: "request-1", State: types.RequestRecordStateUncertain, Reserved: 10, Currency: "MOCK", PriceVersion: "mock-v1"}, nil
+}
 func keyPress(code rune) tea.KeyPressMsg {
 	if code < 256 {
 		return tea.KeyPressMsg{Code: code, Text: string(code)}
@@ -193,5 +199,34 @@ func TestTUISaveFailureDoesNotSwitchScope(t *testing.T) {
 	m, cmd := update(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd != nil || m.screen != organizationsScreen || m.config.Organization != "" || m.err == nil {
 		t.Fatal("failed context save silently switched scope")
+	}
+}
+
+func TestTUIRequestLedgerNavigation(t *testing.T) {
+	cfg := testConfig()
+	cfg.Organization = "org"
+	cfg.Project = "project"
+	m := NewModel(context.Background(), fakeAPI{}, cfg, nil, true)
+	defer m.stop()
+	m = complete(t, m, m.Init())
+	m, cmd := update(t, m, keyPress('t'))
+	m = complete(t, m, cmd)
+	if m.screen != requestsScreen || !strings.Contains(m.View().Content, "待核对") {
+		t.Fatal("request ledger not displayed")
+	}
+	m, cmd = update(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = complete(t, m, cmd)
+	if m.screen != requestDetailScreen || !strings.Contains(m.View().Content, "mock-v1") || !strings.Contains(m.View().Content, "待结算") {
+		t.Fatal("request detail invalid")
+	}
+	m, cmd = update(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
+	m = complete(t, m, cmd)
+	if m.screen != requestsScreen {
+		t.Fatal("detail back did not restore ledger")
+	}
+	m, cmd = update(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
+	m = complete(t, m, cmd)
+	if m.screen != dashboardScreen {
+		t.Fatal("ledger back did not restore dashboard")
 	}
 }

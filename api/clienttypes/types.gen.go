@@ -85,6 +85,16 @@ const (
 	ProjectDetailsRoleViewer    ProjectDetailsRole = "viewer"
 )
 
+// Defines values for RequestRecordState.
+const (
+	RequestRecordStateDispatched     RequestRecordState = "dispatched"
+	RequestRecordStateEstimatedFinal RequestRecordState = "estimated_final"
+	RequestRecordStateReleased       RequestRecordState = "released"
+	RequestRecordStateReserved       RequestRecordState = "reserved"
+	RequestRecordStateSettled        RequestRecordState = "settled"
+	RequestRecordStateUncertain      RequestRecordState = "uncertain"
+)
+
 // Defines values for SetModelsModels.
 const (
 	SetModelsModelsMockText SetModelsModels = "mock-text"
@@ -93,6 +103,17 @@ const (
 // Defines values for UsageCurrency.
 const (
 	UsageCurrencyMOCK UsageCurrency = "MOCK"
+)
+
+// Defines values for ListRequestsParamsState.
+const (
+	ListRequestsParamsStateDispatched     ListRequestsParamsState = "dispatched"
+	ListRequestsParamsStateEmpty          ListRequestsParamsState = ""
+	ListRequestsParamsStateEstimatedFinal ListRequestsParamsState = "estimated_final"
+	ListRequestsParamsStateReleased       ListRequestsParamsState = "released"
+	ListRequestsParamsStateReserved       ListRequestsParamsState = "reserved"
+	ListRequestsParamsStateSettled        ListRequestsParamsState = "settled"
+	ListRequestsParamsStateUncertain      ListRequestsParamsState = "uncertain"
 )
 
 // Audit defines model for Audit.
@@ -311,6 +332,28 @@ type ProjectPage struct {
 	NextCursor string `json:"next_cursor"`
 }
 
+// RequestPage defines model for RequestPage.
+type RequestPage struct {
+	Data       []RequestRecord `json:"data"`
+	NextCursor string          `json:"next_cursor"`
+}
+
+// RequestRecord Budget-backed request metadata only. Accounting state does not prove downstream delivery. Rejections before reservation are absent. No prompts, responses, credentials or inferred model name.
+type RequestRecord struct {
+	Actual       *int64             `json:"actual"`
+	CreatedAt    time.Time          `json:"created_at"`
+	Currency     string             `json:"currency"`
+	Period       string             `json:"period"`
+	PriceVersion string             `json:"price_version"`
+	RequestId    string             `json:"request_id"`
+	Reserved     int64              `json:"reserved"`
+	State        RequestRecordState `json:"state"`
+	UpdatedAt    time.Time          `json:"updated_at"`
+}
+
+// RequestRecordState defines model for RequestRecord.State.
+type RequestRecordState string
+
 // SetModels defines model for SetModels.
 type SetModels struct {
 	Models []SetModelsModels `json:"models"`
@@ -354,6 +397,18 @@ type ListProjectKeysParams struct {
 	Limit *int    `form:"limit,omitempty" json:"limit,omitempty"`
 	After *string `form:"after,omitempty" json:"after,omitempty"`
 }
+
+// ListRequestsParams defines parameters for ListRequests.
+type ListRequestsParams struct {
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+	Limit *int    `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// State Accounting state filter; omitted or empty means all states. Keep it unchanged while paging.
+	State *ListRequestsParamsState `form:"state,omitempty" json:"state,omitempty"`
+}
+
+// ListRequestsParamsState defines parameters for ListRequests.
+type ListRequestsParamsState string
 
 // CompleteBrowserLoginParams defines parameters for CompleteBrowserLogin.
 type CompleteBrowserLoginParams struct {

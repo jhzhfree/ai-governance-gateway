@@ -88,6 +88,7 @@ func NewCommand(options Options) *cobra.Command {
 	}
 	a.addAuthentication()
 	a.addQueries()
+	a.addRequests()
 	a.addContext()
 	a.addTUI()
 	return root

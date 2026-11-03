@@ -12,7 +12,9 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	types "github.com/jhzhfree/ai-governance-gateway/api/clienttypes"
+	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
 	"github.com/jhzhfree/ai-governance-gateway/internal/httpapi"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
@@ -27,12 +29,13 @@ type apiFixture struct {
 	org     control.Organization
 	project control.Project
 	store   *control.Store
+	ledger  *budget.Store
 	token   string
 }
 
 func fixture(t *testing.T) apiFixture {
 	t.Helper()
-	pool, _, _ := testutil.Database(t)
+	pool, ledger, _ := testutil.Database(t)
 	store := control.New(pool)
 	issuer := testutil.NewIssuer(t)
 	auth, err := identity.NewOIDC(context.Background(), issuer.URL, "aigw-management")
@@ -58,7 +61,7 @@ func fixture(t *testing.T) apiFixture {
 	if err := state.Save(cfg); err != nil {
 		t.Fatal(err)
 	}
-	return apiFixture{server, issuer, cfg, state, org, project, store, issuer.Token(t, "alice", nil)}
+	return apiFixture{server, issuer, cfg, state, org, project, store, ledger, issuer.Token(t, "alice", nil)}
 }
 func (f apiFixture) execute(t *testing.T, token string, args ...string) (int, string, string) {
 	t.Helper()
@@ -226,5 +229,56 @@ func TestDeviceFlowValidationAndCancellation(t *testing.T) {
 	})
 	if err != context.Canceled {
 		t.Fatal("device wait did not respect cancellation")
+	}
+}
+
+func TestCLIAndTUIReadSameDurableRequestLedger(t *testing.T) {
+	f := fixture(t)
+	ctx := context.Background()
+	scope := budget.Scope{Organization: f.org.ID, Project: f.project.ID, Period: f.org.Period, Currency: f.org.Currency}
+	if _, err := f.ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "terminal-request", PriceVersion: "mock-v1", Amount: 10}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.ledger.Dispatch(ctx, "terminal-request"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.ledger.MarkUncertain(ctx, "terminal-request"); err != nil {
+		t.Fatal(err)
+	}
+	cfg := f.config
+	cfg.Organization = f.org.ID
+	cfg.Project = f.project.ID
+	if err := f.state.Save(cfg); err != nil {
+		t.Fatal(err)
+	}
+	code, out, _ := f.execute(t, f.token, "requests", "list", "--state", "uncertain", "--output", "json")
+	var page types.RequestPage
+	if code != 0 || json.Unmarshal([]byte(out), &page) != nil || len(page.Data) != 1 || page.Data[0].Actual != nil {
+		t.Fatal("CLI request list lost unsettled state")
+	}
+	code, out, _ = f.execute(t, f.token, "requests", "get", "--request-id", "terminal-request", "--output", "json")
+	var record types.RequestRecord
+	if code != 0 || json.Unmarshal([]byte(out), &record) != nil || record.State != types.RequestRecordStateUncertain || record.Reserved != 10 {
+		t.Fatal("CLI detail differs from ledger")
+	}
+	if code, _, _ := f.execute(t, f.token, "requests", "list", "--state", "success"); code != 2 {
+		t.Fatal("invalid state did not return usage error")
+	}
+	client, err := NewClient(cfg.Server, f.token, true, f.server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := NewModel(ctx, client, cfg, nil, true)
+	defer model.stop()
+	model = complete(t, model, model.Init())
+	model, cmd := update(t, model, keyPress('t'))
+	model = complete(t, model, cmd)
+	if len(model.records) != 1 || model.records[0].RequestId != record.RequestId {
+		t.Fatal("TUI list differs from actual API")
+	}
+	model, cmd = update(t, model, tea.KeyPressMsg{Code: tea.KeyEnter})
+	model = complete(t, model, cmd)
+	if model.record == nil || model.record.Actual != nil || model.record.Reserved != record.Reserved {
+		t.Fatal("TUI detail differs from actual API")
 	}
 }

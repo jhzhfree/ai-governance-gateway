@@ -1,6 +1,6 @@
 # CLI 与终端控制台
 
-本阶段提供只读管理客户端：组织/项目、预算用量、密钥元数据、组织审计，以及经服务端验证后保存的本地上下文。它调用与 Web 相同的 `/api/v1`，不访问数据库，不接收推理项目密钥作为管理身份。当前没有调用记录查询 API，因此尚不提供按 request_id 排障页。
+本阶段提供只读管理客户端：组织/项目、预算用量、密钥元数据、组织审计，以及经服务端验证后保存的本地上下文。它调用与 Web 相同的 `/api/v1`，不访问数据库，不接收推理项目密钥作为管理身份。现已提供[调用账本列表与 request_id 详情](request-history.md)，只展示账本事实，不覆盖未建立预留的失败或完整协议日志。
 
 ## 构建与登录
 
@@ -33,6 +33,8 @@ HTTPS 为默认要求。本机开发可显式指定 `--allow-loopback-http`，�
 ./bin/aigw usage
 ./bin/aigw keys list --limit 20
 ./bin/aigw audit --limit 20
+./bin/aigw requests list --state uncertain --output json
+./bin/aigw requests get --request-id REQUEST_ID --output json
 ./bin/aigw usage --output json
 ./bin/aigw auth status
 ./bin/aigw logout
@@ -51,7 +53,7 @@ HTTPS 为默认要求。本机开发可显式指定 `--allow-loopback-http`，�
 NO_COLOR=1 ./bin/aigw tui
 ```
 
-需要 stdin/stdout 均为 TTY，不支持 `--output json`。界面按组织 → 项目 → 项目概览导航；已保存项目可直接打开概览。概览显示周期用量与密钥元数据。↑/↓ 或 j/k 选择、Enter 确认、Esc 返回、r 刷新、n/p 翻页、q 或 Ctrl+C 退出。退出恢复终端模式和备用屏幕；`NO_COLOR` 关闭颜色，重定向与脚本应使用普通 JSON 命令。
+需要 stdin/stdout 均为 TTY，不支持 `--output json`。界面按组织 → 项目 → 项目概览导航；已保存项目可直接打开概览。概览显示周期用量与密钥元数据，按 t 打开调用账本列表，Enter 查看详情。↑/↓ 或 j/k 选择、Enter 确认、Esc 返回、r 刷新、n/p 翻页、q 或 Ctrl+C 退出。退出恢复终端模式和备用屏幕；`NO_COLOR` 关闭颜色，重定向与脚本应使用普通 JSON 命令。
 
 网络请求可取消；切页取消旧请求并忽略迟到响应。刷新失败保留同作用域最后一次成功数据，顶部显示错误/过期提示；切换作用域不会继续展示上一项目数据。界面按窗口裁剪，列表跟随选择滚动。所有展示文本过滤控制字符及方向控制字符，避免服务端资源名称触发终端转义。
 
@@ -59,6 +61,6 @@ NO_COLOR=1 ./bin/aigw tui
 
 `bash scripts/verify.sh` 校验生成 Go 类型、静态检查、race 与真实 PostgreSQL 集成；`AIGW_VERIFY_WEB=1` 同时回归浏览器。测试 IdP 使用真实 RSA 签名，覆盖 pending 后授权、拒绝、错误 audience、过期、非法轮询间隔和取消，以及文件权限、跨服务凭证保护、跨组织拒绝、JSON 契约和分页。TUI 验证状态转移、迟到响应、缩放、错误保留，并在 Linux 真正 PTY 中验证退出恢复终端。
 
-这不是企业 IdP 或原生系统钥匙串的上线验收：钥匙串适配器使用内存替身测试，企业接入、Windows/macOS、屏幕阅读器及真实运维终端人工体验仍待验证。没有新增数据库迁移、写入业务命令、调用记录、真实模型适配或自动令牌刷新。
+这不是企业 IdP 或原生系统钥匙串的上线验收：钥匙串适配器使用内存替身测试，企业接入、Windows/macOS、屏幕阅读器及真实运维终端人工体验仍待验证。本终端阶段未新增写入业务命令、真实模型适配或自动令牌刷新。后续调用账本与索引迁移见独立文档。
 
 阶段验收（2026-11-03）：完整后端校验通过，56 个顶层测试及 39 个子测试，无失败/跳过；Web 冻结安装、类型差异、TS/ESLint/Prettier、生产构建及 3 个 Chromium 场景通过；`cmd/aigw` 二进制构建和 `--help` 冒烟通过。未以 mock 供应商证明真实模型已接通。

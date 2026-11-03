@@ -4,6 +4,7 @@ AI 治理网关：面向团队的统一模型接入、访问控制、预算限�
 
 当前状态：已实现预算/SSE、组织/项目权限、项目密钥，以及带 OIDC 服务端会话的 Web 控制台、只读 CLI/TUI 与 Device Flow 登录。真实企业 IdP、原生钥匙串、模型供应商和生产部署尚未验收。
 
+- [调用账本查询与排障](docs/request-history.md)
 - [CLI 与终端控制台](docs/terminal-client.md)
 - [Web 控制台与浏览器会话](docs/web-console.md)
 - [版本化数据库迁移](docs/database-migrations.md)

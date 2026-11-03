@@ -7,7 +7,10 @@ export function usePage<T>(identity: string[], resource: string, path: string, e
     enabled,
     initialPageParam: '',
     queryFn: ({ pageParam, signal }) =>
-      api<Page<T>>(`${path}?limit=50&after=${encodeURIComponent(pageParam)}`, { signal }),
+      api<Page<T>>(
+        `${path}${path.includes('?') ? '&' : '?'}limit=50&after=${encodeURIComponent(pageParam)}`,
+        { signal },
+      ),
     getNextPageParam: (page) => page.next_cursor || undefined,
   });
 }

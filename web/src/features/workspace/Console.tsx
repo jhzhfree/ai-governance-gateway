@@ -18,6 +18,7 @@ import { usePage } from '../../shared/useResourcePage';
 import { roleNames, number } from '../../shared/format';
 import { SecretDialog } from '../keys/SecretDialog';
 import { KeyPanel } from '../keys/KeyPanel';
+import { RequestPanel } from '../requests/RequestPanel';
 import { AuditPanel } from '../audit/AuditPanel';
 
 export function Console({ session }: { session: Session }) {
@@ -56,7 +57,13 @@ export function Console({ session }: { session: Session }) {
     Boolean(orgID && projectID),
   );
   const view =
-    params.get('view') === 'audit' ? 'audit' : params.get('view') === 'keys' ? 'keys' : 'overview';
+    params.get('view') === 'requests'
+      ? 'requests'
+      : params.get('view') === 'audit'
+        ? 'audit'
+        : params.get('view') === 'keys'
+          ? 'keys'
+          : 'overview';
   const audit = usePage<Audit>(
     identity,
     'audit',
@@ -185,6 +192,7 @@ export function Console({ session }: { session: Session }) {
             ['overview', '◫', '项目概览'],
             ['keys', '⌘', '访问密钥'],
             ['audit', '≡', '审计记录'],
+            ['requests', '↗', '调用账本'],
           ].map(([id, icon, label]) => (
             <button
               key={id}
@@ -206,7 +214,13 @@ export function Console({ session }: { session: Session }) {
         <header className="topbar">
           <span className="breadcrumb">
             控制台 <span>/</span>{' '}
-            {view === 'audit' ? '审计记录' : view === 'keys' ? '访问密钥' : '项目概览'}
+            {view === 'requests'
+              ? '调用账本'
+              : view === 'audit'
+                ? '审计记录'
+                : view === 'keys'
+                  ? '访问密钥'
+                  : '项目概览'}
           </span>
           <div className="account">
             <span className="avatar" aria-hidden="true">
@@ -228,7 +242,13 @@ export function Console({ session }: { session: Session }) {
             <div>
               <div className="eyebrow">WORKSPACE / GOVERNANCE</div>
               <h1>
-                {view === 'audit' ? '审计记录' : view === 'keys' ? '访问密钥' : '项目概览'}
+                {view === 'requests'
+                  ? '调用账本'
+                  : view === 'audit'
+                    ? '审计记录'
+                    : view === 'keys'
+                      ? '访问密钥'
+                      : '项目概览'}
                 <span className="heading-dot">.</span>
               </h1>
               <p>
@@ -384,6 +404,13 @@ export function Console({ session }: { session: Session }) {
               ) : (
                 project.data && (
                   <>
+                    {view === 'requests' && (
+                      <RequestPanel
+                        key={projectPath}
+                        identity={identity}
+                        projectPath={projectPath}
+                      />
+                    )}
                     {view === 'overview' && (
                       <>
                         <section className="project-title">
@@ -474,24 +501,26 @@ export function Console({ session }: { session: Session }) {
                         </section>
                       </>
                     )}
-                    <KeyPanel
-                      items={visibleKeys}
-                      error={keys.error}
-                      loading={keys.isPending}
-                      hasMore={keys.hasNextPage}
-                      canIssue={Boolean(canIssue)}
-                      onCreate={() => open('key')}
-                      onRetry={() => {
-                        void keys.refetch();
-                      }}
-                      onMore={() => {
-                        void keys.fetchNextPage();
-                      }}
-                      onRevoke={(key) => {
-                        setFormError(null);
-                        setRevoke(key);
-                      }}
-                    />
+                    {view !== 'requests' && (
+                      <KeyPanel
+                        items={visibleKeys}
+                        error={keys.error}
+                        loading={keys.isPending}
+                        hasMore={keys.hasNextPage}
+                        canIssue={Boolean(canIssue)}
+                        onCreate={() => open('key')}
+                        onRetry={() => {
+                          void keys.refetch();
+                        }}
+                        onMore={() => {
+                          void keys.fetchNextPage();
+                        }}
+                        onRevoke={(key) => {
+                          setFormError(null);
+                          setRevoke(key);
+                        }}
+                      />
+                    )}
                   </>
                 )
               )}

@@ -114,3 +114,94 @@ test('an expired session clears the authenticated workspace', async ({ page }) =
   await expect(page.getByRole('link', { name: /使用组织账号登录/ })).toBeVisible();
   await expect(page.getByRole('heading', { name: '项目概览.' })).toHaveCount(0);
 });
+
+test('request ledger follows real inference, filters, pages and isolates projects', async ({
+  page,
+  baseURL,
+}) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: /使用组织账号登录/ }).click();
+  await expect(page.getByRole('heading', { name: '项目概览.' })).toBeVisible();
+  const session = (await (await page.request.get('/auth/session')).json()) as {
+    csrf_token: string;
+  };
+  const headers = { Origin: baseURL!, 'X-CSRF-Token': session.csrf_token };
+  const orgResponse = await page.request.post('/api/v1/organizations', {
+    headers,
+    data: { name: '账本验收团队', period: '2026-11', limit_amount: 1000 },
+  });
+  expect(orgResponse.status()).toBe(201);
+  const org = (await orgResponse.json()) as { id: string };
+  const orgPath = `/api/v1/organizations/${org.id}`;
+  const projectResponse = await page.request.post(`${orgPath}/projects`, {
+    headers,
+    data: { name: '请求账本项目', limit_amount: 500 },
+  });
+  expect(projectResponse.status()).toBe(201);
+  const project = (await projectResponse.json()) as { id: string };
+  const projectPath = `${orgPath}/projects/${project.id}`;
+  const keyResponse = await page.request.post(`${projectPath}/keys`, {
+    headers,
+    data: { name: '账本测试凭证', models: ['mock-text'], ttl_seconds: 3600 },
+  });
+  expect(keyResponse.status()).toBe(201);
+  const key = (await keyResponse.json()) as { secret: string };
+  let requestID = '';
+  for (let index = 0; index < 51; index++) {
+    const response = await page.request.post('/v1/chat/completions', {
+      headers: { Authorization: `Bearer ${key.secret}` },
+      data: {
+        model: 'mock-text',
+        stream: true,
+        max_tokens: 8,
+        messages: [{ role: 'user', content: 'synthetic-browser-fixture' }],
+      },
+    });
+    expect(response.status()).toBe(200);
+    expect((await response.text()).endsWith('data: [DONE]\n\n')).toBeTruthy();
+    requestID = response.headers()['x-request-id'];
+  }
+  await page.goto(`/?org=${org.id}&project=${project.id}&view=requests`);
+  await expect(page.getByRole('heading', { name: '项目调用账本', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '加载更多调用' })).toBeVisible();
+  await expect(page.locator('tbody tr')).toHaveCount(50);
+  await page.getByRole('button', { name: '加载更多调用' }).click();
+  await expect(page.locator('tbody tr')).toHaveCount(51);
+  await expect(page.getByRole('button', { name: '加载更多调用' })).toHaveCount(0);
+  await page.getByLabel('账本状态', { exact: true }).selectOption('uncertain');
+  await expect(page.getByText('暂无调用账本', { exact: true })).toBeVisible();
+  expect(new URL(page.url()).searchParams.get('state')).toBe('uncertain');
+  await page.getByLabel('账本状态', { exact: true }).selectOption('settled');
+  await expect(page.locator('tbody tr')).toHaveCount(50);
+  await page.getByLabel('请求编号', { exact: true }).fill(requestID);
+  await page.getByRole('button', { name: '查询详情', exact: true }).click();
+  const detail = page.getByRole('region', { name: '调用账本详情' });
+  await expect(detail.getByText(requestID, { exact: true })).toBeVisible();
+  await expect(detail.getByText('10 / 4', { exact: true })).toBeVisible();
+  await expect(detail.getByText('mock-v1', { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(detail.getByText(requestID, { exact: true })).toBeVisible();
+  await page.screenshot({ path: '/tmp/aigw-request-ledger-desktop.png', fullPage: true });
+  const accessibility = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+    .analyze();
+  expect(accessibility.violations.map((issue) => issue.id)).toEqual([]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+  ).toBeTruthy();
+  await page.screenshot({ path: '/tmp/aigw-request-ledger-mobile.png', fullPage: true });
+  await page.getByLabel('请求编号', { exact: true }).fill('unknown-request');
+  await page.getByRole('button', { name: '查询详情', exact: true }).click();
+  await expect(detail.getByRole('alert')).toBeVisible();
+  await expect(detail.getByText(requestID, { exact: true })).toHaveCount(0);
+  const otherResponse = await page.request.post(`${orgPath}/projects`, {
+    headers,
+    data: { name: '无调用项目', limit_amount: 50 },
+  });
+  const other = (await otherResponse.json()) as { id: string };
+  await page.goto(`/?org=${org.id}&project=${other.id}&view=requests&request=${requestID}`);
+  await expect(page.getByText('暂无调用账本', { exact: true })).toBeVisible();
+  await expect(detail.getByRole('alert')).toBeVisible();
+  await expect(detail.getByText('10 / 4', { exact: true })).toHaveCount(0);
+});
