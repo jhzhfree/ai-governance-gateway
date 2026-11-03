@@ -11,7 +11,7 @@
 | P0 | [Bifrost](https://github.com/maximhq/bifrost) | Go AI 网关、供应商抽象、请求转换、流式处理与扩展点 | 首先对照 Go 推理链路设计；性能结论需本地重测，治理能力需核对具体版本与授权范围 |
 | P0 | [LiteLLM](https://github.com/BerriAI/litellm) | 多供应商兼容、虚拟密钥、路由、用量与预算产品模型 | 作为协议和治理场景参考；保留本工程 Go 技术栈，预算硬限额需独立验证并发与故障语义 |
 | P0 | [TDesign React](https://github.com/Tencent/tdesign-react) | 腾讯开源组件、资源表格、表单、抽屉、主题与无障碍接口 | Web 首选组件库候选；业务页面需按统一封装规范构建，不能仅靠组件库保证无障碍 |
-| P0 | [Bubble Tea](https://github.com/charmbracelet/bubbletea) | model/update/view、异步命令、输入与程序退出 | TUI 主框架候选；先验证网络取消、窗口缩放和终端恢复 |
+| P0 | [Bubble Tea](https://github.com/charmbracelet/bubbletea) | model/update/view、异步命令、输入与程序退出 | 已采用 v2.1.1；已验证取消、缩放、迟到响应和 Linux PTY 恢复，企业终端体验待验收 |
 | P1 | [Dify](https://github.com/langgenius/dify) | 工作空间、供应商配置、调试反馈、应用接入的产品组织方式 | 借鉴任务流程；不移植工作流引擎，不默认允许源码复用，先核对其许可证附加条件 |
 | P1 | [Coze Studio](https://github.com/coze-dev/coze-studio) | 扣子开源平台的工作空间、资源组织、调试与发布流程 | 用于产品信息架构研究；其编排功能与工程复杂度不纳入网关首期 |
 | P1 | [Casdoor](https://github.com/casdoor/casdoor) | 身份提供方接入、组织与登录配置、OIDC 集成 | 身份服务候选，独立于本工程业务角色；必须实测终端授权流程及生产部署约束 |
@@ -47,3 +47,18 @@
 - 按选定 commit 检查根目录和子模块许可证、NOTICE、商标及素材条件；企业模块和第三方组件可能有不同条款。尤其不能假定 Dify 或其他 AI 平台全部属于无附加限制的宽松许可。
 - 直接采用或复制时记录来源、版本、文件、修改和适用义务，保留要求的声明。授权不明确时仅保留需求层面的研究结论，选择许可清晰的替代实现。
 - 采用固定版本与完整性校验，检查维护状态、安全公告和依赖树，生成 SBOM；不将参考项目加入本工程运行依赖，除非已作明确采用决定。
+
+## 5. 终端阶段实际采用
+
+本阶段使用发布 tag，而非研究 HEAD；未复制上游业务实现。下表许可证已在 Go 模块缓存对应版本的 LICENSE/NOTICE 中初查；分发时仍需保留声明，完整传递依赖清单及 SBOM 尚待发布阶段处理。
+
+| 依赖 | 固定版本 | 根许可证 | 用途 |
+| --- | --- | --- | --- |
+| charm.land/bubbletea/v2 | v2.1.1 | MIT | 交互事件循环与终端生命周期 |
+| charm.land/lipgloss/v2 | v2.0.6 | MIT | 终端样式与排版 |
+| github.com/spf13/cobra | v1.10.2 | Apache-2.0 | 子命令、参数与帮助 |
+| github.com/zalando/go-keyring | v0.2.8 | MIT | 原生钥匙串适配 |
+| github.com/oapi-codegen/oapi-codegen/v2 | v2.5.1 | Apache-2.0 | 构建期管理 API 类型生成 |
+| github.com/creack/pty | v1.1.24 | MIT | Linux 真实 PTY 恢复测试 |
+
+版本选择、Go 最低版本影响及替代方案见 [ADR 0004](adr/0004-terminal-client-and-device-login.md)。本地签名 IdP 和真实 PostgreSQL 已集成；原生钥匙串仅用适配器替身验证，不代表桌面环境实测。Bubbles 未引入。

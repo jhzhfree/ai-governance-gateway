@@ -1,6 +1,6 @@
 # 开源源码研究与验证结论
 
-研究日期：2026-11-03。范围为 Bifrost、LiteLLM、Coze Studio、Dify、TDesign React、Bubble Tea、Cobra、Casdoor。参考源码在临时目录研究，没有引入产品依赖或复制上游业务实现。
+研究日期：2026-11-03。范围为 Bifrost、LiteLLM、Coze Studio、Dify、TDesign React、Bubble Tea、Cobra、Casdoor。以下记录初次研究快照；当时未引入产品依赖或复制上游业务实现。后续实际采用见 [ADR 0004](../adr/0004-terminal-client-and-device-login.md) 和[当前依赖记录](../open-source-references.md#5-终端阶段实际采用)。
 
 ## 1. 验证结果与边界
 

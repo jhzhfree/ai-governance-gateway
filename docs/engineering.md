@@ -1,6 +1,6 @@
 # 代码与交付规范
 
-这些规范是后续实现的验收要求。当前已配置 Go 格式/模块/vet/race、OpenAPI 与真实 PostgreSQL 集成测试，以及 Web 冻结安装、类型生成差异、TypeScript、ESLint/React Hooks、Prettier、生产构建和 Chromium 端到端检查。安全依赖扫描、完整无障碍人工验收及生产门禁仍待完善。工作流配置不等于 GitHub 托管执行已通过。
+这些规范是后续实现的验收要求。当前已配置 Go 格式/模块/vet/race、OpenAPI Web/Go 类型差异与真实 PostgreSQL 集成测试，以及 Web 冻结安装、类型生成差异、TypeScript、ESLint/React Hooks、Prettier、生产构建和 Chromium 端到端检查。安全依赖扫描、完整无障碍人工验收及生产门禁仍待完善。工作流配置不等于 GitHub 托管执行已通过。
 
 ## 工程规则
 
@@ -10,6 +10,8 @@
 - API、数据库、UI 类型有清晰转换边界；禁止将数据库行或供应商原始错误直接暴露给调用方。
 - 固定工具链与依赖版本，提交 Go 模块校验和、Web 包管理器锁文件，CI 使用冻结安装。依赖升级经测试和许可证核查，不关闭 TLS 或完整性校验。
 - 密钥不得入库、入日志或进示例。提供只包含变量名和非敏感默认值的配置样例，开发与生产配置明确分离。
+
+终端框架要求最低 Go 1.26；仓库开发/CI 工具链仍固定 `.go-version` 的 1.27.3。Go 类型生成使用 go.mod tool 固定的 oapi-codegen，执行 `GO_BIN=go bash scripts/check-go-api.sh` 检查漂移；生成文件不手工编辑。
 
 ## 测试要求
 

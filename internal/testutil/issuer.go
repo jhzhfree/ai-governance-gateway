@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -19,9 +20,15 @@ import (
 // Issuer is a local test IdP with real RSA signatures and a JWKS endpoint.
 // No token or private key is written to logs or persistent files.
 type Issuer struct {
-	URL string
-	key *rsa.PrivateKey
+	URL                string
+	key                *rsa.PrivateKey
+	DevicePolls        atomic.Int32
+	AutoApproveDevices atomic.Bool
+	deviceFault        atomic.Value
 }
+
+func (i *Issuer) SetDeviceFault(value string) { i.deviceFault.Store(value) }
+func (i *Issuer) deviceError() string         { value, _ := i.deviceFault.Load().(string); return value }
 
 func NewIssuer(t testing.TB) *Issuer {
 	t.Helper()
@@ -33,7 +40,45 @@ func NewIssuer(t testing.TB) *Issuer {
 	type authorization struct{ client, redirect, nonce, challenge string }
 	var mu sync.Mutex
 	codes := map[string]authorization{}
+	type deviceGrant struct {
+		client, userCode string
+		approved         bool
+		polls            int
+	}
+	devices := map[string]*deviceGrant{}
 	mux := http.NewServeMux()
+	mux.HandleFunc("POST /device/authorize", func(w http.ResponseWriter, r *http.Request) {
+		if r.ParseForm() != nil || r.Form.Get("client_id") == "" {
+			http.Error(w, "invalid device client", 400)
+			return
+		}
+		code, userCode := rand.Text()+rand.Text(), rand.Text()[:8]
+		mu.Lock()
+		devices[code] = &deviceGrant{client: r.Form.Get("client_id"), userCode: userCode}
+		mu.Unlock()
+		interval := 1
+		if i.deviceError() == "negative_interval" {
+			interval = -1
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"device_code": code, "user_code": userCode, "verification_uri": i.URL + "/device/verify", "expires_in": 60, "interval": interval})
+	})
+	mux.HandleFunc("POST /device/verify", func(w http.ResponseWriter, r *http.Request) {
+		if r.ParseForm() != nil {
+			http.Error(w, "invalid verification", 400)
+			return
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		for _, grant := range devices {
+			if grant.userCode == r.Form.Get("user_code") {
+				grant.approved = true
+				w.WriteHeader(204)
+				return
+			}
+		}
+		http.Error(w, "invalid code", 400)
+	})
 	mux.HandleFunc("GET /authorize", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		if q.Get("code_challenge_method") != "S256" || q.Get("code_challenge") == "" || q.Get("nonce") == "" {
@@ -60,6 +105,43 @@ func NewIssuer(t testing.TB) *Issuer {
 			http.Error(w, "invalid form", 400)
 			return
 		}
+		if r.Form.Get("grant_type") == "urn:ietf:params:oauth:grant-type:device_code" {
+			i.DevicePolls.Add(1)
+			mu.Lock()
+			grant, ok := devices[r.Form.Get("device_code")]
+			if !ok || grant.client != r.Form.Get("client_id") {
+				mu.Unlock()
+				http.Error(w, "invalid device grant", 400)
+				return
+			}
+			grant.polls++
+			pending := grant.polls == 1 || (!grant.approved && !i.AutoApproveDevices.Load())
+			fault := i.deviceError()
+			if !pending || fault == "denied" {
+				delete(devices, r.Form.Get("device_code"))
+			}
+			mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			if fault == "denied" {
+				w.WriteHeader(400)
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "access_denied"})
+				return
+			}
+			if pending {
+				w.WriteHeader(400)
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "authorization_pending"})
+				return
+			}
+			claims := map[string]any{}
+			if fault == "wrong_audience" {
+				claims["aud"] = "other-api"
+			}
+			if fault == "expired" {
+				claims["exp"] = time.Now().Add(-time.Hour).Unix()
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"access_token": i.Token(t, "alice", claims), "token_type": "Bearer", "expires_in": 3600})
+			return
+		}
 		mu.Lock()
 		flow, ok := codes[r.Form.Get("code")]
 		delete(codes, r.Form.Get("code"))
@@ -78,7 +160,7 @@ func NewIssuer(t testing.TB) *Issuer {
 	})
 	mux.HandleFunc("GET /.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"issuer": i.URL, "jwks_uri": i.URL + "/jwks", "authorization_endpoint": i.URL + "/authorize", "token_endpoint": i.URL + "/token", "response_types_supported": []string{"code"}, "subject_types_supported": []string{"public"}, "id_token_signing_alg_values_supported": []string{"RS256"}})
+		_ = json.NewEncoder(w).Encode(map[string]any{"issuer": i.URL, "jwks_uri": i.URL + "/jwks", "authorization_endpoint": i.URL + "/authorize", "token_endpoint": i.URL + "/token", "device_authorization_endpoint": i.URL + "/device/authorize", "response_types_supported": []string{"code"}, "subject_types_supported": []string{"public"}, "id_token_signing_alg_values_supported": []string{"RS256"}})
 	})
 	mux.HandleFunc("GET /jwks", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

@@ -53,6 +53,7 @@ if [[ -z "${TEST_DATABASE_URL:-}" ]]; then
 fi
 
 "$go_bin" mod verify
+GO_BIN="$go_bin" bash scripts/check-go-api.sh
 "$go_bin" vet -mod=readonly ./api/... ./cmd/... ./internal/...
 "$go_bin" test -mod=readonly -race -count=1 -timeout=120s -v ./api/... ./cmd/... ./internal/...
 

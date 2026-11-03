@@ -1,6 +1,6 @@
 # 系统与前端架构
 
-配套阅读：[开源架构参考与采用边界](open-source-references.md)。参考项目用于选型验证，尚未引入运行依赖。
+配套阅读：[开源架构参考与采用边界](open-source-references.md)。参考项目的采用范围与运行依赖分别记录，避免将参考等同集成。
 
 源码研究后的细化决策见[验证报告](research/findings.md)：请求与 attempt 分开记账；预算取消后进入待核对状态；策略采用不可变发布版本；终端框架须固定兼容的大版本。
 
@@ -8,7 +8,7 @@
 
 采用 Go 模块化单体后端、React + TypeScript Web、Go TUI。网关涉及 SSE、取消、限流与并发预算，Go 同时适合服务端和单文件终端工具；Web 使用成熟组件生态。先保持一个部署单元，通过模块和接口隔离领域，避免在需求与团队规模未知时拆微服务。
 
-当前已采用 Go net/http ServeMux、PostgreSQL/pgx、coreos-go-oidc、Vite/React/TypeScript、React Router、TanStack Query 和 TDesign React，依赖固定版本并提交锁文件。OpenAPI 生成 Web 类型并检查差异。Redis/sqlc/TUI 仍待实现和验证，现有路由无需额外框架。具体运行方式见[管理 API](management-api.md)及[Web 控制台](web-console.md)。
+当前已采用 Go net/http ServeMux、PostgreSQL/pgx、coreos-go-oidc、Vite/React/TypeScript、React Router、TanStack Query 和 TDesign React，依赖固定版本并提交锁文件。OpenAPI 生成 Web/Go 类型并检查差异，终端采用 Cobra、Bubble Tea v2 与 Lip Gloss v2。Redis/sqlc 仍待实现和验证，现有路由无需额外框架。具体运行方式见[管理 API](management-api.md)及[Web 控制台](web-console.md)。
 
 ## 2. 边界与请求流
 
@@ -59,7 +59,7 @@ Web 管理登录优先对接 OIDC，服务端持有会话并设置 Secure、Http
 
 ## 5. 前端结构与状态边界
 
-正式应用的目标目录（部分原型目录已创建，管理端/Web/TUI 尚未实现）：
+当前主要目录（领域拆分仍随功能演进）：
 
 ```text
 cmd/gateway/              服务入口
@@ -67,12 +67,14 @@ cmd/migrate/              独立数据库迁移与状态检查
 cmd/aigw/                 CLI / TUI 入口
 internal/<domain>/        领域模块与适配器
 api/openapi/              管理 API 契约
+api/clienttypes/          生成的 Go 管理类型
+internal/terminal/        CLI、Device Flow、HTTP 适配器与 TUI
 internal/database/        版本化迁移、旧库接管与只读结构核对
 web/src/App.tsx           会话入口与失效清理
 web/src/features/         按项目、密钥、预算等业务组织
 web/src/shared/           反馈组件、格式和资源分页 Hook
 web/src/generated/        OpenAPI 生成类型
-tests/integration/        数据库与供应商协议集成测试
+internal/<package>/*_test.go  领域及数据库/协议集成测试
 docs/adr/                 架构决策记录
 ```
 
@@ -91,3 +93,5 @@ OpenTelemetry 串联管理 API、推理链路及供应商调用；指标包括�
 部署前执行独立迁移任务；采用向后兼容的 expand/contract 变更，应用回滚不依赖破坏性数据库回滚。配置启动时校验；生产密钥缺失直接拒绝启动。备份与恢复演练属于上线验收。
 
 当前已提供[事务型版本迁移](database-migrations.md)与独立命令，正常启动/readiness 不做 DDL。结构核对覆盖已登记的受管表；生产大库、非事务 DDL 与数据库大版本升级仍需专项验收。
+
+终端只读查询与设备登录已实现，具体安全边界与测试证据见 [ADR 0004](adr/0004-terminal-client-and-device-login.md) 和[终端使用文档](terminal-client.md)。

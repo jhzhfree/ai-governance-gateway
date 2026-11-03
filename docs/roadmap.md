@@ -19,7 +19,7 @@ Web 可以从 M1 起基于契约和模拟数据并行开发，但不能在服务
 
 技术选型同时执行[开源参考研究任务](open-source-references.md)：固定参考版本与许可证证据，对照 Bifrost/LiteLLM 验证网关，对照 TDesign/Coze Studio 验证 Web 流程，对照 Bubble Tea 验证终端。研究结果写入 ADR，不以列入参考清单代替技术验证。
 
-已完成第一轮[源码研究及局部测试](research/findings.md)、PostgreSQL 并发账本、模拟供应商取消/恢复，以及[管理 API/权限/密钥闭环](management-api.md)。OIDC 已使用本地签名测试 IdP 验证，真实企业 IdP、Web/TUI 和真实模型仍待验收；Bifrost 目标测试仍受模块下载域名限制。
+已完成第一轮[源码研究及局部测试](research/findings.md)、PostgreSQL 并发账本、模拟供应商取消/恢复，以及[管理 API/权限/密钥闭环](management-api.md)。OIDC 已使用本地签名测试 IdP 验证，真实企业 IdP 和真实模型仍待验收，Web/TUI 本地集成增量见下文；Bifrost 目标测试仍受模块下载域名限制。
 
 1. 确认组织登录、首个供应商与部署方式；完成 3 个 ADR：技术栈、预算一致性、管理认证。
 2. 定义角色/操作矩阵和项目密钥权限；起草管理 OpenAPI 与推理兼容字段清单。
@@ -35,7 +35,9 @@ Web 可以从 M1 起基于契约和模拟数据并行开发，但不能在服务
 
 第四轮增加[版本化迁移](database-migrations.md)：不可变 SQL、旧库结构核对和数据保留、并发锁、整批事务、独立命令以及只读启动/readiness 检查，取代各模块自行建表。
 
-下一阶段通过同一 API 接入 CLI/TUI。真实企业 IdP、供应商、限流、生产迁移/备份演练与部署保持待验收，不能标记整个 M1/M4 完成。每个完成阶段先提交并推送 GitHub。
+第五轮通过同一 API 完成[只读 CLI/TUI](terminal-client.md)：Device Flow、显式凭证存储、组织/项目上下文、预算/密钥元数据查询、审计 JSON，以及 Linux PTY 恢复验证。见 [ADR 0004](adr/0004-terminal-client-and-device-login.md)。缺少调用记录 API，因此 M4 的记录查询退出条件仍未满足。
+
+下一阶段优先实现首个真实供应商的协议适配与调用元数据查询，补齐双端排障闭环。真实企业 IdP、供应商、限流、生产迁移/备份演练与部署保持待验收，不能标记整个 M1/M4 完成。每个完成阶段先提交并推送 GitHub。
 
 ## 重点验收场景
 

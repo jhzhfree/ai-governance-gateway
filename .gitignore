@@ -3,6 +3,8 @@
 !.env.example
 /bin/
 /coverage.out
+/.aigw/
+*.credentials.json
 __pycache__/
 /web/node_modules/
 /web/dist/
