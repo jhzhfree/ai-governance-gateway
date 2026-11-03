@@ -1,6 +1,6 @@
 # 代码与交付规范
 
-这些规范是后续实现的验收要求。当前 Go 开发切片已配置格式检查、依赖校验、go vet、OpenAPI 文档及管理 HTTP 请求/响应契约检查、真实 PostgreSQL 集成测试和 race 检查，并添加 CI 工作流；Web、安全扫描、生成客户端差异检查等门禁尚未建立。工作流配置保存在工作区，不代表 GitHub 托管执行已通过。
+这些规范是后续实现的验收要求。当前已配置 Go 格式/模块/vet/race、OpenAPI 与真实 PostgreSQL 集成测试，以及 Web 冻结安装、类型生成差异、TypeScript、ESLint/React Hooks、Prettier、生产构建和 Chromium 端到端检查。安全依赖扫描、完整无障碍人工验收及生产门禁仍待完善。工作流配置不等于 GitHub 托管执行已通过。
 
 ## 工程规则
 

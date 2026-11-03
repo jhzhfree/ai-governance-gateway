@@ -8,7 +8,7 @@
 
 采用 Go 模块化单体后端、React + TypeScript Web、Go TUI。网关涉及 SSE、取消、限流与并发预算，Go 同时适合服务端和单文件终端工具；Web 使用成熟组件生态。先保持一个部署单元，通过模块和接口隔离领域，避免在需求与团队规模未知时拆微服务。
 
-建议框架：Go 标准库 net/http；PostgreSQL + pgx，查询稳定后评估 sqlc；Redis 用于分布式限流；Web 使用 Vite、React Router、TanStack Query、TDesign React；TUI 使用 Bubble Tea/Bubbles/Lip Gloss；OpenAPI 定义管理 API。当前已采用 Go、net/http ServeMux、PostgreSQL、固定版本 pgx/coreos-go-oidc，以及 OpenAPI 契约测试；Web/TUI/Redis/sqlc 为待验证选型。现有路由无需额外框架，暂不引入 chi。具体实现与运行方式见[管理 API](management-api.md)。
+当前已采用 Go net/http ServeMux、PostgreSQL/pgx、coreos-go-oidc、Vite/React/TypeScript、React Router、TanStack Query 和 TDesign React，依赖固定版本并提交锁文件。OpenAPI 生成 Web 类型并检查差异。Redis/sqlc/TUI 仍待实现和验证，现有路由无需额外框架。具体运行方式见[管理 API](management-api.md)及[Web 控制台](web-console.md)。
 
 ## 2. 边界与请求流
 
@@ -67,9 +67,10 @@ cmd/aigw/                 CLI / TUI 入口
 internal/<domain>/        领域模块与适配器
 api/openapi/              管理 API 契约
 db/migrations/            数据库迁移
-web/src/app/              路由、Provider、应用布局
+web/src/App.tsx           会话入口与失效清理
 web/src/features/         按项目、密钥、预算等业务组织
-web/src/shared/           设计 token、基础组件、生成 API 客户端
+web/src/shared/           反馈组件、格式和资源分页 Hook
+web/src/generated/        OpenAPI 生成类型
 tests/integration/        数据库与供应商协议集成测试
 docs/adr/                 架构决策记录
 ```

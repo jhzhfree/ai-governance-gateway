@@ -1,6 +1,6 @@
 # 管理 API、权限与项目密钥
 
-本阶段提供可运行的管理/推理后端闭环；模型仍为 mock-text。OpenAPI 3.0.3 契约见 [management.json](../api/openapi/management.json)。没有 Web/TUI、浏览器登录回调或真实模型接入。
+管理/推理后端闭环使用 mock-text。OpenAPI 3.0.3 契约见 [management.json](../api/openapi/management.json)。后续已增加 [Web 与浏览器会话](web-console.md)，TUI 和真实模型尚未实现。下文 JWT 描述适用于直接 API 客户端，浏览器另外使用 Cookie + CSRF。
 
 ## 身份与权限
 
@@ -78,7 +78,7 @@ go run ./cmd/gateway --mock-only --init-schema
 
 `/health/live` 检查进程存活，`/health/ready` 检查数据库和核心表存在。readiness 不等同完整 schema 迁移校验、IdP 可达性或上游健康。没有 OIDC 配置时拒绝启动，不提供无鉴权降级模式。
 
-获得符合 audience/scope 的管理 API JWT 后，可以按契约依次创建组织、项目、密钥，再用项目密钥完成 SSE 调用、查看用量并撤销。浏览器 Cookie 会话/CSRF、CLI Device Flow 与令牌安全存储仍是后续客户端阶段。
+获得符合 audience/scope 的管理 API JWT 后，可以按契约依次创建组织、项目、密钥，再用项目密钥完成 SSE 调用、查看用量并撤销。浏览器 Cookie 会话/CSRF 已提供；CLI Device Flow 与令牌安全存储仍待实现。
 
 ## 测试与剩余范围
 

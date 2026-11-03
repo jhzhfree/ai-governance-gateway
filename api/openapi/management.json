@@ -13,6 +13,12 @@
         "security": [
           {
             "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
           }
         ],
         "responses": {
@@ -105,6 +111,16 @@
         "security": [
           {
             "management": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          },
+          {
+            "browserSessionDev": [],
+            "csrfToken": [],
+            "browserOrigin": []
           }
         ],
         "responses": {
@@ -200,6 +216,16 @@
         "security": [
           {
             "management": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          },
+          {
+            "browserSessionDev": [],
+            "csrfToken": [],
+            "browserOrigin": []
           }
         ],
         "responses": {
@@ -288,6 +314,12 @@
         "security": [
           {
             "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
           }
         ],
         "responses": {
@@ -380,6 +412,16 @@
         "security": [
           {
             "management": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          },
+          {
+            "browserSessionDev": [],
+            "csrfToken": [],
+            "browserOrigin": []
           }
         ],
         "responses": {
@@ -485,6 +527,12 @@
         "security": [
           {
             "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
           }
         ],
         "responses": {
@@ -580,6 +628,16 @@
         "security": [
           {
             "management": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          },
+          {
+            "browserSessionDev": [],
+            "csrfToken": [],
+            "browserOrigin": []
           }
         ],
         "responses": {
@@ -678,6 +736,16 @@
         "security": [
           {
             "management": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          },
+          {
+            "browserSessionDev": [],
+            "csrfToken": [],
+            "browserOrigin": []
           }
         ],
         "responses": {
@@ -776,6 +844,12 @@
         "security": [
           {
             "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
           }
         ],
         "responses": {
@@ -868,6 +942,16 @@
         "security": [
           {
             "management": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          },
+          {
+            "browserSessionDev": [],
+            "csrfToken": [],
+            "browserOrigin": []
           }
         ],
         "responses": {
@@ -983,6 +1067,16 @@
         "security": [
           {
             "management": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          },
+          {
+            "browserSessionDev": [],
+            "csrfToken": [],
+            "browserOrigin": []
           }
         ],
         "responses": {
@@ -1071,6 +1165,12 @@
         "security": [
           {
             "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
           }
         ],
         "responses": {
@@ -1156,6 +1256,12 @@
         "security": [
           {
             "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
           }
         ],
         "responses": {
@@ -1345,6 +1451,249 @@
           }
         }
       }
+    },
+    "/auth/login": {
+      "get": {
+        "operationId": "beginBrowserLogin",
+        "security": [],
+        "responses": {
+          "303": {
+            "description": "Redirect to trusted IdP or console",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Trusted IdP authorization URL or same-origin console path."
+              }
+            }
+          },
+          "400": {
+            "description": "Authentication/session error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication/session error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authentication/session error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Authentication/session error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/callback": {
+      "get": {
+        "operationId": "completeBrowserLogin",
+        "security": [],
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Redirect to trusted IdP or console",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Trusted IdP authorization URL or same-origin console path."
+              }
+            }
+          },
+          "400": {
+            "description": "Authentication/session error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication/session error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authentication/session error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Authentication/session error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/session": {
+      "get": {
+        "operationId": "getBrowserSession",
+        "security": [
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current user and CSRF token; never OAuth tokens.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserSession"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication/session error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authentication/session error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Authentication/session error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "endBrowserSession",
+        "security": [
+          {
+            "browserSession": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          },
+          {
+            "browserSessionDev": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Session revoked and cookie cleared."
+          },
+          "401": {
+            "description": "Authentication/session error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authentication/session error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Authentication/session error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1359,6 +1708,30 @@
         "type": "http",
         "scheme": "bearer",
         "description": "One-time-issued aigw_pk_ project key. Cannot access management endpoints."
+      },
+      "browserSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-aigw_session",
+        "description": "Opaque HttpOnly Secure SameSite=Lax session cookie. OAuth tokens never reach browser JavaScript."
+      },
+      "browserSessionDev": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "aigw_session_dev",
+        "description": "Only enabled with explicit loopback HTTP development configuration."
+      },
+      "csrfToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-CSRF-Token",
+        "description": "Session-derived token from GET /auth/session; required for cookie-authenticated writes."
+      },
+      "browserOrigin": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Origin",
+        "description": "Must exactly equal configured canonical browser origin for cookie-authenticated writes."
       }
     },
     "schemas": {
@@ -1696,6 +2069,10 @@
             "type": "string",
             "format": "date-time",
             "nullable": true
+          },
+          "can_revoke": {
+            "type": "boolean",
+            "description": "Whether this caller may revoke the key; authorization is enforced again on DELETE."
           }
         },
         "required": [
@@ -1705,7 +2082,8 @@
           "models",
           "created_at",
           "expires_at",
-          "revoked_at"
+          "revoked_at",
+          "can_revoke"
         ]
       },
       "IssuedKey": {
@@ -1758,6 +2136,10 @@
             "readOnly": true,
             "pattern": "^aigw_pk_[A-Z2-7]+$",
             "description": "Only returned on creation; never available through list or read endpoints."
+          },
+          "can_revoke": {
+            "type": "boolean",
+            "description": "Whether this caller may revoke the key; authorization is enforced again on DELETE."
           }
         },
         "required": [
@@ -1768,7 +2150,8 @@
           "created_at",
           "expires_at",
           "revoked_at",
-          "secret"
+          "secret",
+          "can_revoke"
         ]
       },
       "Usage": {
@@ -1992,6 +2375,66 @@
           "data",
           "next_cursor"
         ]
+      },
+      "BrowserSession": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "user",
+          "csrf_token",
+          "expires_at"
+        ],
+        "properties": {
+          "user": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "issuer",
+              "subject"
+            ],
+            "properties": {
+              "issuer": {
+                "type": "string"
+              },
+              "subject": {
+                "type": "string"
+              }
+            }
+          },
+          "csrf_token": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "BrowserError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "request_id"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              }
+            }
+          }
+        }
       }
     }
   }

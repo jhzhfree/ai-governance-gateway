@@ -16,7 +16,9 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jhzhfree/ai-governance-gateway/internal/browser"
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
+	"github.com/jhzhfree/ai-governance-gateway/internal/console"
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
 	"github.com/jhzhfree/ai-governance-gateway/internal/gateway"
 	"github.com/jhzhfree/ai-governance-gateway/internal/httpapi"
@@ -24,8 +26,10 @@ import (
 )
 
 type config struct {
-	database, issuer, audience, upstream, listen string
-	initSchema, mockOnly                         bool
+	database, issuer, audience, upstream, listen  string
+	initSchema, mockOnly                          bool
+	browserOrigin, clientID, clientSecret, webDir string
+	allowLoopbackHTTP                             bool
 }
 
 func (c config) validate() error {
@@ -46,6 +50,9 @@ func (c config) validate() error {
 	host, _, err := net.SplitHostPort(c.listen)
 	if err != nil || !net.ParseIP(host).IsLoopback() {
 		return errors.New("development listener must use a loopback IP address")
+	}
+	if c.browserOrigin != "" && c.clientID == "" {
+		return errors.New("AIGW_OIDC_CLIENT_ID required for browser login")
 	}
 	return nil
 }
@@ -79,14 +86,34 @@ func run(ctx context.Context, c config) error {
 		return err
 	}
 	mux := http.NewServeMux()
-	mux.Handle("/api/v1/", httpapi.New(store, auth))
+	var sessions *browser.Service
+	if c.browserOrigin != "" {
+		sessions, err = browser.New(setup, pool, auth, c.issuer, browser.Config{Origin: c.browserOrigin, ClientID: c.clientID, ClientSecret: c.clientSecret, AllowLoopbackHTTP: c.allowLoopbackHTTP, HTTPClient: client})
+		if err != nil {
+			return err
+		}
+		if c.initSchema {
+			if err := sessions.Init(setup); err != nil {
+				return errors.New("browser schema initialization failed")
+			}
+		}
+		assets, e := console.New(c.webDir)
+		if e != nil {
+			return e
+		}
+		mux.Handle("/", assets)
+		mux.Handle("/auth/", sessions.Handler())
+		mux.Handle("/api/v1/", httpapi.NewWithSession(store, auth, sessions))
+	} else {
+		mux.Handle("/api/v1/", httpapi.New(store, auth))
+	}
 	mux.Handle("/v1/", &gateway.Handler{Ledger: ledger, Authorize: store.ResolveKey, Client: client, Upstream: c.upstream, Report: func(id, code string) { log.Printf("request_id=%s code=%s", id, code) }})
 	mux.HandleFunc("GET /health/live", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) })
 	mux.HandleFunc("GET /health/ready", func(w http.ResponseWriter, r *http.Request) {
 		check, cancel := context.WithTimeout(r.Context(), time.Second)
 		defer cancel()
 		var ready bool
-		err := pool.QueryRow(check, `SELECT to_regclass('budget_reservations') IS NOT NULL AND to_regclass('project_keys') IS NOT NULL`).Scan(&ready)
+		err := pool.QueryRow(check, `SELECT to_regclass('budget_reservations') IS NOT NULL AND to_regclass('project_keys') IS NOT NULL AND (NOT $1::boolean OR (to_regclass('browser_sessions') IS NOT NULL AND to_regclass('browser_login_flows') IS NOT NULL))`, c.browserOrigin != "").Scan(&ready)
 		if err != nil || !ready {
 			http.Error(w, "not ready", 503)
 			return
@@ -115,9 +142,14 @@ func run(ctx context.Context, c config) error {
 }
 func main() {
 	c := config{database: os.Getenv("AIGW_DATABASE_URL"), issuer: os.Getenv("AIGW_OIDC_ISSUER"), audience: os.Getenv("AIGW_OIDC_AUDIENCE"), upstream: os.Getenv("AIGW_UPSTREAM_URL")}
+	c.browserOrigin = os.Getenv("AIGW_BROWSER_ORIGIN")
+	c.clientID = os.Getenv("AIGW_OIDC_CLIENT_ID")
+	c.clientSecret = os.Getenv("AIGW_OIDC_CLIENT_SECRET")
 	flag.StringVar(&c.listen, "listen", "127.0.0.1:8080", "development loopback listener")
 	flag.BoolVar(&c.initSchema, "init-schema", false, "initialize prototype schema in a dedicated development database")
 	flag.BoolVar(&c.mockOnly, "mock-only", false, "explicitly enable the mock-only development service")
+	flag.StringVar(&c.webDir, "web-dir", "web/dist", "built console assets directory")
+	flag.BoolVar(&c.allowLoopbackHTTP, "allow-loopback-browser-http", false, "allow non-secure browser cookies only on an explicit loopback HTTP origin")
 	flag.Parse()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

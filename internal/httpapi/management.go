@@ -20,8 +20,14 @@ type Handler struct {
 	Store *control.Store
 	Auth  identity.Authenticator
 }
+type SessionAuthenticator interface {
+	AuthenticateRequest(*http.Request) (identity.Principal, error)
+}
 
 func New(store *control.Store, auth identity.Authenticator) http.Handler {
+	return NewWithSession(store, auth, nil)
+}
+func NewWithSession(store *control.Store, auth identity.Authenticator, session SessionAuthenticator) http.Handler {
 	h := &Handler{Store: store, Auth: auth}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/organizations", h.organizations)
@@ -46,16 +52,19 @@ func New(store *control.Store, auth identity.Authenticator) http.Handler {
 			failure(w, r, errors.New("not configured"))
 			return
 		}
-		if len(r.Header.Values("Authorization")) != 1 {
-			failure(w, r, identity.ErrUnauthenticated)
-			return
+		var p identity.Principal
+		var err error
+		if len(r.Header.Values("Authorization")) == 0 && session != nil {
+			p, err = session.AuthenticateRequest(r)
+		} else if len(r.Header.Values("Authorization")) == 1 {
+			var token string
+			token, err = identity.Bearer(r.Header.Get("Authorization"))
+			if err == nil {
+				p, err = auth.Authenticate(r.Context(), token)
+			}
+		} else {
+			err = identity.ErrUnauthenticated
 		}
-		token, err := identity.Bearer(r.Header.Get("Authorization"))
-		if err != nil {
-			failure(w, r, err)
-			return
-		}
-		p, err := auth.Authenticate(r.Context(), token)
 		if err != nil {
 			failure(w, r, err)
 			return

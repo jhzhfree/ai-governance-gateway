@@ -1,0 +1,26 @@
+export const roleNames: Record<string, string> = {
+  owner: '所有者',
+  admin: '管理员',
+  developer: '开发者',
+  viewer: '只读成员',
+};
+
+export const actionNames: Record<string, string> = {
+  'organization.created': '创建组织',
+  'organization.member_changed': '调整组织成员',
+  'project.created': '创建项目',
+  'project.member_changed': '调整项目成员',
+  'project.models_changed': '更新模型授权',
+  'project.key_created': '创建访问密钥',
+  'project.key_revoked': '撤销访问密钥',
+};
+
+export const number = (value: number) => value.toLocaleString('zh-CN');
+
+export const date = (value: string) =>
+  new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));

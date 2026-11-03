@@ -1,0 +1,22 @@
+import { defineConfig } from '@playwright/test';
+
+if (!process.env.AIGW_E2E_BASE_URL)
+  throw new Error(
+    'Run the integrated Go fixture through scripts/verify.sh with AIGW_VERIFY_WEB=1.',
+  );
+export default defineConfig({
+  testDir: './tests',
+  fullyParallel: false,
+  workers: 1,
+  retries: 0,
+  timeout: 30_000,
+  reporter: 'list',
+  use: {
+    baseURL: process.env.AIGW_E2E_BASE_URL,
+    browserName: 'chromium',
+    viewport: { width: 1440, height: 1050 },
+    trace: 'off',
+    screenshot: 'off',
+    launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE },
+  },
+});

@@ -2,7 +2,9 @@
 
 AI 治理网关：面向团队的统一模型接入、访问控制、预算限额和调用审计平台。
 
-当前状态：已实现预算/SSE 原型，以及 OIDC JWT 管理身份、组织/项目权限、项目密钥与模拟推理闭环；真实企业 IdP、模型供应商和 Web/TUI 尚未验收。
+当前状态：已实现预算/SSE、组织/项目权限、项目密钥，以及带 OIDC 服务端会话的 Web 控制台。真实企业 IdP、模型供应商、TUI 和生产部署尚未验收。
+
+- [Web 控制台与浏览器会话](docs/web-console.md)
 
 - [管理 API 与鉴权开发切片](docs/management-api.md)
 - [OpenAPI 契约](api/openapi/management.json)

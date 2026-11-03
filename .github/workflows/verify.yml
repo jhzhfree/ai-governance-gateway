@@ -14,4 +14,14 @@ jobs:
         with:
           go-version: '1.27.3'
           cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm --prefix web ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+        working-directory: web
       - run: bash scripts/verify.sh
+        env:
+          AIGW_VERIFY_WEB: '1'

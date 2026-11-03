@@ -109,6 +109,7 @@ type ProjectDetails struct {
 	Models []string `json:"models"`
 }
 type Key struct {
+	CanRevoke bool       `json:"can_revoke"`
 	ID        string     `json:"id"`
 	Name      string     `json:"name"`
 	Prefix    string     `json:"prefix"`
@@ -328,7 +329,7 @@ func (s *Store) CreateKey(ctx context.Context, p identity.Principal, org, projec
 	secret := "aigw_pk_" + rand.Text() + rand.Text()
 	digest := sha256.Sum256([]byte(secret))
 	issued.Secret = secret
-	issued.Key = Key{ID: rand.Text(), Name: name, Prefix: secret[:16], Models: models}
+	issued.Key = Key{ID: rand.Text(), Name: name, Prefix: secret[:16], Models: models, CanRevoke: true}
 	err = transaction(ctx, s.pool, func(tx pgx.Tx) error {
 		role, err := projectRole(ctx, tx, p, org, project)
 		if err != nil {
@@ -357,17 +358,18 @@ func (s *Store) CreateKey(ctx context.Context, p identity.Principal, org, projec
 func (s *Store) ListKeys(ctx context.Context, p identity.Principal, org, project, after string, limit int) (items []Key, err error) {
 	items = []Key{}
 	err = transaction(ctx, s.pool, func(tx pgx.Tx) error {
-		if _, err := projectRole(ctx, tx, p, org, project); err != nil {
+		role, err := projectRole(ctx, tx, p, org, project)
+		if err != nil {
 			return err
 		}
-		rows, err := tx.Query(ctx, `SELECT id,name,prefix,models,created_at,expires_at,revoked_at FROM project_keys WHERE organization_id=$1 AND project_id=$2 AND id>$3 ORDER BY id LIMIT $4`, org, project, after, limit)
+		rows, err := tx.Query(ctx, `SELECT id,name,prefix,models,created_at,expires_at,revoked_at,(revoked_at IS NULL AND ($5='admin' OR ($5='developer' AND creator_issuer=$6 AND creator_subject=$7))) FROM project_keys WHERE organization_id=$1 AND project_id=$2 AND id>$3 ORDER BY id LIMIT $4`, org, project, after, limit, role, p.Issuer, p.Subject)
 		if err != nil {
 			return err
 		}
 		defer rows.Close()
 		for rows.Next() {
 			var k Key
-			if err := rows.Scan(&k.ID, &k.Name, &k.Prefix, &k.Models, &k.CreatedAt, &k.ExpiresAt, &k.RevokedAt); err != nil {
+			if err := rows.Scan(&k.ID, &k.Name, &k.Prefix, &k.Models, &k.CreatedAt, &k.ExpiresAt, &k.RevokedAt, &k.CanRevoke); err != nil {
 				return err
 			}
 			items = append(items, k)

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 )
@@ -38,25 +39,32 @@ func NewOIDC(ctx context.Context, issuer, audience string) (*OIDC, error) {
 }
 
 func (o *OIDC) Authenticate(ctx context.Context, token string) (Principal, error) {
+	p, _, err := o.Verify(ctx, token)
+	return p, err
+}
+
+// Verify also exposes the verified expiry so browser sessions cannot outlive
+// the API token that authorized their creation.
+func (o *OIDC) Verify(ctx context.Context, token string) (Principal, time.Time, error) {
 	if len(token) > 16<<10 || strings.HasPrefix(token, "aigw_pk_") {
-		return Principal{}, ErrUnauthenticated
+		return Principal{}, time.Time{}, ErrUnauthenticated
 	}
 	id, err := o.verifier.Verify(ctx, token)
 	if err != nil {
-		return Principal{}, ErrUnauthenticated
+		return Principal{}, time.Time{}, ErrUnauthenticated
 	}
 	var claims struct {
 		Scope string `json:"scope"`
 	}
 	if id.Claims(&claims) != nil || id.Subject == "" {
-		return Principal{}, ErrUnauthenticated
+		return Principal{}, time.Time{}, ErrUnauthenticated
 	}
 	for _, s := range strings.Fields(claims.Scope) {
 		if s == "aigw:manage" {
-			return Principal{Issuer: id.Issuer, Subject: id.Subject}, nil
+			return Principal{Issuer: id.Issuer, Subject: id.Subject}, id.Expiry, nil
 		}
 	}
-	return Principal{}, ErrForbidden
+	return Principal{}, time.Time{}, ErrForbidden
 }
 
 func Bearer(header string) (string, error) {
