@@ -1,0 +1,17 @@
+name: Verify prototype
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  prototype:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.3'
+          cache: true
+      - run: bash scripts/verify.sh
