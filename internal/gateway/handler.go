@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jhzhfree/ai-governance-gateway/internal/admission"
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
 	"github.com/jhzhfree/ai-governance-gateway/internal/execution"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
@@ -27,6 +28,7 @@ type Ledger interface {
 }
 
 type Handler struct {
+	Admission admission.Gate
 	Attempts  execution.Recorder
 	Providers *provider.Catalog
 	Ledger    Ledger
@@ -41,6 +43,7 @@ type Message = provider.Message
 type Request = provider.Request
 
 func problem(w http.ResponseWriter, status int, code, id string) {
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(2 * time.Second))
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]string{"code": code, "message": code, "request_id": id}})
@@ -111,6 +114,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	r, release, ok := h.admit(w, r, id, scope)
+	if !ok {
+		return
+	}
+	defer release()
 	q := budget.Quote{Scope: scope, RequestID: id, PriceVersion: "mock-v1", Amount: int64(2 + req.MaxTokens)}
 	created, err := h.Ledger.Reserve(r.Context(), q)
 	if err != nil || !created {

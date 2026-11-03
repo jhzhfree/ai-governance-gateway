@@ -1,5 +1,8 @@
 import type { components } from './generated/api';
 
+export type ProjectLimits = components['schemas']['ProjectLimits'];
+export type Inspection = components['schemas']['Inspection'];
+
 export type ModelInfo = components['schemas']['ModelInfo'];
 export type Organization = components['schemas']['Organization'];
 export type Project = components['schemas']['Project'];
@@ -24,9 +27,11 @@ export class ApiError extends Error {
           ? '当前身份没有执行此操作的权限。'
           : status === 404
             ? '资源不存在，或你没有访问权限。'
-            : status === 400
-              ? '请检查填写内容后重试。'
-              : '服务暂时不可用，请稍后重试。',
+            : status === 409
+              ? '策略已被其他人修改，请刷新后重新填写。'
+              : status === 400
+                ? '请检查填写内容后重试。'
+                : '服务暂时不可用，请稍后重试。',
     );
   }
 }

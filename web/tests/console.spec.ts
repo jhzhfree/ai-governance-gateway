@@ -297,3 +297,36 @@ test('mainland catalog authorizes three suppliers and preserves CNY accounting',
   });
   expect(denied.status()).toBe(403);
 });
+
+test('project traffic policy saves with revision and inspection stays read only', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: /使用组织账号登录/ }).click();
+  await page.getByRole('button', { name: /新建组织/ }).click();
+  await page.getByLabel('组织名称', { exact: true }).fill('流量核查团队');
+  await page.getByRole('button', { name: '确认创建' }).click();
+  await expect(page.getByRole('status').filter({ hasText: '组织已创建' })).toBeVisible();
+  await page.getByRole('button', { name: /新建项目/ }).click();
+  await page.getByLabel('项目名称', { exact: true }).fill('流量核查项目');
+  await page.getByRole('button', { name: '确认创建' }).click();
+  await expect(page.getByRole('heading', { name: '流量核查项目' })).toBeVisible();
+  await page.getByRole('button', { name: /流量与核查/ }).click();
+  await expect(page.getByRole('heading', { name: '项目流量控制' })).toBeVisible();
+  await expect(page.getByLabel('每60秒请求上限')).toHaveValue('60');
+  await page.getByLabel('每60秒请求上限').fill('12');
+  await page.getByLabel('并发上限', { exact: true }).fill('2');
+  await page.getByRole('button', { name: '保存流量策略' }).click();
+  await expect(page.getByRole('status').filter({ hasText: '策略已保存' })).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel('每60秒请求上限')).toHaveValue('12');
+  await expect(page.getByLabel('并发上限', { exact: true })).toHaveValue('2');
+  await page.getByLabel('核查时间阈值').selectOption('3600');
+  await expect(page.getByRole('heading', { name: '暂无待核查请求' })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const accessibility = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+    .analyze();
+  expect(accessibility.violations.map((issue) => issue.id)).toEqual([]);
+});

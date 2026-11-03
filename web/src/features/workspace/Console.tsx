@@ -22,6 +22,7 @@ import { SecretDialog } from '../keys/SecretDialog';
 import { KeyPanel } from '../keys/KeyPanel';
 import { RequestPanel } from '../requests/RequestPanel';
 import { ModelAccessPanel, currencyLabel } from '../models/ModelAccessPanel';
+import { OperationsPanel } from '../operations/OperationsPanel';
 import { AuditPanel } from '../audit/AuditPanel';
 
 export function Console({ session }: { session: Session }) {
@@ -65,13 +66,15 @@ export function Console({ session }: { session: Session }) {
     Boolean(orgID && projectID),
   );
   const view =
-    params.get('view') === 'requests'
-      ? 'requests'
-      : params.get('view') === 'audit'
-        ? 'audit'
-        : params.get('view') === 'keys'
-          ? 'keys'
-          : 'overview';
+    params.get('view') === 'operations'
+      ? 'operations'
+      : params.get('view') === 'requests'
+        ? 'requests'
+        : params.get('view') === 'audit'
+          ? 'audit'
+          : params.get('view') === 'keys'
+            ? 'keys'
+            : 'overview';
   const audit = usePage<Audit>(
     identity,
     'audit',
@@ -212,6 +215,7 @@ export function Console({ session }: { session: Session }) {
             ['keys', '⌘', '访问密钥'],
             ['audit', '≡', '审计记录'],
             ['requests', '↗', '调用账本'],
+            ['operations', '⚙', '流量与核查'],
           ].map(([id, icon, label]) => (
             <button
               key={id}
@@ -235,13 +239,15 @@ export function Console({ session }: { session: Session }) {
         <header className="topbar">
           <span className="breadcrumb">
             控制台 <span>/</span>{' '}
-            {view === 'requests'
-              ? '调用账本'
-              : view === 'audit'
-                ? '审计记录'
-                : view === 'keys'
-                  ? '访问密钥'
-                  : '项目概览'}
+            {view === 'operations'
+              ? '流量与核查'
+              : view === 'requests'
+                ? '调用账本'
+                : view === 'audit'
+                  ? '审计记录'
+                  : view === 'keys'
+                    ? '访问密钥'
+                    : '项目概览'}
           </span>
           <div className="account">
             <span className="avatar" aria-hidden="true">
@@ -271,13 +277,15 @@ export function Console({ session }: { session: Session }) {
             <div>
               <div className="eyebrow">WORKSPACE / GOVERNANCE</div>
               <h1>
-                {view === 'requests'
-                  ? '调用账本'
-                  : view === 'audit'
-                    ? '审计记录'
-                    : view === 'keys'
-                      ? '访问密钥'
-                      : '项目概览'}
+                {view === 'operations'
+                  ? '流量与核查'
+                  : view === 'requests'
+                    ? '调用账本'
+                    : view === 'audit'
+                      ? '审计记录'
+                      : view === 'keys'
+                        ? '访问密钥'
+                        : '项目概览'}
                 <span className="heading-dot">.</span>
               </h1>
               <p>
@@ -445,6 +453,15 @@ export function Console({ session }: { session: Session }) {
               ) : (
                 project.data && (
                   <>
+                    {view === 'operations' && (
+                      <OperationsPanel
+                        key={projectPath}
+                        identity={identity}
+                        projectPath={projectPath}
+                        canManage={canManage}
+                        csrf={session.csrf_token}
+                      />
+                    )}
                     {view === 'requests' && (
                       <RequestPanel
                         key={projectPath}
@@ -541,7 +558,7 @@ export function Console({ session }: { session: Session }) {
                         />
                       </>
                     )}
-                    {view !== 'requests' && (
+                    {(view === 'overview' || view === 'keys') && (
                       <KeyPanel
                         items={visibleKeys}
                         error={keys.error}

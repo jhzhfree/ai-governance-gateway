@@ -15,6 +15,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/routers/legacy"
 	"github.com/jhzhfree/ai-governance-gateway/api/openapi"
+	"github.com/jhzhfree/ai-governance-gateway/internal/admission"
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
 	"github.com/jhzhfree/ai-governance-gateway/internal/execution"
@@ -41,7 +42,7 @@ func providerSetup(t *testing.T, supplier http.Handler, wrap ...func(gateway.Led
 	if len(wrap) > 0 {
 		ledgerAPI = wrap[0](ledger)
 	}
-	mux.Handle("/v1/", &gateway.Handler{Attempts: execution.New(pool), Providers: catalog, Ledger: ledgerAPI, Authorize: store.ResolveKey})
+	mux.Handle("/v1/", &gateway.Handler{Admission: admission.New(pool), Attempts: execution.New(pool), Providers: catalog, Ledger: ledgerAPI, Authorize: store.ResolveKey})
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 	doc, err := openapi3.NewLoader().LoadFromData(openapi.Document)

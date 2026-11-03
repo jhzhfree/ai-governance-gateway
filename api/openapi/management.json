@@ -1425,11 +1425,20 @@
             }
           },
           "429": {
-            "description": "Budget exceeded",
+            "description": "Budget or project admission limit exceeded. Admission rejections include a positive Retry-After in seconds and occur before budget reservation.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Conservative retry delay for admission denials.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
                 }
               }
             }
@@ -2045,6 +2054,340 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/organizations/{org}/projects/{project}/limits": {
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        {
+          "name": "project",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getProjectLimits",
+        "description": "Readable with project access; returns logical defaults without creating policy rows.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectLimits"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "setProjectLimits",
+        "description": "Org owner/admin only; audited with compare-and-swap expected_revision. Lower limits do not kill existing requests. Revision zero is the unmodified default.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          },
+          {
+            "browserSessionDev": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectLimits"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Configuration changed; fetch the latest revision before retrying.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProjectLimits"
+              }
+            }
+          }
+        },
+        "parameters": []
+      }
+    },
+    "/api/v1/organizations/{org}/projects/{project}/inspection": {
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        {
+          "name": "project",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      ],
+      "get": {
+        "operationId": "inspectProject",
+        "description": "Read-only hold/execution review and exact account reconciliation. Project members see their project; org totals require owner/admin. No recovery mutation is performed.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Inspection"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "older_than_seconds",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2592000,
+              "default": 300
+            }
+          }
+        ]
       }
     }
   },
@@ -3167,6 +3510,208 @@
             "nullable": true
           }
         }
+      },
+      "ProjectLimits": {
+        "type": "object",
+        "required": [
+          "requests_per_minute",
+          "max_concurrent",
+          "revision",
+          "active_requests",
+          "recent_requests",
+          "observed_at"
+        ],
+        "properties": {
+          "requests_per_minute": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "max_concurrent": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 64
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "active_requests": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "recent_requests": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Project-wide shared quotas. Default 60 admissions per sliding 60s, four valid concurrency leases, revision zero. Counts are a database snapshot; leases do not prove provider work stopped."
+      },
+      "UpdateProjectLimits": {
+        "type": "object",
+        "required": [
+          "requests_per_minute",
+          "max_concurrent",
+          "expected_revision"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "requests_per_minute": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "max_concurrent": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 64
+          },
+          "expected_revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        }
+      },
+      "AccountCheck": {
+        "type": "object",
+        "required": [
+          "scope",
+          "period",
+          "currency",
+          "consistent",
+          "limit_amount",
+          "stored_held",
+          "computed_held",
+          "stored_spent",
+          "computed_spent"
+        ],
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "project",
+              "organization"
+            ]
+          },
+          "period": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "consistent": {
+            "type": "boolean"
+          },
+          "limit_amount": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "description": "Exact integer minor units represented as decimal text to preserve large drift sums."
+          },
+          "stored_held": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "description": "Exact integer minor units represented as decimal text to preserve large drift sums."
+          },
+          "computed_held": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "description": "Exact integer minor units represented as decimal text to preserve large drift sums."
+          },
+          "stored_spent": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "description": "Exact integer minor units represented as decimal text to preserve large drift sums."
+          },
+          "computed_spent": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "description": "Exact integer minor units represented as decimal text to preserve large drift sums."
+          }
+        },
+        "additionalProperties": false
+      },
+      "InspectionItem": {
+        "type": "object",
+        "required": [
+          "request",
+          "lease_active",
+          "reasons"
+        ],
+        "properties": {
+          "request": {
+            "$ref": "#/components/schemas/RequestRecord"
+          },
+          "lease_active": {
+            "type": "boolean"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "open_hold",
+                "metadata_unrecorded",
+                "execution_unfinished"
+              ]
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "Inspection": {
+        "type": "object",
+        "required": [
+          "observed_at",
+          "cutoff",
+          "limits",
+          "accounts",
+          "accounts_truncated",
+          "data",
+          "next_cursor"
+        ],
+        "properties": {
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cutoff": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/ProjectLimits"
+          },
+          "accounts": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/AccountCheck"
+            }
+          },
+          "accounts_truncated": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectionItem"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Read-only repeatable-read diagnostic snapshot. Organization totals only for org owner/admin. Aged records are review candidates, not proof of abandoned provider work. No refunds, replay or balance correction."
       }
     }
   }

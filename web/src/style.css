@@ -790,6 +790,7 @@ input:invalid:not(:placeholder-shown) {
     flex-direction: row;
     align-items: center;
     gap: 18px;
+    flex-wrap: wrap;
   }
   .brand {
     font-size: 18px;

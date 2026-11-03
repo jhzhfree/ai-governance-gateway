@@ -90,6 +90,7 @@ func NewCommand(options Options) *cobra.Command {
 	a.addQueries()
 	a.addRequests()
 	a.addModels()
+	a.addOperations()
 	a.addContext()
 	a.addTUI()
 	return root

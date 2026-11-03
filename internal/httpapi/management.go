@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/jhzhfree/ai-governance-gateway/internal/admission"
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
 )
@@ -45,6 +46,9 @@ func NewWithSession(store *control.Store, auth identity.Authenticator, session S
 	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/keys", h.keys)
 	mux.HandleFunc("DELETE /api/v1/organizations/{org}/projects/{project}/keys/{key}", h.revokeKey)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/usage", h.usage)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/limits", h.limits)
+	mux.HandleFunc("PUT /api/v1/organizations/{org}/projects/{project}/limits", h.setLimits)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/inspection", h.inspect)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/requests", h.requests)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/requests/{request}", h.request)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/audit", h.audit)
@@ -95,7 +99,9 @@ func failure(w http.ResponseWriter, r *http.Request, err error) {
 		status, code = 403, "forbidden"
 	case errors.Is(err, control.ErrNotFound):
 		status, code = 404, "not_found"
-	case errors.Is(err, control.ErrInvalid):
+	case errors.Is(err, admission.ErrConflict):
+		status, code = 409, "conflict"
+	case errors.Is(err, control.ErrInvalid) || errors.Is(err, admission.ErrInvalid):
 		status, code = 400, "invalid_request"
 	}
 	send(w, status, map[string]any{"error": map[string]string{"code": code, "message": code, "request_id": w.Header().Get("X-Request-ID")}})

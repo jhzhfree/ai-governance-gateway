@@ -69,3 +69,5 @@ NO_COLOR=1 ./bin/aigw tui
 模型目录与 CNY_MICRO 计价已作为后续阶段接入，`models list` 不返回供应商凭证或内部驻留证据编号；TUI 项目概览显示授权别名与实际预算单位。区域/真实供应商验收边界见[大陆供应商说明](mainland-providers.md)。
 
 调用账本现支持 `requests list --outcome failed` 与执行详情（模型、供应商/配置区域、固定错误码、可空 token/耗时）。TUI 详情可滚动，历史未记录不显示为零。语义和落库故障限制见[执行元数据](execution-metadata.md)。
+
+项目流量策略查询和预算/执行只读核查见[操作手册](traffic-and-recovery.md)，使用 `limits show`、`recovery inspect`（支持 JSON 和分页）。TUI 暂沿用调用列表与详情排查，独立核查屏幕待后续增加。

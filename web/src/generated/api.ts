@@ -335,6 +335,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organizations/{org}/projects/{project}/limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        /** @description Readable with project access; returns logical defaults without creating policy rows. */
+        get: operations["getProjectLimits"];
+        /** @description Org owner/admin only; audited with compare-and-swap expected_revision. Lower limits do not kill existing requests. Revision zero is the unmodified default. */
+        put: operations["setProjectLimits"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{org}/projects/{project}/inspection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        /** @description Read-only hold/execution review and exact account reconciliation. Project members see their project; org totals require owner/admin. No recovery mutation is performed. */
+        get: operations["inspectProject"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -607,6 +648,57 @@ export interface components {
             /** Format: int64 */
             duration_ms: number | null;
         } | null;
+        /** @description Project-wide shared quotas. Default 60 admissions per sliding 60s, four valid concurrency leases, revision zero. Counts are a database snapshot; leases do not prove provider work stopped. */
+        ProjectLimits: {
+            requests_per_minute: number;
+            max_concurrent: number;
+            /** Format: int64 */
+            revision: number;
+            active_requests: number;
+            recent_requests: number;
+            /** Format: date-time */
+            observed_at: string;
+        };
+        UpdateProjectLimits: {
+            requests_per_minute: number;
+            max_concurrent: number;
+            /** Format: int64 */
+            expected_revision: number;
+        };
+        AccountCheck: {
+            /** @enum {string} */
+            scope: "project" | "organization";
+            period: string;
+            currency: string;
+            consistent: boolean;
+            /** @description Exact integer minor units represented as decimal text to preserve large drift sums. */
+            limit_amount: string;
+            /** @description Exact integer minor units represented as decimal text to preserve large drift sums. */
+            stored_held: string;
+            /** @description Exact integer minor units represented as decimal text to preserve large drift sums. */
+            computed_held: string;
+            /** @description Exact integer minor units represented as decimal text to preserve large drift sums. */
+            stored_spent: string;
+            /** @description Exact integer minor units represented as decimal text to preserve large drift sums. */
+            computed_spent: string;
+        };
+        InspectionItem: {
+            request: components["schemas"]["RequestRecord"];
+            lease_active: boolean;
+            reasons: ("open_hold" | "metadata_unrecorded" | "execution_unfinished")[];
+        };
+        /** @description Read-only repeatable-read diagnostic snapshot. Organization totals only for org owner/admin. Aged records are review candidates, not proof of abandoned provider work. No refunds, replay or balance correction. */
+        Inspection: {
+            /** Format: date-time */
+            observed_at: string;
+            /** Format: date-time */
+            cutoff: string;
+            limits: components["schemas"]["ProjectLimits"];
+            accounts: components["schemas"]["AccountCheck"][];
+            accounts_truncated: boolean;
+            data: components["schemas"]["InspectionItem"][];
+            next_cursor: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -1578,9 +1670,11 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description Budget exceeded */
+            /** @description Budget or project admission limit exceeded. Admission rejections include a positive Retry-After in seconds and occur before budget reservation. */
             429: {
                 headers: {
+                    /** @description Conservative retry delay for admission denials. */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -1974,6 +2068,227 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ModelPage"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getProjectLimits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectLimits"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    setProjectLimits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateProjectLimits"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectLimits"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Configuration changed; fetch the latest revision before retrying. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    inspectProject: {
+        parameters: {
+            query?: {
+                after?: string;
+                limit?: number;
+                older_than_seconds?: number;
+            };
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Inspection"];
                 };
             };
             /** @description Invalid input */

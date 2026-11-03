@@ -17,6 +17,7 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jhzhfree/ai-governance-gateway/internal/admission"
 	"github.com/jhzhfree/ai-governance-gateway/internal/browser"
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
 	"github.com/jhzhfree/ai-governance-gateway/internal/console"
@@ -122,7 +123,7 @@ func run(ctx context.Context, c config) error {
 	} else {
 		mux.Handle("/api/v1/", httpapi.New(store, auth))
 	}
-	mux.Handle("/v1/", &gateway.Handler{Attempts: execution.New(pool), Providers: providers, Ledger: ledger, Authorize: store.ResolveKey, Client: client, Upstream: c.upstream, Report: func(id, code string) { log.Printf("request_id=%s code=%s", id, code) }})
+	mux.Handle("/v1/", &gateway.Handler{Admission: admission.New(pool), Attempts: execution.New(pool), Providers: providers, Ledger: ledger, Authorize: store.ResolveKey, Client: client, Upstream: c.upstream, Report: func(id, code string) { log.Printf("request_id=%s code=%s", id, code) }})
 	mux.HandleFunc("GET /health/live", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) })
 	dbReady := readiness(pool)
 	mux.HandleFunc("GET /health/ready", func(w http.ResponseWriter, r *http.Request) {

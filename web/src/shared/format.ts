@@ -10,6 +10,7 @@ export const actionNames: Record<string, string> = {
   'organization.member_changed': '调整组织成员',
   'project.created': '创建项目',
   'project.member_changed': '调整项目成员',
+  'project.limits_changed': '更新流量策略',
   'project.models_changed': '更新模型授权',
   'project.key_created': '创建访问密钥',
   'project.key_revoked': '撤销访问密钥',

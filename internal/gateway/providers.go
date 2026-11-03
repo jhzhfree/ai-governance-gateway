@@ -48,6 +48,11 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 		problem(w, 403, "currency_mismatch", id)
 		return
 	}
+	r, release, ok := h.admit(w, r, id, scope)
+	if !ok {
+		return
+	}
+	defer release()
 	created, err := h.Ledger.Reserve(r.Context(), budget.Quote{Scope: scope, RequestID: id, PriceVersion: route.PriceVersion(), Amount: amount})
 	if err != nil || !created {
 		if errors.Is(err, budget.ErrExceeded) {
@@ -144,6 +149,7 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
+		_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(2 * time.Second))
 		_ = json.NewEncoder(w).Encode(value)
 		return
 	}

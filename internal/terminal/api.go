@@ -128,6 +128,10 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, target 
 	switch target.(type) {
 	case *types.RequestRecord:
 		required = []string{"request_id", "period", "currency", "price_version", "state", "reserved", "actual", "created_at", "updated_at", "attempt"}
+	case *types.ProjectLimits:
+		required = []string{"requests_per_minute", "max_concurrent", "revision", "active_requests", "recent_requests", "observed_at"}
+	case *types.Inspection:
+		required = []string{"data", "next_cursor", "limits", "accounts", "accounts_truncated", "observed_at", "cutoff"}
 	case *types.Usage:
 		required = []string{"period", "currency", "limit_amount", "spent", "held"}
 	case *types.ProjectDetails:

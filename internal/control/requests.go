@@ -63,9 +63,11 @@ const recordColumns = `r.request_id,r.period_id,r.currency,r.price_version,r.sta
  'attempt_id',a.attempt_id,'request_id',a.request_id,'model',a.model,'provider',a.provider,'region',a.region,'stream',a.stream,'outcome',a.outcome,'error_code',a.error_code,'upstream_status',a.upstream_status,'input_tokens',a.input_tokens,'output_tokens',a.output_tokens,'started_at',a.started_at,'finished_at',a.finished_at,'duration_ms',a.duration_ms) END`
 const recordFrom = ` FROM budget_reservations r LEFT JOIN inference_attempts a ON a.request_id=r.request_id `
 
-func scanRecord(row interface{ Scan(...any) error }, item *RequestRecord) error {
+func scanRecord(row interface{ Scan(...any) error }, item *RequestRecord, extras ...any) error {
 	var metadata []byte
-	if err := row.Scan(&item.RequestID, &item.Period, &item.Currency, &item.PriceVersion, &item.State, &item.Reserved, &item.Actual, &item.CreatedAt, &item.UpdatedAt, &metadata); err != nil {
+	args := []any{&item.RequestID, &item.Period, &item.Currency, &item.PriceVersion, &item.State, &item.Reserved, &item.Actual, &item.CreatedAt, &item.UpdatedAt, &metadata}
+	args = append(args, extras...)
+	if err := row.Scan(args...); err != nil {
 		return err
 	}
 	if metadata != nil {

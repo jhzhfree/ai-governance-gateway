@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jhzhfree/ai-governance-gateway/internal/admission"
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
 	"github.com/jhzhfree/ai-governance-gateway/internal/execution"
 	"github.com/jhzhfree/ai-governance-gateway/internal/gateway"
@@ -37,7 +38,7 @@ func setup(t *testing.T, provider http.Handler, wrap func(gateway.Ledger) gatewa
 	if wrap != nil {
 		ledger = wrap(ledger)
 	}
-	h := &gateway.Handler{Attempts: execution.New(pool), Ledger: ledger, Authorize: func(context.Context, string, string) (budget.Scope, error) { return scope, nil }, Client: &http.Client{Timeout: 6 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}, Upstream: up.URL + "/v1/chat/completions"}
+	h := &gateway.Handler{Admission: testutil.PassAdmission{}, Attempts: execution.New(pool), Ledger: ledger, Authorize: func(context.Context, string, string) (budget.Scope, error) { return scope, nil }, Client: &http.Client{Timeout: 6 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}, Upstream: up.URL + "/v1/chat/completions"}
 	if len(recorderWrap) > 0 {
 		h.Attempts = recorderWrap[0](h.Attempts)
 	}
@@ -277,5 +278,26 @@ func TestMetadataFailureGatesDispatchAndSuccessMarker(t *testing.T) {
 				f.assertState(t, response.Header.Get("X-Request-ID"), "settled", &actual)
 			}
 		})
+	}
+}
+
+type unavailableAdmission struct{}
+
+func (unavailableAdmission) Acquire(context.Context, string, string, string) (admission.Permit, error) {
+	return nil, errors.New("synthetic store failure")
+}
+func TestAdmissionFailureClosesBeforeBudget(t *testing.T) {
+	for _, gate := range []admission.Gate{nil, unavailableAdmission{}} {
+		h := &gateway.Handler{Admission: gate, Authorize: func(context.Context, string, string) (budget.Scope, error) {
+			return budget.Scope{Organization: "org", Project: "project", Period: "2026-11", Currency: "MOCK"}, nil
+		}}
+		r := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(payload))
+		r.Header.Set("Authorization", "Bearer synthetic")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != 503 {
+			t.Fatal("admission outage did not fail closed")
+		}
+		// Nil ledger/recorder/upstream deliberately panic if reached.
 	}
 }

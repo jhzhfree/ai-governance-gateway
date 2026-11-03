@@ -351,3 +351,25 @@ func TestTerminalExecutionResultsUseSameScopedAPI(t *testing.T) {
 	}
 
 }
+
+func TestOperationsCLIUsesScopedManagementAPI(t *testing.T) {
+	f := fixture(t)
+	code, out, _ := f.execute(t, f.token, "limits", "show", "--org", f.org.ID, "--project", f.project.ID, "--output", "json")
+	var limits types.ProjectLimits
+	if code != 0 || json.Unmarshal([]byte(out), &limits) != nil || limits.MaxConcurrent != 4 || limits.RequestsPerMinute != 60 {
+		t.Fatal("CLI limits differ from API")
+	}
+	code, out, _ = f.execute(t, f.token, "recovery", "inspect", "--org", f.org.ID, "--project", f.project.ID, "--output", "json")
+	var report types.Inspection
+	if code != 0 || json.Unmarshal([]byte(out), &report) != nil || len(report.Accounts) != 2 || len(report.Data) != 0 {
+		t.Fatal("CLI inspection differs from API")
+	}
+	code, _, _ = f.execute(t, f.token, "recovery", "inspect", "--org", f.org.ID, "--project", f.project.ID, "--older-than", "500ms")
+	if code != 2 {
+		t.Fatal("invalid threshold accepted")
+	}
+	code, _, _ = f.execute(t, f.issuer.Token(t, "outsider", nil), "recovery", "inspect", "--org", f.org.ID, "--project", f.project.ID)
+	if code == 0 {
+		t.Fatal("inspection exposed another tenant")
+	}
+}

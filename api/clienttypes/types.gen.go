@@ -16,6 +16,12 @@ const (
 	ProjectKeyScopes        = "projectKey.Scopes"
 )
 
+// Defines values for AccountCheckScope.
+const (
+	AccountCheckScopeOrganization AccountCheckScope = "organization"
+	AccountCheckScopeProject      AccountCheckScope = "project"
+)
+
 // Defines values for CreateOrganizationCurrency.
 const (
 	CreateOrganizationCurrencyCNYMICRO CreateOrganizationCurrency = "CNY_MICRO"
@@ -72,6 +78,13 @@ const (
 // Defines values for InferenceResponseObject.
 const (
 	ChatCompletion InferenceResponseObject = "chat.completion"
+)
+
+// Defines values for InspectionItemReasons.
+const (
+	ExecutionUnfinished InspectionItemReasons = "execution_unfinished"
+	MetadataUnrecorded  InspectionItemReasons = "metadata_unrecorded"
+	OpenHold            InspectionItemReasons = "open_hold"
 )
 
 // Defines values for MemberRole.
@@ -165,6 +178,31 @@ const (
 	ListRequestsParamsOutcomeFailed     ListRequestsParamsOutcome = "failed"
 	ListRequestsParamsOutcomeUnfinished ListRequestsParamsOutcome = "unfinished"
 )
+
+// AccountCheck defines model for AccountCheck.
+type AccountCheck struct {
+	// ComputedHeld Exact integer minor units represented as decimal text to preserve large drift sums.
+	ComputedHeld string `json:"computed_held"`
+
+	// ComputedSpent Exact integer minor units represented as decimal text to preserve large drift sums.
+	ComputedSpent string `json:"computed_spent"`
+	Consistent    bool   `json:"consistent"`
+	Currency      string `json:"currency"`
+
+	// LimitAmount Exact integer minor units represented as decimal text to preserve large drift sums.
+	LimitAmount string            `json:"limit_amount"`
+	Period      string            `json:"period"`
+	Scope       AccountCheckScope `json:"scope"`
+
+	// StoredHeld Exact integer minor units represented as decimal text to preserve large drift sums.
+	StoredHeld string `json:"stored_held"`
+
+	// StoredSpent Exact integer minor units represented as decimal text to preserve large drift sums.
+	StoredSpent string `json:"stored_spent"`
+}
+
+// AccountCheckScope defines model for AccountCheck.Scope.
+type AccountCheckScope string
 
 // Audit defines model for Audit.
 type Audit struct {
@@ -321,6 +359,31 @@ type InferenceUsage struct {
 	TotalTokens      int64 `json:"total_tokens"`
 }
 
+// Inspection Read-only repeatable-read diagnostic snapshot. Organization totals only for org owner/admin. Aged records are review candidates, not proof of abandoned provider work. No refunds, replay or balance correction.
+type Inspection struct {
+	Accounts          []AccountCheck   `json:"accounts"`
+	AccountsTruncated bool             `json:"accounts_truncated"`
+	Cutoff            time.Time        `json:"cutoff"`
+	Data              []InspectionItem `json:"data"`
+
+	// Limits Project-wide shared quotas. Default 60 admissions per sliding 60s, four valid concurrency leases, revision zero. Counts are a database snapshot; leases do not prove provider work stopped.
+	Limits     ProjectLimits `json:"limits"`
+	NextCursor string        `json:"next_cursor"`
+	ObservedAt time.Time     `json:"observed_at"`
+}
+
+// InspectionItem defines model for InspectionItem.
+type InspectionItem struct {
+	LeaseActive bool                    `json:"lease_active"`
+	Reasons     []InspectionItemReasons `json:"reasons"`
+
+	// Request Budget-backed request metadata only. Accounting state does not prove downstream delivery. Rejections before reservation are absent. No prompts, responses, credentials or inferred model name.
+	Request RequestRecord `json:"request"`
+}
+
+// InspectionItemReasons defines model for InspectionItem.Reasons.
+type InspectionItemReasons string
+
 // IssuedKey defines model for IssuedKey.
 type IssuedKey struct {
 	// CanRevoke Whether this caller may revoke the key; authorization is enforced again on DELETE.
@@ -452,6 +515,16 @@ type ProjectDetails struct {
 // ProjectDetailsRole defines model for ProjectDetails.Role.
 type ProjectDetailsRole string
 
+// ProjectLimits Project-wide shared quotas. Default 60 admissions per sliding 60s, four valid concurrency leases, revision zero. Counts are a database snapshot; leases do not prove provider work stopped.
+type ProjectLimits struct {
+	ActiveRequests    int       `json:"active_requests"`
+	MaxConcurrent     int       `json:"max_concurrent"`
+	ObservedAt        time.Time `json:"observed_at"`
+	RecentRequests    int       `json:"recent_requests"`
+	RequestsPerMinute int       `json:"requests_per_minute"`
+	Revision          int64     `json:"revision"`
+}
+
 // ProjectPage defines model for ProjectPage.
 type ProjectPage struct {
 	Data []Project `json:"data"`
@@ -490,6 +563,13 @@ type SetModels struct {
 	Models []string `json:"models"`
 }
 
+// UpdateProjectLimits defines model for UpdateProjectLimits.
+type UpdateProjectLimits struct {
+	ExpectedRevision  int64 `json:"expected_revision"`
+	MaxConcurrent     int   `json:"max_concurrent"`
+	RequestsPerMinute int   `json:"requests_per_minute"`
+}
+
 // Usage defines model for Usage.
 type Usage struct {
 	Currency    UsageCurrency `json:"currency"`
@@ -518,6 +598,13 @@ type ListOrganizationAuditParams struct {
 type ListProjectsParams struct {
 	Limit *int    `form:"limit,omitempty" json:"limit,omitempty"`
 	After *string `form:"after,omitempty" json:"after,omitempty"`
+}
+
+// InspectProjectParams defines parameters for InspectProject.
+type InspectProjectParams struct {
+	After            *string `form:"after,omitempty" json:"after,omitempty"`
+	Limit            *int    `form:"limit,omitempty" json:"limit,omitempty"`
+	OlderThanSeconds *int    `form:"older_than_seconds,omitempty" json:"older_than_seconds,omitempty"`
 }
 
 // ListProjectKeysParams defines parameters for ListProjectKeys.
@@ -561,6 +648,9 @@ type CreateProjectJSONRequestBody = CreateProject
 
 // CreateProjectKeyJSONRequestBody defines body for CreateProjectKey for application/json ContentType.
 type CreateProjectKeyJSONRequestBody = CreateKey
+
+// SetProjectLimitsJSONRequestBody defines body for SetProjectLimits for application/json ContentType.
+type SetProjectLimitsJSONRequestBody = UpdateProjectLimits
 
 // PutProjectMemberJSONRequestBody defines body for PutProjectMember for application/json ContentType.
 type PutProjectMemberJSONRequestBody = Member

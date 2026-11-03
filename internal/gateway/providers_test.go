@@ -43,7 +43,7 @@ func TestMainlandBudgetAndCurrencyRejectBeforeDispatch(t *testing.T) {
 	for _, currency := range []string{"MOCK", "CNY_MICRO"} {
 		t.Run(currency, func(t *testing.T) {
 			ledger := &deniedLedger{t: t}
-			handler := &gateway.Handler{Providers: catalog, Ledger: ledger, Authorize: func(context.Context, string, string) (budget.Scope, error) {
+			handler := &gateway.Handler{Admission: testutil.PassAdmission{}, Providers: catalog, Ledger: ledger, Authorize: func(context.Context, string, string) (budget.Scope, error) {
 				return budget.Scope{Currency: currency}, nil
 			}}
 			server := httptest.NewServer(handler)
