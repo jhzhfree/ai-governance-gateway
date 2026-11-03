@@ -243,6 +243,7 @@ test('mainland catalog authorizes three suppliers and preserves CNY accounting',
   await page.getByRole('button', { name: '确认创建', exact: true }).click();
   const key = await page.getByLabel('新密钥', { exact: true }).inputValue();
   await page.getByRole('button', { name: '我已保存，关闭', exact: true }).click();
+  let requestID = '';
   for (const supplier of ['aliyun', 'volcengine', 'zhipu']) {
     const response = await page.request.post('/v1/chat/completions', {
       headers: { Authorization: `Bearer ${key}` },
@@ -253,12 +254,27 @@ test('mainland catalog authorizes three suppliers and preserves CNY accounting',
       },
     });
     expect(response.status()).toBe(200);
+    requestID = response.headers()['x-request-id'];
     const result = (await response.json()) as { model: string; usage: { total_tokens: number } };
     expect(result.model).toBe(`${supplier}/fixture`);
     expect(result.usage.total_tokens).toBe(5);
   }
   await page.getByRole('button', { name: '调用账本', exact: true }).click();
   await expect(page.locator('tbody tr')).toHaveCount(3);
+  await page.getByLabel('执行结果', { exact: true }).selectOption('failed');
+  await expect(page.getByText('暂无调用账本', { exact: true })).toBeVisible();
+  await page.getByLabel('执行结果', { exact: true }).selectOption('completed');
+  await expect(page.locator('tbody tr')).toHaveCount(3);
+  expect(new URL(page.url()).searchParams.get('outcome')).toBe('completed');
+  await page.getByLabel('请求编号', { exact: true }).fill(requestID);
+  await page.getByRole('button', { name: '查询详情', exact: true }).click();
+  const metadata = page.getByRole('region', { name: '调用账本详情' });
+  await expect(metadata.getByText('zhipu/fixture / zhipu', { exact: true })).toBeVisible();
+  await expect(metadata.getByText('执行完成', { exact: true })).toBeVisible();
+  await expect(metadata.getByText('3 / 2', { exact: true })).toBeVisible();
+  await expect(metadata.getByText(/^[0-9]+ ms$/)).toBeVisible();
+  await page.screenshot({ path: '/tmp/aigw-execution-details.png', fullPage: true });
+
   await expect(page.getByRole('cell', { name: '2026-11 / CNY_MICRO', exact: true })).toHaveCount(3);
   await page.getByRole('button', { name: '项目概览', exact: true }).click();
   await page.getByRole('button', { name: '刷新', exact: true }).click();

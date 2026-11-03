@@ -58,8 +58,9 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 		return
 	}
 	settled := false
+	dispatchAttempted := false
 	defer func() {
-		if !settled {
+		if !settled && dispatchAttempted {
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 			if err := h.Ledger.MarkUncertain(ctx, id); err != nil {
@@ -67,8 +68,17 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 			}
 		}
 	}()
+	trace, err := h.beginAttempt(r.Context(), id, req, route.Provider(), route.Region())
+	if err != nil {
+		h.report(id, "metadata_start_failed")
+		problem(w, 503, "metadata_start_failed", id)
+		return
+	}
+	defer trace.abort()
+	reply := func(status int, code string) { trace.failed(code); problem(w, status, code, id) }
+	dispatchAttempted = true
 	if h.Ledger.Dispatch(r.Context(), id) != nil {
-		problem(w, 503, "dispatch_failed", id)
+		reply(503, "dispatch_failed")
 		return
 	}
 	deadline := time.Now().Add(120 * time.Second)
@@ -76,20 +86,26 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 		deadline = route.ReviewDeadline()
 	}
 	ctx, cancel := context.WithDeadline(r.Context(), deadline)
-	defer cancel()
+	defer func() {
+		if ctx.Err() == context.DeadlineExceeded && !trace.done {
+			trace.failed("upstream_timeout")
+		}
+		cancel()
+	}()
 	response, err := route.Open(ctx, req)
 	if err != nil {
-		problem(w, 502, "upstream_unavailable", id)
+		reply(502, "upstream_unavailable")
 		return
 	}
 	defer response.Body.Close()
+	trace.status(response.StatusCode)
 	if response.StatusCode != 200 {
-		problem(w, 502, "upstream_rejected", id)
+		reply(502, "upstream_rejected")
 		return
 	}
 	media, _, err := mime.ParseMediaType(response.Header.Get("Content-Type"))
 	if err != nil || (!req.Stream && media != "application/json") || (req.Stream && media != "text/event-stream") {
-		problem(w, 502, "upstream_protocol_error", id)
+		reply(502, "upstream_protocol_error")
 		return
 	}
 	settle := func(actual int64) error {
@@ -104,21 +120,26 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 	if !req.Stream {
 		data, err := io.ReadAll(io.LimitReader(response.Body, (1<<20)+1))
 		if err != nil || len(data) > 1<<20 {
-			problem(w, 502, "upstream_response_incomplete", id)
+			reply(502, "upstream_response_incomplete")
 			return
 		}
 		value, err := provider.Normalize(data, req.Model, id, false)
 		if err != nil {
-			problem(w, 502, "upstream_protocol_error", id)
+			reply(502, "upstream_protocol_error")
 			return
 		}
 		actual, err := route.ValidateUsage(value.Usage, req.MaxTokens)
 		if err != nil {
-			problem(w, 502, "upstream_usage_invalid", id)
+			reply(502, "upstream_usage_invalid")
 			return
 		}
+		trace.usage(*value.Usage.PromptTokens, *value.Usage.CompletionTokens)
 		if settle(actual) != nil {
-			problem(w, 503, "settlement_failed", id)
+			reply(503, "settlement_failed")
+			return
+		}
+		if trace.complete() != nil {
+			reply(503, "metadata_finalize_failed")
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -126,10 +147,10 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 		_ = json.NewEncoder(w).Encode(value)
 		return
 	}
-	streamProvider(w, response.Body, req, id, route, settle, h.report)
+	streamProvider(w, response.Body, req, id, route, settle, h.report, trace, ctx)
 }
 
-func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id string, route *provider.Route, settle func(int64) error, report func(string, string)) {
+func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id string, route *provider.Route, settle func(int64) error, report func(string, string), trace *attemptTrace, ctx context.Context) {
 	started, finished := false, false
 	var actual *int64
 	write := func(data string) error {
@@ -148,6 +169,10 @@ func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id strin
 		return rc.Flush()
 	}
 	fail := func(code string) {
+		trace.failed(code)
+		if ctx.Err() == context.DeadlineExceeded {
+			trace.failed("upstream_timeout")
+		}
 		report(id, code)
 		if started {
 			data, _ := json.Marshal(map[string]any{"error": map[string]string{"code": code, "request_id": id}})
@@ -188,6 +213,10 @@ func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id strin
 				fail("settlement_failed")
 				return
 			}
+			if trace.complete() != nil {
+				fail("metadata_finalize_failed")
+				return
+			}
 			_ = write("[DONE]")
 			return
 		}
@@ -211,10 +240,12 @@ func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id strin
 				fail("upstream_usage_invalid")
 				return
 			}
+			trace.usage(*value.Usage.PromptTokens, *value.Usage.CompletionTokens)
 			actual = &cost
 		}
 		normalized, _ := json.Marshal(value)
 		if write(string(normalized)) != nil {
+			trace.failed("downstream_write_failed")
 			return
 		}
 	}

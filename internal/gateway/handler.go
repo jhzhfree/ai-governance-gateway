@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
+	"github.com/jhzhfree/ai-governance-gateway/internal/execution"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 )
@@ -26,6 +27,7 @@ type Ledger interface {
 }
 
 type Handler struct {
+	Attempts  execution.Recorder
 	Providers *provider.Catalog
 	Ledger    Ledger
 	Authorize func(context.Context, string, string) (budget.Scope, error)
@@ -123,8 +125,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// A dispatch failure may have committed despite a lost DB response: preserve
 	// the hold, never assume that refunding is safe.
 	settled := false
+	dispatchAttempted := false
 	defer func() {
-		if !settled {
+		if !settled && dispatchAttempted {
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 			if err := h.Ledger.MarkUncertain(ctx, id); err != nil {
@@ -132,31 +135,46 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}()
+	trace, err := h.beginAttempt(r.Context(), id, req, "mock", "local")
+	if err != nil {
+		h.report(id, "metadata_start_failed")
+		problem(w, 503, "metadata_start_failed", id)
+		return
+	}
+	defer trace.abort()
+	reply := func(status int, code string) { trace.failed(code); problem(w, status, code, id) }
+	dispatchAttempted = true
 	if err := h.Ledger.Dispatch(r.Context(), id); err != nil {
-		problem(w, 503, "dispatch_failed", id)
+		reply(503, "dispatch_failed")
 		return
 	}
 	body, err := json.Marshal(req)
 	if err != nil {
-		problem(w, 500, "encode_failed", id)
+		reply(500, "encode_failed")
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
+	defer func() {
+		if ctx.Err() == context.DeadlineExceeded && !trace.done {
+			trace.failed("upstream_timeout")
+		}
+		cancel()
+	}()
 	upstream, err := http.NewRequestWithContext(ctx, http.MethodPost, h.Upstream, bytes.NewReader(body))
 	if err != nil {
-		problem(w, 502, "upstream_request_failed", id)
+		reply(502, "upstream_request_failed")
 		return
 	}
 	upstream.Header.Set("Content-Type", "application/json")
 	resp, err := h.Client.Do(upstream)
 	if err != nil {
-		problem(w, 502, "upstream_unavailable", id)
+		reply(502, "upstream_unavailable")
 		return
 	}
 	defer resp.Body.Close()
+	trace.status(resp.StatusCode)
 	if resp.StatusCode != 200 || strings.Split(resp.Header.Get("Content-Type"), ";")[0] != "text/event-stream" {
-		problem(w, 502, "upstream_rejected", id)
+		reply(502, "upstream_rejected")
 		return
 	}
 	started := false
@@ -179,6 +197,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return rc.Flush()
 	}
 	fail := func(code string) {
+		trace.failed(code)
+		if ctx.Err() == context.DeadlineExceeded {
+			trace.failed("upstream_timeout")
+		}
 		h.report(id, code)
 		if started {
 			data, _ := json.Marshal(map[string]any{"error": map[string]string{"code": code, "request_id": id}})
@@ -223,6 +245,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			settled = true
+			if trace.complete() != nil {
+				fail("metadata_finalize_failed")
+				return
+			}
 			_ = write("[DONE]")
 			return
 		}
@@ -245,10 +271,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				fail("upstream_stream_incomplete")
 				return
 			}
+			trace.usage(u.Prompt, u.Completion)
 			cost := u.Total
 			actual = &cost
 		}
 		if err := write(data); err != nil {
+			trace.failed("downstream_write_failed")
 			return
 		}
 	}

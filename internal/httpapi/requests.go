@@ -11,7 +11,7 @@ func (h *Handler) requests(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	state := r.URL.Query().Get("state")
-	items, err := h.Store.ListRequests(r.Context(), principal(r), r.PathValue("org"), r.PathValue("project"), after, state, limit+1)
+	items, err := h.Store.ListRequests(r.Context(), principal(r), r.PathValue("org"), r.PathValue("project"), after, state, r.URL.Query().Get("outcome"), limit+1)
 	if err != nil {
 		failure(w, r, err)
 		return

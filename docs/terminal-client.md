@@ -67,3 +67,5 @@ NO_COLOR=1 ./bin/aigw tui
 阶段验收（2026-11-03）：完整后端校验通过，56 个顶层测试及 39 个子测试，无失败/跳过；Web 冻结安装、类型差异、TS/ESLint/Prettier、生产构建及 3 个 Chromium 场景通过；`cmd/aigw` 二进制构建和 `--help` 冒烟通过。未以 mock 供应商证明真实模型已接通。
 
 模型目录与 CNY_MICRO 计价已作为后续阶段接入，`models list` 不返回供应商凭证或内部驻留证据编号；TUI 项目概览显示授权别名与实际预算单位。区域/真实供应商验收边界见[大陆供应商说明](mainland-providers.md)。
+
+调用账本现支持 `requests list --outcome failed` 与执行详情（模型、供应商/配置区域、固定错误码、可空 token/耗时）。TUI 详情可滚动，历史未记录不显示为零。语义和落库故障限制见[执行元数据](execution-metadata.md)。

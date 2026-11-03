@@ -526,6 +526,7 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             updated_at: string;
+            attempt: components["schemas"]["ExecutionAttempt"];
         };
         RequestPage: {
             data: components["schemas"]["RequestRecord"][];
@@ -581,6 +582,31 @@ export interface components {
                 finish_reason: "stop" | "length" | "content_filter";
             }[];
         };
+        /** @description One durable attempt per reserved request; no retries. Completed means valid upstream result and durable local accounting/metadata, not client receipt. Unfinished can include crashed processes. Timing is wall-clock gateway execution time including accounting and metadata writes. Null on old or unrecorded requests. */
+        ExecutionAttempt: {
+            attempt_id: string;
+            request_id: string;
+            model: string;
+            /** @enum {string} */
+            provider: "mock" | "aliyun" | "volcengine" | "zhipu";
+            /** @enum {string} */
+            region: "local" | "cn-beijing" | "cn-mainland";
+            stream: boolean;
+            /** @enum {string} */
+            outcome: "unfinished" | "completed" | "failed" | "canceled";
+            error_code: string;
+            upstream_status: number | null;
+            /** Format: int64 */
+            input_tokens: number | null;
+            /** Format: int64 */
+            output_tokens: number | null;
+            /** Format: date-time */
+            started_at: string;
+            /** Format: date-time */
+            finished_at: string | null;
+            /** Format: int64 */
+            duration_ms: number | null;
+        } | null;
     };
     responses: never;
     parameters: never;
@@ -1795,6 +1821,8 @@ export interface operations {
                 limit?: number;
                 /** @description Accounting state filter; omitted or empty means all states. Keep it unchanged while paging. */
                 state?: "" | "reserved" | "dispatched" | "uncertain" | "settled" | "released" | "estimated_final";
+                /** @description Execution outcome filter independent from the accounting state. Historical records with no attempt match only the unfiltered listing. */
+                outcome?: "" | "unfinished" | "completed" | "failed" | "canceled";
             };
             header?: never;
             path: {

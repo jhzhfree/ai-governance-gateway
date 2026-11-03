@@ -16,21 +16,23 @@ import (
 	types "github.com/jhzhfree/ai-governance-gateway/api/clienttypes"
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
+	"github.com/jhzhfree/ai-governance-gateway/internal/execution"
 	"github.com/jhzhfree/ai-governance-gateway/internal/httpapi"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
 	"github.com/jhzhfree/ai-governance-gateway/internal/testutil"
 )
 
 type apiFixture struct {
-	server  *httptest.Server
-	issuer  *testutil.Issuer
-	config  Config
-	state   State
-	org     control.Organization
-	project control.Project
-	store   *control.Store
-	ledger  *budget.Store
-	token   string
+	server   *httptest.Server
+	issuer   *testutil.Issuer
+	config   Config
+	state    State
+	org      control.Organization
+	project  control.Project
+	store    *control.Store
+	ledger   *budget.Store
+	recorder *execution.Store
+	token    string
 }
 
 func fixture(t *testing.T) apiFixture {
@@ -61,7 +63,7 @@ func fixture(t *testing.T) apiFixture {
 	if err := state.Save(cfg); err != nil {
 		t.Fatal(err)
 	}
-	return apiFixture{server, issuer, cfg, state, org, project, store, ledger, issuer.Token(t, "alice", nil)}
+	return apiFixture{server, issuer, cfg, state, org, project, store, ledger, execution.New(pool), issuer.Token(t, "alice", nil)}
 }
 func (f apiFixture) execute(t *testing.T, token string, args ...string) (int, string, string) {
 	t.Helper()
@@ -293,4 +295,59 @@ func TestCLIModelCatalogMatchesManagementContract(t *testing.T) {
 	if strings.Contains(out, "api_key") || strings.Contains(out, "evidence_ref") {
 		t.Fatal("catalog leaked internal configuration")
 	}
+}
+
+func TestTerminalExecutionResultsUseSameScopedAPI(t *testing.T) {
+	f := fixture(t)
+	ctx := context.Background()
+	scope := budget.Scope{Organization: f.org.ID, Project: f.project.ID, Period: f.org.Period, Currency: f.org.Currency}
+	if _, err := f.ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "cli-observed", PriceVersion: "mock-v1", Amount: 10}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.recorder.Begin(ctx, execution.Start{AttemptID: "cli-attempt", RequestID: "cli-observed", Model: "mock-text", Provider: "mock", Region: "local", Stream: true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.ledger.Dispatch(ctx, "cli-observed"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.ledger.MarkUncertain(ctx, "cli-observed"); err != nil {
+		t.Fatal(err)
+	}
+	status := 503
+	if err := f.recorder.Finish(ctx, "cli-attempt", execution.Result{Outcome: "failed", ErrorCode: "upstream_rejected", UpstreamStatus: &status}); err != nil {
+		t.Fatal(err)
+	}
+	cfg := f.config
+	cfg.Organization = f.org.ID
+	cfg.Project = f.project.ID
+	if err := f.state.Save(cfg); err != nil {
+		t.Fatal(err)
+	}
+	code, out, _ := f.execute(t, f.token, "requests", "list", "--outcome", "failed", "--output", "json")
+	var page types.RequestPage
+	if code != 0 || json.Unmarshal([]byte(out), &page) != nil || len(page.Data) != 1 || page.Data[0].Attempt == nil || page.Data[0].Attempt.ErrorCode != "upstream_rejected" {
+		t.Fatal("CLI failed-result filter/metadata mismatch")
+	}
+	code, out, _ = f.execute(t, f.token, "requests", "get", "--request-id", "cli-observed")
+	if code != 0 || !strings.Contains(out, "upstream_rejected") || !strings.Contains(out, "执行失败") || !strings.Contains(out, "未采集") {
+		t.Fatal("CLI detail fabricated missing token counts or lost error metadata")
+	}
+	if code, _, _ := f.execute(t, f.token, "requests", "list", "--outcome", "success"); code != 2 {
+		t.Fatal("invalid outcome not rejected locally")
+	}
+	client, err := NewClient(cfg.Server, f.token, true, f.server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := NewModel(ctx, client, cfg, nil, true)
+	defer m.stop()
+	m = complete(t, m, m.Init())
+	m, cmd := update(t, m, keyPress('t'))
+	m = complete(t, m, cmd)
+	m, cmd = update(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = complete(t, m, cmd)
+	if m.record == nil || m.record.Attempt == nil || !strings.Contains(m.View().Content, "upstream_rejected") {
+		t.Fatal("TUI did not render the same execution details")
+	}
+
 }

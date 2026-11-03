@@ -57,7 +57,7 @@ go run ./cmd/gateway --providers /run/aigw/providers.json
 
 请求体最大 64 KiB、最多 64 条消息、每条正文最多 16 KiB；非流式响应最大 1 MiB；流式每事件 64 KiB、总读取 16 MiB、网络总时限 120 秒，写入超时 2 秒。不支持 tools、图像/音频、推理内容、n>1、自定义供应商参数或自动回退。SSE 只有收到合法 finish_reason、最终 usage 和 `[DONE]`，且结算持久化后才输出本地 `[DONE]`。SDK 错误正文不回显。账本状态不证明客户端已收到响应。
 
-CLI/TUI 沿用现有只读上下文与账本功能，显示真实币种；TUI 概览增加已授权模型。现有 Web/CLI 项目密钥管理权限不变。完整模型/attempt/延迟结果日志仍待后续增量，本轮账本价格指纹不能替代全部调用遥测。
+CLI/TUI 沿用现有只读上下文与账本功能，显示真实币种；TUI 概览增加已授权模型。现有 Web/CLI 项目密钥管理权限不变。后续已增加[执行结果和一次 attempt 元数据](execution-metadata.md)，账本价格指纹仍不能替代全部调用遥测；首 token 延迟、供应商追踪 ID 与多次尝试仍未实现。
 
 ## 证据及待验收
 

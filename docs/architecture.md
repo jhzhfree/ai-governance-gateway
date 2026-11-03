@@ -97,3 +97,5 @@ OpenTelemetry 串联管理 API、推理链路及供应商调用；指标包括�
 终端只读查询与设备登录已实现，具体安全边界与测试证据见 [ADR 0004](adr/0004-terminal-client-and-device-login.md) 和[终端使用文档](terminal-client.md)。
 
 第七轮引入 `internal/provider` 的不可变模型/价格/区域目录，三家中国大陆服务的受限文本适配与独立 CNY_MICRO 账户，见 [ADR 0006](adr/0006-mainland-suppliers-and-yuan-pricing.md)。模型授权仍由 control 执行，gateway 负责预留/派发/结算。配置审查声明不被描述为独立数据驻留证明；未核验真实账号及大陆部署前不传送真实业务数据。
+
+执行元数据由 `internal/execution` 持久化，开始记录先于网络派发，结束记录先于成功标记；账本与执行终态分别表述，不声称跨模块原子或客户端送达保证。见 [ADR 0007](adr/0007-durable-execution-metadata.md)。

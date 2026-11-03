@@ -17,6 +17,7 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/api/openapi"
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
+	"github.com/jhzhfree/ai-governance-gateway/internal/execution"
 	"github.com/jhzhfree/ai-governance-gateway/internal/gateway"
 	"github.com/jhzhfree/ai-governance-gateway/internal/httpapi"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
@@ -40,7 +41,7 @@ func providerSetup(t *testing.T, supplier http.Handler, wrap ...func(gateway.Led
 	if len(wrap) > 0 {
 		ledgerAPI = wrap[0](ledger)
 	}
-	mux.Handle("/v1/", &gateway.Handler{Providers: catalog, Ledger: ledgerAPI, Authorize: store.ResolveKey})
+	mux.Handle("/v1/", &gateway.Handler{Attempts: execution.New(pool), Providers: catalog, Ledger: ledgerAPI, Authorize: store.ResolveKey})
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 	doc, err := openapi3.NewLoader().LoadFromData(openapi.Document)
@@ -99,6 +100,10 @@ func TestThreeMainlandSuppliersThroughGovernanceAndBudget(t *testing.T) {
 		t.Fatal("supplier requests missing from accounting history")
 	}
 	for _, record := range records.Data {
+		if a := record.Attempt; a == nil || a.Outcome != "completed" || a.InputTokens == nil || *a.InputTokens != 3 || a.OutputTokens == nil || *a.OutputTokens != 2 || a.Region == "local" || a.DurationMS == nil || a.RequestID != record.RequestID {
+			t.Fatal("real supplier metadata differs from validated execution")
+		}
+
 		if record.Reserved != 288 || record.Actual == nil || *record.Actual != 14 || !strings.Contains(record.PriceVersion, "#") {
 			t.Fatal("request lost price snapshot or upper bound")
 		}
@@ -146,6 +151,10 @@ func TestSupplierErrorsAndInvalidUsageKeepConservativeHolds(t *testing.T) {
 				t.Fatal("failure refunded or settled an uncertain supplier request")
 			}
 			usage := parse[control.Usage](t, f.request(f.token("alice"), "GET", projectPath(o, p)+"/usage", nil, 200))
+			records := parse[requestPage](t, f.request(f.token("alice"), "GET", projectPath(o, p)+"/requests?outcome=failed", nil, 200))
+			if len(records.Data) != 1 || records.Data[0].Attempt == nil || records.Data[0].Attempt.ErrorCode == "" || records.Data[0].Attempt.DurationMS == nil {
+				t.Fatal("failed supplier execution missing from filtered records")
+			}
 			if usage.Held != 288 || usage.Spent != 0 {
 				t.Fatal("uncertain hold was lost")
 			}
@@ -163,7 +172,7 @@ func TestMainlandSupplierClientCancellationCancelsTLSUpstream(t *testing.T) {
 		<-r.Context().Done()
 		close(canceled)
 	}))
-	_, _, key := providerProject(f)
+	o, p, key := providerProject(f)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, "POST", f.server.URL+"/v1/chat/completions", strings.NewReader(mustJSON(t, realPayload("volcengine/fixture", true))))
@@ -195,6 +204,11 @@ func TestMainlandSupplierClientCancellationCancelsTLSUpstream(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
+	record := parse[control.RequestRecord](t, f.request(f.token("alice"), "GET", projectPath(o, p)+"/requests/"+response.Header.Get("X-Request-ID"), nil, 200))
+	if record.Attempt == nil || record.Attempt.Outcome != "canceled" || record.Attempt.ErrorCode != "client_canceled" || !record.Attempt.Stream {
+		t.Fatal("cancellation not recorded independently from accounting")
+	}
+
 }
 
 func mustJSON(t *testing.T, value any) string {

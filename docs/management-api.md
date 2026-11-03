@@ -95,3 +95,5 @@ go run ./cmd/gateway --mock-only
 项目调用账本列表/详情已通过同一管理身份与项目授权接入，含状态筛选及复合游标，见[查询契约](request-history.md)。账本结算状态不能替代协议成功或客户端送达状态。
 
 组织创建可显式选择 currency=MOCK 或 CNY_MICRO，部署目录须支持该单位，组织创建后不可通过 API 换币种。模型和项目密钥支持最多 32 个不重复的目录别名；模型授权要求与组织币种一致。真实模式、定价/usage 及区域限制见[大陆接入说明](mainland-providers.md)。
+
+调用记录可空 attempt 对象与独立 outcome 筛选已接入，保持原组织/项目授权；不增加全局 attempt 查询。见[执行结果与故障语义](execution-metadata.md)。

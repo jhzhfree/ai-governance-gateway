@@ -47,6 +47,7 @@ var managedTables = map[int][]string{
 	1: {"budget_accounts", "budget_reservations", "budget_outbox"},
 	2: {"organizations", "organization_members", "projects", "project_members", "project_models", "project_keys", "audit_events"},
 	3: {"browser_login_flows", "browser_sessions"},
+	7: {"inference_attempts"},
 }
 
 func plan() ([]migration, error) {

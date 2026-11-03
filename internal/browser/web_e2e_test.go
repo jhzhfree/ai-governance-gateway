@@ -18,6 +18,7 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/browser"
 	"github.com/jhzhfree/ai-governance-gateway/internal/console"
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
+	"github.com/jhzhfree/ai-governance-gateway/internal/execution"
 	"github.com/jhzhfree/ai-governance-gateway/internal/gateway"
 	"github.com/jhzhfree/ai-governance-gateway/internal/httpapi"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
@@ -55,8 +56,8 @@ func TestConsoleBrowser(t *testing.T) {
 	mux.Handle("/api/v1/", httpapi.NewWithSession(store, api, svc))
 	upstream := httptest.NewServer(http.HandlerFunc(mockprovider.Handler))
 	t.Cleanup(upstream.Close)
-	mockGateway := &gateway.Handler{Ledger: ledger, Authorize: store.ResolveKey, Client: upstream.Client(), Upstream: upstream.URL + "/v1/chat/completions"}
-	realGateway := &gateway.Handler{Ledger: ledger, Authorize: store.ResolveKey, Providers: catalog}
+	mockGateway := &gateway.Handler{Attempts: execution.New(pool), Ledger: ledger, Authorize: store.ResolveKey, Client: upstream.Client(), Upstream: upstream.URL + "/v1/chat/completions"}
+	realGateway := &gateway.Handler{Attempts: execution.New(pool), Ledger: ledger, Authorize: store.ResolveKey, Providers: catalog}
 	// Mixed mode exists in this synthetic fixture only, to regress the legacy UI.
 	mux.HandleFunc("/v1/", func(w http.ResponseWriter, r *http.Request) {
 		data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 64<<10))

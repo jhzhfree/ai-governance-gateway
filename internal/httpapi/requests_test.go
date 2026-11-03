@@ -26,6 +26,10 @@ func TestInferenceRequestLedgerContractAndIsolation(t *testing.T) {
 		t.Fatal("successful inference missing durable accounting record")
 	}
 	record := page.Data[0]
+	if record.Attempt == nil || record.Attempt.Outcome != "completed" || record.Attempt.Model != "mock-text" || record.Attempt.Provider != "mock" || record.Attempt.RequestID != record.RequestID || record.Attempt.DurationMS == nil || record.Attempt.FinishedAt == nil || record.Attempt.UpstreamStatus == nil || *record.Attempt.UpstreamStatus != 200 {
+		t.Fatal("durable request execution metadata missing")
+	}
+
 	detail := f.request(f.token("alice"), "GET", path+"/"+record.RequestID, nil, 200)
 	for _, secret := range []string{key.Secret, `"messages"`, `"content"`, `"digest"`, `"token"`} {
 		if strings.Contains(string(detail), secret) {
@@ -89,7 +93,7 @@ func TestRequestHistoryCursorTiesFiltersAndUncertainHold(t *testing.T) {
 	if usage.Held != 30 || usage.Spent != 0 {
 		t.Fatal("read changed conservative holds")
 	}
-	for _, query := range []string{"?after=invalid", "?after=eDph", "?state=success", "?limit=101"} {
+	for _, query := range []string{"?after=invalid", "?after=eDph", "?state=success", "?outcome=success", "?limit=101"} {
 		f.request(f.token("alice"), "GET", path+query, nil, 400)
 	}
 	f.request(f.token("alice"), "GET", path+"/unknown", nil, 404)

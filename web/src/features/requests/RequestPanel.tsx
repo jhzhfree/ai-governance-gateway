@@ -15,6 +15,13 @@ const states: Record<RequestRecord['state'], string> = {
   released: '已释放',
   estimated_final: '估算结算',
 };
+const outcomes: Record<string, string> = {
+  unfinished: '未结束',
+  completed: '执行完成',
+  failed: '执行失败',
+  canceled: '已取消',
+};
+const duration = (value: number | null) => (value === null ? '未结束' : `${number(value)} ms`);
 const actual = (record: RequestRecord) =>
   record.actual === null ? '待结算' : number(record.actual);
 
@@ -27,11 +34,12 @@ export function RequestPanel({
 }) {
   const [params, setParams] = useSearchParams();
   const state = params.get('state') ?? '';
+  const outcome = params.get('outcome') ?? '';
   const id = params.get('request') ?? '';
   const records = usePage<RequestRecord>(
     identity,
     'requests',
-    `${projectPath}/requests?state=${encodeURIComponent(state)}`,
+    `${projectPath}/requests?state=${encodeURIComponent(state)}&outcome=${encodeURIComponent(outcome)}`,
     true,
   );
   const detail = useQuery({
@@ -63,7 +71,7 @@ export function RequestPanel({
         <Tag variant="outline">仅含治理元数据</Tag>
       </div>
       <p className="request-note">
-        账本状态用于核对费用，不代表响应已送达客户端。待核对请求继续占用预留，不自动退款。
+        账本状态用于核对费用，不代表响应已送达客户端。待核对请求继续占用预留，不自动退款。执行结果与账本状态独立；未结束也可能表示进程中断。
       </p>
       <div className="request-filters">
         <label>
@@ -76,6 +84,21 @@ export function RequestPanel({
             <option value="">全部状态</option>
             {Object.entries(states).map(([value, label]) => (
               <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          执行结果
+          <select
+            aria-label="执行结果"
+            value={outcome}
+            onChange={(event) => update('outcome', event.target.value)}
+          >
+            <option value="">全部结果</option>
+            {Object.entries(outcomes).map(([key, label]) => (
+              <option key={key} value={key}>
                 {label}
               </option>
             ))}
@@ -124,6 +147,50 @@ export function RequestPanel({
                 <dd>
                   <code>{detail.data.request_id}</code>
                 </dd>
+                {detail.data.attempt ? (
+                  <>
+                    <dt>Attempt ID</dt>
+                    <dd>
+                      <code>{detail.data.attempt.attempt_id}</code>
+                    </dd>
+                    <dt>模型 / 供应商</dt>
+                    <dd>
+                      {detail.data.attempt.model} / {detail.data.attempt.provider}
+                    </dd>
+                    <dt>配置区域 / 响应方式</dt>
+                    <dd>
+                      {detail.data.attempt.region} / {detail.data.attempt.stream ? 'SSE' : 'JSON'}
+                    </dd>
+                    <dt>执行结果</dt>
+                    <dd>{outcomes[detail.data.attempt.outcome]}</dd>
+                    <dt>错误码</dt>
+                    <dd>
+                      <code>{detail.data.attempt.error_code || '无'}</code>
+                    </dd>
+                    <dt>上游 HTTP 状态</dt>
+                    <dd>{detail.data.attempt.upstream_status ?? '未取得'}</dd>
+                    <dt>输入 / 输出 token</dt>
+                    <dd>
+                      {detail.data.attempt.input_tokens ?? '未采集'} /{' '}
+                      {detail.data.attempt.output_tokens ?? '未采集'}
+                    </dd>
+                    <dt>执行开始时间</dt>
+                    <dd>{new Date(detail.data.attempt.started_at).toLocaleString('zh-CN')}</dd>
+                    <dt>执行结束时间</dt>
+                    <dd>
+                      {detail.data.attempt.finished_at
+                        ? new Date(detail.data.attempt.finished_at).toLocaleString('zh-CN')
+                        : '未结束'}
+                    </dd>
+                    <dt>网关执行耗时</dt>
+                    <dd>{duration(detail.data.attempt.duration_ms)}</dd>
+                  </>
+                ) : (
+                  <>
+                    <dt>执行元数据</dt>
+                    <dd>未记录；不推测历史结果</dd>
+                  </>
+                )}
                 <dt>账本状态</dt>
                 <dd>{states[detail.data.state]}</dd>
                 <dt>预算周期 / 单位</dt>
@@ -170,6 +237,9 @@ export function RequestPanel({
               <tr>
                 <th>创建时间</th>
                 <th>请求编号</th>
+                <th>模型 / 供应商</th>
+                <th>执行结果</th>
+                <th>执行耗时</th>
                 <th>账本状态</th>
                 <th>周期 / 单位</th>
                 <th>预留 / 实际</th>
@@ -189,6 +259,19 @@ export function RequestPanel({
                       {record.request_id}
                     </Button>
                   </td>
+                  <td>
+                    {record.attempt ? (
+                      <>
+                        {record.attempt.model}
+                        <br />
+                        <small>{record.attempt.provider}</small>
+                      </>
+                    ) : (
+                      '未记录'
+                    )}
+                  </td>
+                  <td>{record.attempt ? outcomes[record.attempt.outcome] : '未记录'}</td>
+                  <td>{record.attempt ? duration(record.attempt.duration_ms) : '未记录'}</td>
                   <td>
                     <Tag
                       variant="light"

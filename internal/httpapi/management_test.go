@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jhzhfree/ai-governance-gateway/api/openapi"
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
+	"github.com/jhzhfree/ai-governance-gateway/internal/execution"
 	"github.com/jhzhfree/ai-governance-gateway/internal/gateway"
 	"github.com/jhzhfree/ai-governance-gateway/internal/httpapi"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
@@ -52,7 +53,7 @@ func setup(t *testing.T) fixture {
 	t.Cleanup(upstream.Close)
 	mux := http.NewServeMux()
 	mux.Handle("/api/v1/", httpapi.New(store, auth))
-	mux.Handle("/v1/", &gateway.Handler{Ledger: ledger, Authorize: store.ResolveKey, Client: upstream.Client(), Upstream: upstream.URL + "/v1/chat/completions"})
+	mux.Handle("/v1/", &gateway.Handler{Attempts: execution.New(pool), Ledger: ledger, Authorize: store.ResolveKey, Client: upstream.Client(), Upstream: upstream.URL + "/v1/chat/completions"})
 	s := httptest.NewServer(mux)
 	t.Cleanup(s.Close)
 	doc, err := openapi3.NewLoader().LoadFromData(openapi.Document)

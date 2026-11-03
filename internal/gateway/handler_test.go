@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
+	"github.com/jhzhfree/ai-governance-gateway/internal/execution"
 	"github.com/jhzhfree/ai-governance-gateway/internal/gateway"
 	"github.com/jhzhfree/ai-governance-gateway/internal/mockprovider"
 	"github.com/jhzhfree/ai-governance-gateway/internal/testutil"
@@ -26,9 +27,9 @@ type fixture struct {
 	done   chan struct{}
 }
 
-func setup(t *testing.T, provider http.Handler, wrap func(gateway.Ledger) gateway.Ledger, limit int64) fixture {
+func setup(t *testing.T, provider http.Handler, wrap func(gateway.Ledger) gateway.Ledger, limit int64, recorderWrap ...func(execution.Recorder) execution.Recorder) fixture {
 	t.Helper()
-	_, s, scope := testutil.Database(t)
+	pool, s, scope := testutil.Database(t)
 	testutil.Accounts(t, s, scope, limit, limit)
 	up := httptest.NewServer(provider)
 	t.Cleanup(up.Close)
@@ -36,7 +37,10 @@ func setup(t *testing.T, provider http.Handler, wrap func(gateway.Ledger) gatewa
 	if wrap != nil {
 		ledger = wrap(ledger)
 	}
-	h := &gateway.Handler{Ledger: ledger, Authorize: func(context.Context, string, string) (budget.Scope, error) { return scope, nil }, Client: &http.Client{Timeout: 6 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}, Upstream: up.URL + "/v1/chat/completions"}
+	h := &gateway.Handler{Attempts: execution.New(pool), Ledger: ledger, Authorize: func(context.Context, string, string) (budget.Scope, error) { return scope, nil }, Client: &http.Client{Timeout: 6 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}, Upstream: up.URL + "/v1/chat/completions"}
+	if len(recorderWrap) > 0 {
+		h.Attempts = recorderWrap[0](h.Attempts)
+	}
 	done := make(chan struct{}, 10)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { defer func() { done <- struct{}{} }(); h.ServeHTTP(w, r) }))
 	t.Cleanup(server.Close)
@@ -229,5 +233,49 @@ func TestUnsupportedRequestsAreRejectedBeforeDispatch(t *testing.T) {
 		if resp.StatusCode != 400 {
 			t.Fatalf("unsupported request status=%d", resp.StatusCode)
 		}
+	}
+}
+
+type unavailableRecorder struct {
+	execution.Recorder
+	begin, finish bool
+}
+
+func (r unavailableRecorder) Begin(ctx context.Context, s execution.Start) error {
+	if r.begin {
+		return errors.New("synthetic metadata outage")
+	}
+	return r.Recorder.Begin(ctx, s)
+}
+func (r unavailableRecorder) Finish(ctx context.Context, id string, result execution.Result) error {
+	if r.finish {
+		return errors.New("synthetic metadata outage")
+	}
+	return r.Recorder.Finish(ctx, id, result)
+}
+func TestMetadataFailureGatesDispatchAndSuccessMarker(t *testing.T) {
+	for _, stage := range []string{"begin", "finish"} {
+		t.Run(stage, func(t *testing.T) {
+			provider := http.HandlerFunc(mockprovider.Handler)
+			if stage == "begin" {
+				provider = func(http.ResponseWriter, *http.Request) { t.Error("upstream contacted without durable attempt") }
+			}
+			f := setup(t, provider, nil, 100, func(recorder execution.Recorder) execution.Recorder {
+				return unavailableRecorder{recorder, stage == "begin", stage == "finish"}
+			})
+			response, body := f.request(t, payload)
+			if strings.Contains(body, "[DONE]") || !strings.Contains(body, "metadata_") {
+				t.Fatal("metadata failure produced success marker")
+			}
+			if stage == "begin" {
+				if response.StatusCode != 503 {
+					t.Fatal("metadata start failure was not rejected")
+				}
+				f.assertState(t, response.Header.Get("X-Request-ID"), "reserved", nil)
+			} else {
+				actual := int64(4)
+				f.assertState(t, response.Header.Get("X-Request-ID"), "settled", &actual)
+			}
+		})
 	}
 }

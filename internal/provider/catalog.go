@@ -240,3 +240,6 @@ func (c *Catalog) Ready() bool {
 	}
 	return true
 }
+
+func (r *Route) Provider() string { return r.profile.ID }
+func (r *Route) Region() string   { return r.profile.Region }

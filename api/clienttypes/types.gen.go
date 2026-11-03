@@ -22,6 +22,29 @@ const (
 	CreateOrganizationCurrencyMOCK     CreateOrganizationCurrency = "MOCK"
 )
 
+// Defines values for ExecutionAttemptOutcome.
+const (
+	ExecutionAttemptOutcomeCanceled   ExecutionAttemptOutcome = "canceled"
+	ExecutionAttemptOutcomeCompleted  ExecutionAttemptOutcome = "completed"
+	ExecutionAttemptOutcomeFailed     ExecutionAttemptOutcome = "failed"
+	ExecutionAttemptOutcomeUnfinished ExecutionAttemptOutcome = "unfinished"
+)
+
+// Defines values for ExecutionAttemptProvider.
+const (
+	ExecutionAttemptProviderAliyun     ExecutionAttemptProvider = "aliyun"
+	ExecutionAttemptProviderMock       ExecutionAttemptProvider = "mock"
+	ExecutionAttemptProviderVolcengine ExecutionAttemptProvider = "volcengine"
+	ExecutionAttemptProviderZhipu      ExecutionAttemptProvider = "zhipu"
+)
+
+// Defines values for ExecutionAttemptRegion.
+const (
+	ExecutionAttemptRegionCnBeijing  ExecutionAttemptRegion = "cn-beijing"
+	ExecutionAttemptRegionCnMainland ExecutionAttemptRegion = "cn-mainland"
+	ExecutionAttemptRegionLocal      ExecutionAttemptRegion = "local"
+)
+
 // Defines values for InferenceRequestMessagesRole.
 const (
 	InferenceRequestMessagesRoleAssistant InferenceRequestMessagesRole = "assistant"
@@ -66,17 +89,17 @@ const (
 
 // Defines values for ModelInfoProvider.
 const (
-	Aliyun     ModelInfoProvider = "aliyun"
-	Mock       ModelInfoProvider = "mock"
-	Volcengine ModelInfoProvider = "volcengine"
-	Zhipu      ModelInfoProvider = "zhipu"
+	ModelInfoProviderAliyun     ModelInfoProvider = "aliyun"
+	ModelInfoProviderMock       ModelInfoProvider = "mock"
+	ModelInfoProviderVolcengine ModelInfoProvider = "volcengine"
+	ModelInfoProviderZhipu      ModelInfoProvider = "zhipu"
 )
 
 // Defines values for ModelInfoRegion.
 const (
-	CnBeijing  ModelInfoRegion = "cn-beijing"
-	CnMainland ModelInfoRegion = "cn-mainland"
-	Local      ModelInfoRegion = "local"
+	ModelInfoRegionCnBeijing  ModelInfoRegion = "cn-beijing"
+	ModelInfoRegionCnMainland ModelInfoRegion = "cn-mainland"
+	ModelInfoRegionLocal      ModelInfoRegion = "local"
 )
 
 // Defines values for OrganizationCurrency.
@@ -132,6 +155,15 @@ const (
 	ListRequestsParamsStateReserved       ListRequestsParamsState = "reserved"
 	ListRequestsParamsStateSettled        ListRequestsParamsState = "settled"
 	ListRequestsParamsStateUncertain      ListRequestsParamsState = "uncertain"
+)
+
+// Defines values for ListRequestsParamsOutcome.
+const (
+	ListRequestsParamsOutcomeCanceled   ListRequestsParamsOutcome = "canceled"
+	ListRequestsParamsOutcomeCompleted  ListRequestsParamsOutcome = "completed"
+	ListRequestsParamsOutcomeEmpty      ListRequestsParamsOutcome = ""
+	ListRequestsParamsOutcomeFailed     ListRequestsParamsOutcome = "failed"
+	ListRequestsParamsOutcomeUnfinished ListRequestsParamsOutcome = "unfinished"
 )
 
 // Audit defines model for Audit.
@@ -211,6 +243,33 @@ type Error struct {
 		RequestId string `json:"request_id"`
 	} `json:"error"`
 }
+
+// ExecutionAttempt One durable attempt per reserved request; no retries. Completed means valid upstream result and durable local accounting/metadata, not client receipt. Unfinished can include crashed processes. Timing is wall-clock gateway execution time including accounting and metadata writes. Null on old or unrecorded requests.
+type ExecutionAttempt struct {
+	AttemptId      string                   `json:"attempt_id"`
+	DurationMs     *int64                   `json:"duration_ms"`
+	ErrorCode      string                   `json:"error_code"`
+	FinishedAt     *time.Time               `json:"finished_at"`
+	InputTokens    *int64                   `json:"input_tokens"`
+	Model          string                   `json:"model"`
+	Outcome        ExecutionAttemptOutcome  `json:"outcome"`
+	OutputTokens   *int64                   `json:"output_tokens"`
+	Provider       ExecutionAttemptProvider `json:"provider"`
+	Region         ExecutionAttemptRegion   `json:"region"`
+	RequestId      string                   `json:"request_id"`
+	StartedAt      time.Time                `json:"started_at"`
+	Stream         bool                     `json:"stream"`
+	UpstreamStatus *int                     `json:"upstream_status"`
+}
+
+// ExecutionAttemptOutcome defines model for ExecutionAttempt.Outcome.
+type ExecutionAttemptOutcome string
+
+// ExecutionAttemptProvider defines model for ExecutionAttempt.Provider.
+type ExecutionAttemptProvider string
+
+// ExecutionAttemptRegion defines model for ExecutionAttempt.Region.
+type ExecutionAttemptRegion string
 
 // InferenceRequest defines model for InferenceRequest.
 type InferenceRequest struct {
@@ -409,7 +468,10 @@ type RequestPage struct {
 
 // RequestRecord Budget-backed request metadata only. Accounting state does not prove downstream delivery. Rejections before reservation are absent. No prompts, responses, credentials or inferred model name.
 type RequestRecord struct {
-	Actual       *int64             `json:"actual"`
+	Actual *int64 `json:"actual"`
+
+	// Attempt One durable attempt per reserved request; no retries. Completed means valid upstream result and durable local accounting/metadata, not client receipt. Unfinished can include crashed processes. Timing is wall-clock gateway execution time including accounting and metadata writes. Null on old or unrecorded requests.
+	Attempt      *ExecutionAttempt  `json:"attempt"`
 	CreatedAt    time.Time          `json:"created_at"`
 	Currency     string             `json:"currency"`
 	Period       string             `json:"period"`
@@ -471,10 +533,16 @@ type ListRequestsParams struct {
 
 	// State Accounting state filter; omitted or empty means all states. Keep it unchanged while paging.
 	State *ListRequestsParamsState `form:"state,omitempty" json:"state,omitempty"`
+
+	// Outcome Execution outcome filter independent from the accounting state. Historical records with no attempt match only the unfiltered listing.
+	Outcome *ListRequestsParamsOutcome `form:"outcome,omitempty" json:"outcome,omitempty"`
 }
 
 // ListRequestsParamsState defines parameters for ListRequests.
 type ListRequestsParamsState string
+
+// ListRequestsParamsOutcome defines parameters for ListRequests.
+type ListRequestsParamsOutcome string
 
 // CompleteBrowserLoginParams defines parameters for CompleteBrowserLogin.
 type CompleteBrowserLoginParams struct {

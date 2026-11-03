@@ -127,14 +127,14 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, target 
 	required := []string{"data", "next_cursor"}
 	switch target.(type) {
 	case *types.RequestRecord:
-		required = []string{"request_id", "period", "currency", "price_version", "state", "reserved", "actual", "created_at", "updated_at"}
+		required = []string{"request_id", "period", "currency", "price_version", "state", "reserved", "actual", "created_at", "updated_at", "attempt"}
 	case *types.Usage:
 		required = []string{"period", "currency", "limit_amount", "spent", "held"}
 	case *types.ProjectDetails:
 		required = []string{"id", "organization_id", "name", "role", "models"}
 	}
 	for _, name := range required {
-		if value, ok := object[name]; !ok || (string(value) == "null" && name != "actual") {
+		if value, ok := object[name]; !ok || (string(value) == "null" && name != "actual" && name != "attempt") {
 			return errors.New("服务响应缺少必需字段")
 		}
 	}

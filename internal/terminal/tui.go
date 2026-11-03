@@ -299,7 +299,7 @@ func (m Model) itemCount() int {
 	}
 	if m.screen == requestDetailScreen {
 		if m.record != nil {
-			return 8
+			return 8 + len(attemptLines(*m.record))
 		}
 		return 0
 	}
@@ -353,12 +353,17 @@ func (m Model) View() tea.View {
 			if i == m.position {
 				marker = "› "
 			}
-			rows = append(rows, marker+SafeText(r.RequestId)+"  "+requestState(string(r.State))+"  "+actualAmount(r.Actual)+" / "+SafeText(r.Currency))
+			outcome := "未记录"
+			if r.Attempt != nil {
+				outcome = executionOutcome(string(r.Attempt.Outcome)) + " " + SafeText(r.Attempt.Model)
+			}
+			rows = append(rows, marker+SafeText(r.RequestId)+"  "+outcome+"  "+requestState(string(r.State))+"  "+actualAmount(r.Actual)+" / "+SafeText(r.Currency))
 		}
 	case requestDetailScreen:
 		prefix = append(prefix, "调用账本详情", "结算状态不代表客户端收到响应")
 		if r := m.record; r != nil {
 			rows = []string{"请求编号：" + SafeText(r.RequestId), "账本状态：" + requestState(string(r.State)), "周期：" + SafeText(r.Period), "单位：" + SafeText(r.Currency), "价格版本：" + SafeText(r.PriceVersion), fmt.Sprintf("预留：%d / 实际：%s", r.Reserved, actualAmount(r.Actual)), "创建：" + r.CreatedAt.UTC().Format(time.RFC3339), "更新：" + r.UpdatedAt.UTC().Format(time.RFC3339)}
+			rows = append(rows, attemptLines(*r)...)
 		}
 	case dashboardScreen:
 		name := m.config.Project
