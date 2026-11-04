@@ -849,3 +849,5 @@ go build -o ./bin/aigw ./cmd/aigw
 默认不采正文；项目显式开启后保存经过校验的请求与规范化输出，AES-GCM 信封加密。独立项目审计员能力不等于普通 owner/admin；查看理由及访问日志先提交再解密。策略快照、截断、保留、取消、同步封存与故障语义见[内容审计手册](content-audit.md)。没有自动内容安全分类或护栏模型。
 
 新增 content_audit_policies/auditors/deks/records/payloads/heads/chain/access_log（各名称共用 content_audit_ 前缀），正文为分区父表并配 content_audit_payloads_default。5 个新增 OpenAPI 路径、7 个操作；维护程序与远程只读客户端分离。异步 spool、自动月分区、KMS 与外部锚定未实现，不能对外承诺崩溃零丢失或数据库超级用户不可篡改。密钥遗失必须从秘密备份恢复；DB 备份本身不能恢复密文。真实大陆存储、供应商与生产恢复门禁保持待验收。
+
+Ubuntu 单机安装、开发、systemd/Nginx、迁移授权和备份操作见[Ubuntu 24.04 详细手册](deployment/ubuntu-24.04.md)。模板须在目标主机验收，不代表生产部署已完成。
