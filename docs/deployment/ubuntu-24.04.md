@@ -535,3 +535,5 @@ ExecStart=/opt/aigw/current/bin/gateway --listen 127.0.0.1:8080 --web-dir /opt/a
 ```
 
 修改 unit 后执行 daemon-reload 并按摘流流程重启。不要再传 --providers，否则保持文件兼容模式，页面只读。数据库模式首次为空时 readiness 503，但管理页面可通过本机 Nginx 打开；先完成页面配置再接入正式健康检查流量。发布配置只验证本实例凭证格式与元数据，三家账号、真实付费及大陆驻留仍需独立验收。完整流程见[供应商管理](../provider-management.md)。
+
+供应商 API Key 现支持页面录入/替换与加密存储（迁移 0013），配置前完成独立主密钥初始化，详见[页面凭证配置](../provider-credentials.md)。

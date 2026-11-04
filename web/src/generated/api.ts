@@ -649,6 +649,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/providers/{provider}/credential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: "aliyun" | "volcengine" | "zhipu";
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * setProviderCredential
+         * @description Platform operator only; write-only API key, authenticated encryption at rest, CAS revision and atomic audit. Never returns a key or calls a supplier.
+         */
+        put: operations["setProviderCredential"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1235,6 +1257,9 @@ export interface components {
             endpoint: string;
             key_environment: string;
             credential_configured: boolean;
+            /** Format: int64 */
+            credential_revision: number;
+            credential_source: string;
         };
         ProviderConfigurationStatus: {
             managed: boolean;
@@ -1245,11 +1270,18 @@ export interface components {
             suppliers: components["schemas"]["SupplierStatus"][];
             models: components["schemas"]["ModelInfo"][];
             configuration?: components["schemas"]["ProviderConfiguration"];
+            credential_storage_ready: boolean;
         };
         PublishProviderConfiguration: {
             /** Format: int64 */
             expected_revision: number;
             configuration: components["schemas"]["ProviderConfiguration"];
+        };
+        SetProviderCredential: {
+            /** Format: int64 */
+            expected_revision: number;
+            /** Format: password */
+            api_key: string;
         };
     };
     responses: never;
@@ -4091,6 +4123,84 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ProviderConfigurationStatus"];
                 };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Configuration revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    setProviderCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: "aliyun" | "volcengine" | "zhipu";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetProviderCredential"];
+            };
+        };
+        responses: {
+            /** @description Credential encrypted and saved; no response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Invalid input */
             400: {

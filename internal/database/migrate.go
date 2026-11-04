@@ -44,6 +44,7 @@ type migration struct {
 const legacyBaselineVersion = 3
 
 var managedTables = map[int][]string{
+	13: {"provider_credentials", "provider_credential_events"},
 	12: {"provider_configuration", "provider_configuration_events"},
 	1:  {"budget_accounts", "budget_reservations", "budget_outbox"},
 	2:  {"organizations", "organization_members", "projects", "project_members", "project_models", "project_keys", "audit_events"},

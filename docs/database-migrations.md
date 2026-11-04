@@ -100,3 +100,5 @@ AIGW_VERIFY_WEB=1 bash scripts/verify.sh
 ## 真实供应商管理增量
 
 0012 新增 provider_configuration 和 provider_configuration_events；配置与发布快照/主体/摘要同事务，无供应商秘密。正常启动只检查结构，先独立迁移再运行。
+
+供应商 API Key 现支持页面录入/替换与加密存储（迁移 0013），配置前完成独立主密钥初始化，详见[页面凭证配置](provider-credentials.md)。

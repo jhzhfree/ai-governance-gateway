@@ -23,3 +23,10 @@ func (s *Store) PublishProviders(ctx context.Context, p identity.Principal, revi
 	}
 	return s.providers.Publish(ctx, p, revision, cfg)
 }
+
+func (s *Store) SetProviderCredential(ctx context.Context, p identity.Principal, id string, expected int64, secret string) error {
+	if s.providers == nil {
+		return identity.ErrForbidden
+	}
+	return s.providers.SetCredential(ctx, p, id, expected, secret)
+}

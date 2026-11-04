@@ -111,3 +111,5 @@ go run ./cmd/gateway --mock-only
 ## 真实供应商管理增量
 
 GET/PUT /api/v1/providers 提供平台配置状态/原子发布，PUT 需要部署绑定的精确 OIDC 身份。公开状态不含秘密或内部驻留证据；Cookie 写入仍受 CSRF/Origin 约束。
+
+供应商 API Key 现支持页面录入/替换与加密存储（迁移 0013），配置前完成独立主密钥初始化，详见[页面凭证配置](provider-credentials.md)。

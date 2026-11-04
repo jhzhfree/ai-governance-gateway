@@ -1,6 +1,8 @@
+> 页面可录入与更新 API Key，见[加密凭证配置](provider-credentials.md)。
+
 # 真实供应商配置与 AI 网关使用
 
-数据库版本 0012，架构决策 ADR 0013。普通启动使用真实供应商数据库配置，没有内置演示模型、虚构价格或模拟回复。mock 只留在测试入口与合成测试 fixture。
+数据库版本 0013，架构决策 ADR 0013/0014。普通启动使用真实供应商数据库配置，没有内置演示模型、虚构价格或模拟回复。mock 只留在测试入口与合成测试 fixture。
 
 ## 此前缺口与本轮实现
 
@@ -10,8 +12,8 @@
 
 ## 首次部署与授权
 
-1. 构建前后端，独立执行 `migrate up` 与 `migrate check`，升级到 0012。正常运行账号应能读写 provider_configuration/provider_configuration_events，DDL 仍由迁移账号执行。分离账号部署按 Ubuntu 手册设置 default privileges/已有对象授权。
-2. 配置 AIGW_DATABASE_URL、HTTPS OIDC issuer、管理 audience、Web origin/client ID，及相应厂商秘密环境。变量名固定：AIGW_ALIYUN_API_KEY、AIGW_VOLCENGINE_API_KEY、AIGW_ZHIPU_API_KEY。发布模型涉及哪家，就要求该家的有效格式凭证；未使用供应商可以暂不注入。实际账号权限与付费能力还须真实验收。
+1. 构建前后端，独立执行 `migrate up` 与 `migrate check`，升级到 0013。正常运行账号应能读写 provider_configuration/provider_configuration_events/provider_credentials/provider_credential_events，DDL 仍由迁移账号执行。分离账号部署按 Ubuntu 手册设置 default privileges/已有对象授权。
+2. 配置 AIGW_DATABASE_URL、HTTPS OIDC issuer、管理 audience、Web origin/client ID，及供应商凭证加密主密钥（见页面凭证手册）。厂商 API Key 可直接通过页面保存，也兼容以下环境变量：AIGW_ALIYUN_API_KEY、AIGW_VOLCENGINE_API_KEY、AIGW_ZHIPU_API_KEY。发布模型涉及哪家，就要求该家的有效格式凭证；未使用供应商可以暂不配置。实际账号权限与付费能力还须真实验收。
 3. 将 AIGW_PROVIDER_ADMIN_ISSUER 与 AIGW_PROVIDER_ADMIN_SUBJECT 绑定到指定平台维护人员的真实 OIDC 身份。issuer 必须与登录令牌身份完全一致（包括 realm/路径）；subject 不是昵称、邮箱或组织角色。登录用户可在同源 /auth/session 读取自身 user.issuer/user.subject，勿向外复制 Cookie、csrf 或令牌。
 4. 重启以加载部署环境。启动命令为 `bin/gateway --listen 127.0.0.1:8080 --web-dir web/dist`，或已配置好环境后 `make run`。不要传 --mock-only；要在页面编辑时也不要传 --providers。
 5. 登录后进入“供应商配置”。未创建组织也可打开。只有指定平台身份看到编辑表单；其他已认证管理用户可看固定服务入口、凭证是否注入、可用模型和配置版本，无法看到内部证据引用或改全局配置。普通组织 owner/admin 不自动拥有平台发布权。
@@ -34,11 +36,11 @@
 
 点击“发布供应商配置”，服务端校验价格、token 范围、证据有效性与所需凭证格式，然后按 expected_revision 事务发布。缺失凭证或不合规配置返回 400，不保存半份配置。过时版本返回 409，刷新后核对最新内容再编辑；其他事务错误返回 503。没有向供应商发“免费探测”或推理请求，保存不会产生模型调用费用。
 
-密钥由部署秘密系统注入，不是通过浏览器传输/保存；页面显示“已注入”只表示进程中存在值，不证明密钥可以实际调用。发布前会进一步检查凭证格式。修改环境变量后需重启网关，防止把页面“已注入”误解成已完成厂商账号验证。
+平台管理员可通过页面密码输入框保存 API Key，后端加密落库，提交后不回显；也可继续使用环境注入。页面状态只表示凭证存储/格式条件，不证明账号实际可调用。数据库凭证优先且无需重启；只有使用环境注入时修改环境变量需要重启。
 
 ## 生效与并发
 
-配置和发布事件同事务：事件写入失败时配置回滚。0012 两张表只存非秘密路由、版本、发布主体、摘要和快照；不存供应商 API Key。全局配置由明确平台身份维护，所有组织共享该目录和部署厂商账号，组织/项目预算、密钥和模型权限继续分隔。
+配置和发布事件同事务：事件写入失败时配置回滚。0012 两张表只存非秘密路由、版本、发布主体、摘要和快照；不存供应商 API Key；0013 独立凭证表只保存加密后的密文，事件不记录秘密。全局配置由明确平台身份维护，所有组织共享该目录和部署厂商账号，组织/项目预算、密钥和模型权限继续分隔。
 
 每次获取路由或模型目录都读 PostgreSQL，不使用进程内陈旧配置缓存；同库的多实例看到提交后的配置。每个实例仍需分别注入相应厂商凭证，发布只证明处理发布请求的实例具备凭证格式条件，集群应逐实例检查 readiness。当前保留整份配置原子替换，1–32 个模型；不支持发布空目录或独立“禁用全部”开关。
 

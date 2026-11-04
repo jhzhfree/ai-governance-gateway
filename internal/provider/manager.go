@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -30,18 +29,21 @@ type SupplierStatus struct {
 	Endpoint             string `json:"endpoint"`
 	KeyEnvironment       string `json:"key_environment"`
 	CredentialConfigured bool   `json:"credential_configured"`
+	CredentialRevision   int64  `json:"credential_revision"`
+	CredentialSource     string `json:"credential_source"`
 }
 type ConfigurationStatus struct {
-	Managed       bool             `json:"managed"`
-	CanManage     bool             `json:"can_manage"`
-	Revision      int64            `json:"revision"`
-	Ready         bool             `json:"ready"`
-	Suppliers     []SupplierStatus `json:"suppliers"`
-	Models        []ModelInfo      `json:"models"`
-	Configuration *Config          `json:"configuration,omitempty"`
+	CredentialStorageReady bool             `json:"credential_storage_ready"`
+	Managed                bool             `json:"managed"`
+	CanManage              bool             `json:"can_manage"`
+	Revision               int64            `json:"revision"`
+	Ready                  bool             `json:"ready"`
+	Suppliers              []SupplierStatus `json:"suppliers"`
+	Models                 []ModelInfo      `json:"models"`
+	Configuration          *Config          `json:"configuration,omitempty"`
 }
 
-// Manager reads the database on every acquisition: no stale local cache or secret persistence.
+// Manager reads the database on every acquisition: no stale local cache or plaintext secret persistence.
 // Only deployment-bound OIDC principals can publish a platform-wide configuration.
 type Manager struct {
 	pool          *pgxpool.Pool
@@ -75,7 +77,11 @@ func (m *Manager) snapshot() *Catalog {
 	if err != nil || rev == 0 {
 		return nil
 	}
-	c, err := New(cfg, m.getenv, m.transport)
+	getter, _, err := m.credentials(ctx, m.pool)
+	if err != nil {
+		return nil
+	}
+	c, err := New(cfg, getter, m.transport)
 	if err != nil {
 		return nil
 	}
@@ -90,11 +96,37 @@ func (m *Manager) Status(ctx context.Context, p identity.Principal) (Configurati
 		return ConfigurationStatus{}, err
 	}
 	status := ConfigurationStatus{Managed: true, CanManage: m.CanManage(p), Revision: rev, Models: []ModelInfo{}, Suppliers: []SupplierStatus{}}
+	_, _, keyErr := m.encryptionKeys()
+	status.CredentialStorageReady = keyErr == nil
+	getter, metadata, credentialErr := m.credentials(ctx, m.pool)
+	if credentialErr != nil {
+		getter = func(string) string { return "" }
+		metadata = map[string]credentialMetadata{}
+		rows, e := m.pool.Query(ctx, `SELECT provider,revision FROM provider_credentials`)
+		if e != nil {
+			return ConfigurationStatus{}, e
+		}
+		for rows.Next() {
+			var id string
+			var revision int64
+			if e := rows.Scan(&id, &revision); e != nil {
+				rows.Close()
+				return ConfigurationStatus{}, e
+			}
+			metadata[id] = credentialMetadata{revision: revision, source: "unavailable"}
+		}
+		e = rows.Err()
+		rows.Close()
+		if e != nil {
+			return ConfigurationStatus{}, e
+		}
+	}
 	for _, profile := range Profiles() {
-		status.Suppliers = append(status.Suppliers, SupplierStatus{profile.ID, profile.Region, profile.Endpoint, profile.KeyEnvironment, strings.TrimSpace(m.getenv(profile.KeyEnvironment)) != ""})
+		info := metadata[profile.ID]
+		status.Suppliers = append(status.Suppliers, SupplierStatus{ID: profile.ID, Region: profile.Region, Endpoint: profile.Endpoint, KeyEnvironment: profile.KeyEnvironment, CredentialConfigured: info.configured, CredentialRevision: info.revision, CredentialSource: info.source})
 	}
 	if rev > 0 {
-		if c, e := New(cfg, m.getenv, m.transport); e == nil {
+		if c, e := New(cfg, getter, m.transport); e == nil {
 			status.Ready = c.Ready()
 			status.Models = c.Models()
 		}
@@ -111,7 +143,11 @@ func (m *Manager) Publish(ctx context.Context, p identity.Principal, expected in
 	if expected < 0 || expected >= MaxAmount {
 		return ErrConfigurationInvalid
 	}
-	if _, err := New(cfg, m.getenv, m.transport); err != nil {
+	getter, _, err := m.credentials(ctx, m.pool)
+	if err != nil {
+		return ErrCredentialStorageUnavailable
+	}
+	if _, err := New(cfg, getter, m.transport); err != nil {
 		return ErrConfigurationInvalid
 	}
 	raw, err := json.Marshal(cfg)
@@ -153,7 +189,11 @@ func (m *Manager) ModelsIn(ctx context.Context, tx pgx.Tx) []ModelInfo {
 	if err != nil {
 		return []ModelInfo{}
 	}
-	catalog, err := New(cfg, m.getenv, m.transport)
+	getter, _, err := m.credentials(ctx, tx)
+	if err != nil {
+		return []ModelInfo{}
+	}
+	catalog, err := New(cfg, getter, m.transport)
 	if err != nil {
 		return []ModelInfo{}
 	}

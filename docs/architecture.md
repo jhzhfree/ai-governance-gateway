@@ -113,3 +113,5 @@ Web 服务端状态由 TanStack Query 管理；筛选、分页放 URL；局部�
 ## 真实供应商管理增量
 
 供应商配置由平台级显式 OIDC 身份发布，持久化于 PostgreSQL，动态取得不可变 Route，保持在途价格快照。见 [ADR 0013](adr/0013-managed-real-provider-configuration.md)。
+
+页面供应商凭证增量（0013 / ADR 0014）：平台管理员可录入/替换 API Key，独立主密钥 AES-GCM 加密，版本比较与无秘密事件同事务；凭证不回显，数据库凭证优先，解密失败拒绝调用。见[页面凭证配置](provider-credentials.md)。

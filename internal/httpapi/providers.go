@@ -38,3 +38,27 @@ func (h *Handler) publishProviders(w http.ResponseWriter, r *http.Request) {
 	}
 	h.providerConfiguration(w, r)
 }
+
+func (h *Handler) setProviderCredential(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		ExpectedRevision *int64 `json:"expected_revision"`
+		APIKey           string `json:"api_key"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	if body.ExpectedRevision == nil {
+		failure(w, r, control.ErrInvalid)
+		return
+	}
+	err := h.Store.SetProviderCredential(r.Context(), principal(r), r.PathValue("provider"), *body.ExpectedRevision, body.APIKey)
+	body.APIKey = ""
+	if errors.Is(err, provider.ErrConfigurationInvalid) {
+		err = control.ErrInvalid
+	}
+	if err != nil {
+		failure(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

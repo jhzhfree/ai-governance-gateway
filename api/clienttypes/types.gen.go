@@ -931,13 +931,14 @@ type ProviderConfigurationVersion int
 
 // ProviderConfigurationStatus defines model for ProviderConfigurationStatus.
 type ProviderConfigurationStatus struct {
-	CanManage     bool                   `json:"can_manage"`
-	Configuration *ProviderConfiguration `json:"configuration,omitempty"`
-	Managed       bool                   `json:"managed"`
-	Models        []ModelInfo            `json:"models"`
-	Ready         bool                   `json:"ready"`
-	Revision      int64                  `json:"revision"`
-	Suppliers     []SupplierStatus       `json:"suppliers"`
+	CanManage              bool                   `json:"can_manage"`
+	Configuration          *ProviderConfiguration `json:"configuration,omitempty"`
+	CredentialStorageReady bool                   `json:"credential_storage_ready"`
+	Managed                bool                   `json:"managed"`
+	Models                 []ModelInfo            `json:"models"`
+	Ready                  bool                   `json:"ready"`
+	Revision               int64                  `json:"revision"`
+	Suppliers              []SupplierStatus       `json:"suppliers"`
 }
 
 // ProviderModelConfiguration defines model for ProviderModelConfiguration.
@@ -1039,6 +1040,12 @@ type SetModels struct {
 	Models []string `json:"models"`
 }
 
+// SetProviderCredential defines model for SetProviderCredential.
+type SetProviderCredential struct {
+	ApiKey           *string `json:"api_key,omitempty"`
+	ExpectedRevision int64   `json:"expected_revision"`
+}
+
 // StatementImport defines model for StatementImport.
 type StatementImport struct {
 	AccountRef  string                  `json:"account_ref"`
@@ -1053,6 +1060,8 @@ type StatementImportProvider string
 // SupplierStatus defines model for SupplierStatus.
 type SupplierStatus struct {
 	CredentialConfigured bool   `json:"credential_configured"`
+	CredentialRevision   int64  `json:"credential_revision"`
+	CredentialSource     string `json:"credential_source"`
 	Endpoint             string `json:"endpoint"`
 	Id                   string `json:"id"`
 	KeyEnvironment       string `json:"key_environment"`
@@ -1223,6 +1232,9 @@ type SetProjectModelsJSONRequestBody = SetModels
 
 // PublishProviderConfigurationJSONRequestBody defines body for PublishProviderConfiguration for application/json ContentType.
 type PublishProviderConfigurationJSONRequestBody = PublishProviderConfiguration
+
+// SetProviderCredentialJSONRequestBody defines body for SetProviderCredential for application/json ContentType.
+type SetProviderCredentialJSONRequestBody = SetProviderCredential
 
 // StreamMockChatJSONRequestBody defines body for StreamMockChat for application/json ContentType.
 type StreamMockChatJSONRequestBody = InferenceRequest

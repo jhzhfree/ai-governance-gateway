@@ -855,3 +855,5 @@ Ubuntu 单机安装、开发、systemd/Nginx、迁移授权和备份操作见[Ub
 ## 真实供应商管理增量
 
 供应商配置现可通过 Web/API 发布到 PostgreSQL（0012），指定平台身份独立于组织角色，密钥仍部署注入。默认启动为真实数据库模式，mock 仅测试；见[启用流程](provider-management.md)。
+
+页面供应商凭证增量（0013 / ADR 0014）：平台管理员可录入/替换 API Key，独立主密钥 AES-GCM 加密，版本比较与无秘密事件同事务；凭证不回显，数据库凭证优先，解密失败拒绝调用。见[页面凭证配置](provider-credentials.md)。

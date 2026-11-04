@@ -1,6 +1,8 @@
 package testutil
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -122,5 +124,18 @@ func MainlandManager(t testing.TB, pool *pgxpool.Pool, admin identity.Principal,
 	u, _ := url.Parse(server.URL)
 	client := server.Client()
 	client.Transport = mappedTransport{client.Transport, u}
-	return provider.NewManager(pool, func(name string) string { return "synthetic-" + name }, client, admin)
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		t.Fatal(err)
+	}
+	encoded, _ := json.Marshal(map[string]string{"test-v1": base64.StdEncoding.EncodeToString(key)})
+	return provider.NewManager(pool, func(name string) string {
+		switch name {
+		case "AIGW_PROVIDER_ENCRYPTION_KEYS":
+			return string(encoded)
+		case "AIGW_PROVIDER_ENCRYPTION_ACTIVE_KEY":
+			return "test-v1"
+		}
+		return "synthetic-" + name
+	}, client, admin)
 }

@@ -4259,6 +4259,119 @@
         "parameters": [],
         "summary": "publishProviderConfiguration"
       }
+    },
+    "/api/v1/providers/{provider}/credential": {
+      "parameters": [
+        {
+          "name": "provider",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "aliyun",
+              "volcengine",
+              "zhipu"
+            ]
+          }
+        }
+      ],
+      "put": {
+        "operationId": "setProviderCredential",
+        "description": "Platform operator only; write-only API key, authenticated encryption at rest, CAS revision and atomic audit. Never returns a key or calls a supplier.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          },
+          {
+            "browserSessionDev": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Configuration revision conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Credential encrypted and saved; no response body"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetProviderCredential"
+              }
+            }
+          }
+        },
+        "parameters": [],
+        "summary": "setProviderCredential"
+      }
     }
   },
   "components": {
@@ -6672,6 +6785,15 @@
           },
           "credential_configured": {
             "type": "boolean"
+          },
+          "credential_revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "credential_source": {
+            "type": "string"
           }
         },
         "required": [
@@ -6679,7 +6801,9 @@
           "region",
           "endpoint",
           "key_environment",
-          "credential_configured"
+          "credential_configured",
+          "credential_revision",
+          "credential_source"
         ]
       },
       "ProviderConfigurationStatus": {
@@ -6715,6 +6839,9 @@
           },
           "configuration": {
             "$ref": "#/components/schemas/ProviderConfiguration"
+          },
+          "credential_storage_ready": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -6723,7 +6850,8 @@
           "revision",
           "ready",
           "suppliers",
-          "models"
+          "models",
+          "credential_storage_ready"
         ]
       },
       "PublishProviderConfiguration": {
@@ -6744,6 +6872,29 @@
           "expected_revision",
           "configuration"
         ]
+      },
+      "SetProviderCredential": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_revision",
+          "api_key"
+        ],
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "api_key": {
+            "type": "string",
+            "format": "password",
+            "writeOnly": true,
+            "minLength": 1,
+            "maxLength": 8192
+          }
+        }
       }
     }
   }

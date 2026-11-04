@@ -524,6 +524,20 @@ test('platform provider editor publishes a database route used by real inference
   const before = (await (await page.request.get('/api/v1/providers')).json()) as {
     revision: number;
   };
+  const syntheticKey = 'synthetic-AIGW_ALIYUN_API_KEY';
+  await page.getByLabel('阿里云百炼 API Key', { exact: true }).fill(syntheticKey);
+  await page.getByRole('button', { name: '保存阿里云百炼密钥', exact: true }).click();
+  await expect
+    .poll(async () => {
+      const status = (await (await page.request.get('/api/v1/providers')).json()) as {
+        suppliers: { id: string; credential_source: string }[];
+      };
+      return status.suppliers.find((supplier) => supplier.id === 'aliyun')?.credential_source;
+    })
+    .toBe('database');
+  await expect(page.getByLabel('阿里云百炼 API Key', { exact: true })).toHaveValue('');
+  expect(await (await page.request.get('/api/v1/providers')).text()).not.toContain(syntheticKey);
+
   await page.getByRole('button', { name: '添加模型路由', exact: true }).click();
   await page.getByLabel('网关模型别名 4', { exact: true }).fill('aliyun/web-managed');
   await page.getByLabel('厂商模型 4', { exact: true }).fill('fixture-model');

@@ -40,6 +40,7 @@ func NewWithRuntime(store *control.Store, auth identity.Authenticator, session S
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/providers", h.providerConfiguration)
 	mux.HandleFunc("PUT /api/v1/providers", h.publishProviders)
+	mux.HandleFunc("PUT /api/v1/providers/{provider}/credential", h.setProviderCredential)
 	mux.HandleFunc("GET /api/v1/models", func(w http.ResponseWriter, r *http.Request) {
 		send(w, 200, map[string]any{"data": store.Models(), "next_cursor": ""})
 	})

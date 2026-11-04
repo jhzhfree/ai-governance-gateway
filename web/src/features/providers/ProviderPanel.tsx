@@ -64,7 +64,13 @@ export function ProviderPanel({ identity, csrf }: { identity: string[]; csrf: st
                         <code>{supplier.endpoint}</code>
                       </td>
                       <td>
-                        {supplier.credential_configured ? '已注入' : '未注入或当前模式不可检测'}
+                        {supplier.credential_configured ? '已配置' : '未配置或不可用'}
+                        <br />
+                        {supplier.credential_source === 'database'
+                          ? '页面加密保存'
+                          : supplier.credential_source === 'environment'
+                            ? '部署环境'
+                            : '当前模式不可检测'}
                         <br />
                         <code>{supplier.key_environment}</code>
                       </td>
@@ -114,7 +120,7 @@ export function ProviderPanel({ identity, csrf }: { identity: string[]; csrf: st
               </div>
             )}
             <p>
-              厂商密钥通过服务器秘密环境注入；本页面不会回显或保存厂商密钥。必须核验中国大陆处理、存储、备份及合同，不以域名代替驻留证明。
+              厂商密钥可由平台管理员通过下方表单加密保存，也可使用部署环境凭证。密钥不回显。必须核验中国大陆处理、存储、备份及合同，不以域名代替驻留证明。
             </p>
             {!query.data.managed && (
               <p>
@@ -132,6 +138,31 @@ export function ProviderPanel({ identity, csrf }: { identity: string[]; csrf: st
           </>
         )}
       </section>
+      {query.data?.can_manage && (
+        <section className="panel governance-panel">
+          <div className="panel-heading">
+            <div>
+              <h2>供应商 API Key</h2>
+              <p>
+                录入或替换后加密保存，新请求自动使用页面配置的密钥；正在执行的请求保留原凭证。不会发起付费探测。
+              </p>
+            </div>
+          </div>
+          {!query.data.credential_storage_ready && (
+            <p>
+              部署尚未启用安全密钥存储。请部署管理员先配置供应商凭证加密主密钥，再使用页面录入；主密钥本身不通过浏览器设置。
+            </p>
+          )}
+          {query.data.suppliers.map((supplier) => (
+            <CredentialForm
+              key={`${supplier.id}/${supplier.credential_revision}`}
+              supplier={supplier}
+              csrf={csrf}
+              enabled={query.data!.credential_storage_ready}
+            />
+          ))}
+        </section>
+      )}
       {query.data?.can_manage && (
         <ProviderEditor key={query.data.revision} status={query.data} csrf={csrf} />
       )}
@@ -400,5 +431,75 @@ function ProviderEditor({ status, csrf }: { status: ProviderConfigurationStatus;
         </p>
       </form>
     </section>
+  );
+}
+
+function CredentialForm({
+  supplier,
+  csrf,
+  enabled,
+}: {
+  supplier: ProviderConfigurationStatus['suppliers'][number];
+  csrf: string;
+  enabled: boolean;
+}) {
+  const client = useQueryClient();
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [saved, setSaved] = useState(false);
+  const save = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const field = event.currentTarget.elements.namedItem('api_key') as HTMLInputElement;
+    const secret = field.value;
+    field.value = '';
+    setPending(true);
+    setError(null);
+    setSaved(false);
+    try {
+      await api(`/api/v1/providers/${encodeURIComponent(supplier.id)}/credential`, {
+        method: 'PUT',
+        csrf,
+        body: { expected_revision: supplier.credential_revision, api_key: secret },
+      });
+      setSaved(true);
+      await client.invalidateQueries();
+    } catch (value) {
+      setError(value);
+    } finally {
+      setPending(false);
+    }
+  };
+  return (
+    <>
+      <form
+        onSubmit={(event) => {
+          void save(event);
+        }}
+      >
+        <h3>
+          {names[supplier.id] ?? supplier.id}密钥 · 版本 {supplier.credential_revision}
+        </h3>
+        <label>
+          {names[supplier.id] ?? supplier.id} API Key
+          <input
+            name="api_key"
+            aria-label={`${names[supplier.id] ?? supplier.id} API Key`}
+            type="password"
+            autoComplete="new-password"
+            spellCheck={false}
+            required
+            maxLength={8192}
+            disabled={!enabled || pending}
+          />
+        </label>
+        <Button type="submit" theme="primary" loading={pending} disabled={!enabled}>
+          保存{names[supplier.id] ?? supplier.id}密钥
+        </Button>
+        <p>
+          仅输入新密钥，提交后清空输入框。页面配置优先于部署环境凭证；账号是否可用仍需完成实际接入验收。
+        </p>
+      </form>
+      {Boolean(error) && <ErrorBox error={error} />} {saved && <p role="status">密钥已加密保存</p>}
+    </>
   );
 }

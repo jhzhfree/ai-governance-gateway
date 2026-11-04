@@ -23,9 +23,13 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/testutil"
 )
 
-func managedSetup(t *testing.T) (fixture, *provider.Manager) {
+func managedSetup(t *testing.T, suppliers ...http.Handler) (fixture, *provider.Manager) {
 	f := providerSetup(t, testutil.SupplierFixture(t))
-	manager := testutil.MainlandManager(t, f.pool, identity.Principal{Issuer: f.issuer.URL, Subject: "alice"}, testutil.SupplierFixture(t))
+	supplier := testutil.SupplierFixture(t)
+	if len(suppliers) > 0 {
+		supplier = suppliers[0]
+	}
+	manager := testutil.MainlandManager(t, f.pool, identity.Principal{Issuer: f.issuer.URL, Subject: "alice"}, supplier)
 	*f.store = *control.NewWithCatalog(f.pool, manager).WithProviderManager(manager)
 	auth, err := identity.NewOIDC(context.Background(), f.issuer.URL, "aigw-management")
 	if err != nil {
