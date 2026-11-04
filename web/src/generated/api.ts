@@ -1312,6 +1312,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organizations/{org}/ownership-transfer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * getOrganizationBudget
+         * @description Two-party organization ownership handoff. Existing member recipient must accept while both local identities (local mode) and role snapshot remain valid. Pending expires in 24 hours. Owner retains role until atomic acceptance, then becomes admin. Metadata visible only to requester/recipient; other members see null. No invitation, user creation, credential revocation or implicit content-auditor grant.
+         */
+        get: operations["getPendingOwnership"];
+        put?: never;
+        /**
+         * getOrganizationBudget
+         * @description Two-party organization ownership handoff. Existing member recipient must accept while both local identities (local mode) and role snapshot remain valid. Pending expires in 24 hours. Owner retains role until atomic acceptance, then becomes admin. Metadata visible only to requester/recipient; other members see null. No invitation, user creation, credential revocation or implicit content-auditor grant.
+         */
+        post: operations["requestOwnership"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{org}/ownership-transfer/{transfer}/{action}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                transfer: string;
+                action: "accept" | "cancel";
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Authenticated intended recipient accepts; current requester/owner cancels. First committed decision wins, repeated or expired acceptance conflicts. Membership changes and audit are atomic. Former owner becomes admin, project credentials and content-auditor grants are not changed. */
+        post: operations["finishOwnership"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2155,6 +2202,27 @@ export interface components {
             next_cursor: string;
         };
         AcknowledgeBudgetAlert: {
+            reason: string;
+        };
+        OwnershipTransfer: {
+            id: string;
+            owner: components["schemas"]["Principal"];
+            target: components["schemas"]["Principal"];
+            /** @enum {string} */
+            target_role: "admin" | "developer" | "viewer";
+            reason: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at: string;
+        } | null;
+        PendingOwnership: {
+            transfer: components["schemas"]["OwnershipTransfer"];
+        };
+        RequestOwnership: {
+            target: components["schemas"]["Principal"];
+            /** @enum {string} */
+            expected_role: "admin" | "developer" | "viewer";
             reason: string;
         };
     };
@@ -7910,6 +7978,238 @@ export interface operations {
                 };
             };
             /** @description Revision changed or already acknowledged */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getPendingOwnership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Active handoff or newly created request */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingOwnership"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Version, period or committed balance conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    requestOwnership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RequestOwnership"];
+            };
+        };
+        responses: {
+            /** @description Active handoff or newly created request */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnershipTransfer"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Pending handoff or changed recipient role */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    finishOwnership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                transfer: string;
+                action: "accept" | "cancel";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Decision committed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Expired, completed, or membership changed */
             409: {
                 headers: {
                     [name: string]: unknown;

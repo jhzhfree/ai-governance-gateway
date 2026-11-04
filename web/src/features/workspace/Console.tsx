@@ -30,6 +30,7 @@ import { BudgetAlertsPanel } from '../governance/BudgetAlertsPanel';
 import { BudgetPanel } from '../governance/BudgetPanel';
 import { KeywordPanel } from '../governance/KeywordPanel';
 import { ProviderPanel } from '../providers/ProviderPanel';
+import { OwnershipPanel } from '../members/OwnershipPanel';
 import { MemberPanel } from '../members/MemberPanel';
 import { AuditPanel } from '../audit/AuditPanel';
 
@@ -89,6 +90,7 @@ export function Console({ session }: { session: Session }) {
         'keywords',
         'reports',
         'alerts',
+        'ownership',
       ] as const
     ).find((value) => value === params.get('view')) ?? 'overview';
   const viewLabel = {
@@ -105,6 +107,7 @@ export function Console({ session }: { session: Session }) {
     keywords: '关键字匹配',
     reports: '成本报表',
     alerts: '预算告警',
+    ownership: '组织交接',
   }[view];
   const audit = usePage<Audit>(
     identity,
@@ -255,6 +258,7 @@ export function Console({ session }: { session: Session }) {
             ['keywords', '⌕', '关键字匹配'],
             ['reports', '▤', '成本报表'],
             ['alerts', '⚑', '预算告警'],
+            ['ownership', '⇢', '组织交接'],
           ]
             .filter(
               ([id]) =>
@@ -462,7 +466,8 @@ export function Console({ session }: { session: Session }) {
                 view !== 'members' &&
                 view !== 'budget' &&
                 view !== 'reports' &&
-                view !== 'alerts' && (
+                view !== 'alerts' &&
+                view !== 'ownership' && (
                   <section className="panel">
                     <Empty
                       title="还没有可访问的项目"
@@ -486,7 +491,15 @@ export function Console({ session }: { session: Session }) {
                 view !== 'members' &&
                 view !== 'budget' &&
                 view !== 'reports' && <ErrorBox error={project.error} />}
-              {view === 'alerts' ? (
+              {view === 'ownership' ? (
+                <OwnershipPanel
+                  key={orgPath}
+                  identity={identity}
+                  orgPath={orgPath}
+                  isOwner={organization?.role === 'owner'}
+                  session={session}
+                />
+              ) : view === 'alerts' ? (
                 <BudgetAlertsPanel
                   identity={identity}
                   orgPath={orgPath}

@@ -6,6 +6,9 @@ export const roleNames: Record<string, string> = {
 };
 
 export const actionNames: Record<string, string> = {
+  'organization.ownership_requested': '发起所有权交接',
+  'organization.ownership_accepted': '确认所有权交接',
+  'organization.ownership_canceled': '取消所有权交接',
   'budget_alert.policy_changed': '调整预算告警策略',
   'budget_alert.acknowledged': '确认预算告警',
   'cost_report.exported': '导出成本报表',

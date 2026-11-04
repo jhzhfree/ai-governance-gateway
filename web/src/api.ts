@@ -9,6 +9,7 @@ export type MemberRecord = components['schemas']['MemberRecord'];
 export type BillingRecord = components['schemas']['BillingRecord'];
 export type BillingPage = components['schemas']['BillingPage'];
 export type ImportReceipt = components['schemas']['ImportReceipt'];
+export type OwnershipTransfer = NonNullable<components['schemas']['OwnershipTransfer']>;
 export type AlertPolicy = components['schemas']['AlertPolicy'];
 export type BudgetAlert = components['schemas']['BudgetAlert'];
 export type CostReport = components['schemas']['CostReport'];

@@ -273,6 +273,13 @@ const (
 	OrganizationRoleViewer    OrganizationRole = "viewer"
 )
 
+// Defines values for OwnershipTransferTargetRole.
+const (
+	OwnershipTransferTargetRoleAdmin     OwnershipTransferTargetRole = "admin"
+	OwnershipTransferTargetRoleDeveloper OwnershipTransferTargetRole = "developer"
+	OwnershipTransferTargetRoleViewer    OwnershipTransferTargetRole = "viewer"
+)
+
 // Defines values for ProjectRole.
 const (
 	ProjectRoleAdmin     ProjectRole = "admin"
@@ -306,9 +313,16 @@ const (
 
 // Defines values for RemoveProjectMemberExpectedRole.
 const (
-	Admin     RemoveProjectMemberExpectedRole = "admin"
-	Developer RemoveProjectMemberExpectedRole = "developer"
-	Viewer    RemoveProjectMemberExpectedRole = "viewer"
+	RemoveProjectMemberExpectedRoleAdmin     RemoveProjectMemberExpectedRole = "admin"
+	RemoveProjectMemberExpectedRoleDeveloper RemoveProjectMemberExpectedRole = "developer"
+	RemoveProjectMemberExpectedRoleViewer    RemoveProjectMemberExpectedRole = "viewer"
+)
+
+// Defines values for RequestOwnershipExpectedRole.
+const (
+	Admin     RequestOwnershipExpectedRole = "admin"
+	Developer RequestOwnershipExpectedRole = "developer"
+	Viewer    RequestOwnershipExpectedRole = "viewer"
 )
 
 // Defines values for RequestRecordState.
@@ -1144,6 +1158,25 @@ type OrganizationPage struct {
 	NextCursor string `json:"next_cursor"`
 }
 
+// OwnershipTransfer defines model for OwnershipTransfer.
+type OwnershipTransfer struct {
+	CreatedAt  time.Time                   `json:"created_at"`
+	ExpiresAt  time.Time                   `json:"expires_at"`
+	Id         string                      `json:"id"`
+	Owner      Principal                   `json:"owner"`
+	Reason     string                      `json:"reason"`
+	Target     Principal                   `json:"target"`
+	TargetRole OwnershipTransferTargetRole `json:"target_role"`
+}
+
+// OwnershipTransferTargetRole defines model for OwnershipTransfer.TargetRole.
+type OwnershipTransferTargetRole string
+
+// PendingOwnership defines model for PendingOwnership.
+type PendingOwnership struct {
+	Transfer *OwnershipTransfer `json:"transfer"`
+}
+
 // Principal defines model for Principal.
 type Principal struct {
 	Issuer  string `json:"issuer"`
@@ -1258,6 +1291,16 @@ type RemoveProjectMember struct {
 
 // RemoveProjectMemberExpectedRole defines model for RemoveProjectMember.ExpectedRole.
 type RemoveProjectMemberExpectedRole string
+
+// RequestOwnership defines model for RequestOwnership.
+type RequestOwnership struct {
+	ExpectedRole RequestOwnershipExpectedRole `json:"expected_role"`
+	Reason       string                       `json:"reason"`
+	Target       Principal                    `json:"target"`
+}
+
+// RequestOwnershipExpectedRole defines model for RequestOwnership.ExpectedRole.
+type RequestOwnershipExpectedRole string
 
 // RequestPage defines model for RequestPage.
 type RequestPage struct {
@@ -1607,6 +1650,9 @@ type RotateBudgetPeriodJSONRequestBody = RotateBudgetPeriod
 
 // PutOrganizationMemberJSONRequestBody defines body for PutOrganizationMember for application/json ContentType.
 type PutOrganizationMemberJSONRequestBody = Member
+
+// RequestOwnershipJSONRequestBody defines body for RequestOwnership for application/json ContentType.
+type RequestOwnershipJSONRequestBody = RequestOwnership
 
 // CreateProjectJSONRequestBody defines body for CreateProject for application/json ContentType.
 type CreateProjectJSONRequestBody = CreateProject

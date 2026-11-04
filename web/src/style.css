@@ -1285,3 +1285,28 @@ fieldset.model-selection {
   flex-wrap: wrap;
   gap: 16px;
 }
+
+.ownership-form,
+.ownership-details {
+  display: grid;
+  gap: 16px;
+  margin-top: 20px;
+  overflow-wrap: anywhere;
+}
+.ownership-form > label {
+  display: grid;
+  gap: 8px;
+}
+.ownership-form > .t-button,
+.ownership-details > .t-button {
+  justify-self: start;
+}
+.ownership-form,
+.ownership-form > label {
+  min-width: 0;
+}
+.ownership-form select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}

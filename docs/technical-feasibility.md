@@ -405,7 +405,8 @@ ADR 0011 已用于[模型发现与成员管理](adr/0011-model-discovery-and-mem
 | 0023（建议） | 开源基座与兼容策略 | 借鉴边界、许可证、升级路径 |
 | [0014](adr/0014-encrypted-provider-credentials.md) | 页面供应商凭证（已实现） | 写入授权、加密、轮换、恢复 |
 | [0017](adr/0017-offline-local-identity.md) | 正式离线身份（已实现） | 初始化、密码、会话、恢复 |
-| 0022（建议） | 盒子交付与离线授权 | 分区、OTA、回滚、许可证绑定 |
+| [0022](adr/0022-two-party-organization-ownership.md) | 两方所有权交接（验收见交付跟踪） | 身份确认、原子角色切换、唯一约束与审计 |
+| 0025（建议） | 盒子交付与离线授权 | 分区、OTA、回滚、许可证绑定 |
 | [0015](adr/0015-budget-operations-and-periods.md) | 预算运营（已实现） | 调额、周期、旧账归属 |
 | [0016](adr/0016-project-keyword-governance.md) | 项目关键字（已实现） | 确定性规则、流式边界、无正文事件 |
 | [0018](adr/0018-protected-prometheus-metrics.md) | 受保护 Prometheus（已实现） | 境内抓取、固定标签、无原文 |

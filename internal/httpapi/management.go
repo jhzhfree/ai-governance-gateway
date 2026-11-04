@@ -38,6 +38,15 @@ func NewWithSession(store *control.Store, auth identity.Authenticator, session S
 func NewWithRuntime(store *control.Store, auth identity.Authenticator, session SessionAuthenticator, monitor *observe.Registry) http.Handler {
 	h := &Handler{Store: store, Auth: auth, Monitor: monitor}
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/organizations/{org}/ownership-transfer", h.ownership)
+	mux.HandleFunc("POST /api/v1/organizations/{org}/ownership-transfer", h.requestOwnership)
+	mux.HandleFunc("POST /api/v1/organizations/{org}/ownership-transfer/{transfer}/{action}", func(w http.ResponseWriter, r *http.Request) {
+		if r.PathValue("action") != "accept" && r.PathValue("action") != "cancel" {
+			failure(w, r, control.ErrNotFound)
+			return
+		}
+		h.finishOwnership(w, r)
+	})
 	for _, base := range []string{"/api/v1/organizations/{org}", "/api/v1/organizations/{org}/projects/{project}"} {
 		mux.HandleFunc("GET "+base+"/budget/alerts/policy", h.alertPolicy)
 		mux.HandleFunc("PUT "+base+"/budget/alerts/policy", h.setAlertPolicy)
