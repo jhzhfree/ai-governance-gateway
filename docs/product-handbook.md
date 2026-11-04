@@ -3,7 +3,7 @@
 | 项目 | 内容 |
 | --- | --- |
 | 产品名 | 序衡（AI GOVERNANCE）；技术名 `ai-governance-gateway` |
-| 代码基线 | `main` @ `92047a2`（2026-11-04，feat: isolate supplier failures with shared circuits and runtime status） |
+| 代码基线 | `main` @ `9b8cf9d`（2026-11-04，feat: add evidence-backed billing reconciliation and coverage review）；初稿基于 `92047a2`，已按 0010 迁移与账单对账补齐 |
 | 文档性质 | 面向研发、运维、产品与发布的全局说明；不是营销材料，也不替代各专题文档 |
 | 分析方式 | 静态阅读源码 + 迁移 + 测试脚本 + 现有文档。分析环境无 Go/Node/Docker，未重新执行 `scripts/verify.sh`；文中测试数字均标注来源为仓库记录 |
 | 维护规则 | 架构边界、发布门禁变化必须更新本文；专题细节仍以 `docs/` 下对应文档和 ADR 为准 |
@@ -29,9 +29,10 @@
 | Web 控制台（OIDC 会话） | ⚠️ 已实现 | 组织/项目、预算、密钥、模型授权、记录、限流、核查、运行状态 |
 | CLI / TUI（只读） | ⚠️ 已实现 | Device Flow 登录；无任何写操作 |
 | 三家大陆供应商适配 | ⚠️ 代码完成，未真实验收 | 百炼北京、方舟北京、智谱国内；人民币 `CNY_MICRO` |
+| 标准账单导入与人工对账 | ⚠️ 已实现受限闭环 | 标准 CSV → 双人审核 → 财务结算；真实账单格式与账号未验收 |
 | 生产部署（镜像、编排、TLS、监控） | ❌ 缺失 | 仓库内无 Dockerfile / compose / k8s / 指标导出 |
 
-**发布结论（必须明确）**：当前版本可作为**内网试用 / 联调版本**，**不可直接作为生产计费与合规网关上线**。阻塞项集中在四类：真实企业 IdP、真实供应商与驻留证据、生产部署与可观测性、预算周期与运维能力缺口（见第 6.6、7 节）。
+**发布结论（必须明确）**：当前版本可作为**内网试用 / 联调版本**，**不可直接作为生产计费与合规网关上线**。阻塞项集中在五类：真实企业 IdP、真实供应商与驻留证据、真实账单格式适配、生产部署与可观测性、预算周期与运维能力缺口（见第 6.6、7 节）。
 
 **一句话架构**：Go 模块化单体 + PostgreSQL 作为唯一权威状态（预算、限流、熔断、会话、执行元数据），管理面与推理面同进程不同路由；React 控制台与 Go TUI 共用同一份 OpenAPI 契约。
 
@@ -111,7 +112,8 @@ internal/budget/     预算账户、预留状态机、outbox 写入、恢复
 internal/admission/  项目限流（滑动窗口）与并发租约
 internal/circuit/    供应商共享熔断
 internal/execution/  attempt 元数据（派发前写入、终态不可覆盖）
-internal/control/    组织、项目、成员、密钥、审计、账本查询
+internal/control/    组织、项目、成员、密钥、审计、账本查询、账单对账
+internal/billing/    标准账单 CSV 解析与批次摘要（导入前的纯函数层）
 internal/httpapi/    管理 API 传输层（鉴权、CSRF、分页、错误映射）
 internal/identity/   OIDC JWT 校验
 internal/browser/    授权码 + PKCE 会话、Cookie、CSRF
@@ -121,7 +123,7 @@ internal/observe/    进程内 HTTP 计数（非持久化、非导出）
 internal/console/    仅托管构建后的 `index.html` 与 `/assets/*`
 api/openapi/         管理契约（单一事实源）
 web/src/features/    按业务组织的页面（workspace/keys/models/requests/operations/audit）
-docs/adr/            9 份架构决策记录
+docs/adr/            10 份架构决策记录（含账单对账 ADR 0010）
 ```
 
 ### 2.3 部署单元与进程
@@ -176,7 +178,7 @@ flowchart TB
 
 ### 2.5 数据架构
 
-**17 张业务表 + 1 张迁移台账**，全部结构变更经内嵌 SQL 迁移管理。
+**19 张业务表 + 1 张迁移台账**，全部结构变更经内嵌 SQL 迁移管理。
 
 | 域 | 表 | 关键约束 |
 | --- | --- | --- |
@@ -191,6 +193,7 @@ flowchart TB
 | 执行 | `inference_attempts` | `request_id UNIQUE`（一请求一次尝试）；`completed` 必须有 `upstream_status=200` 与输入 token；跨表子查询要求预算已 `settled` |
 | 准入 | `project_limits` / `admission_events` / `admission_leases` | 策略 `revision` 乐观并发；事件按窗口索引；租约 `request_id` 唯一 |
 | 熔断 | `supplier_circuits` | 主键 `route_key`（价格指纹）；`failures 0..5`；非 closed 必须有 `retry_at` |
+| 对账 | `billing_imports` / `billing_records` | 批次 `(org, project, digest)` 唯一；记录 `(org, provider, account_ref, record_id)` 唯一；`approved` 必须有 `resolved_request_id` 且全局唯一；`decision=approved` 与 `revision=1` 绑定 |
 
 **迁移治理**：已发布 SQL 不可改，只能追加编号；整批迁移在单事务内执行并用事务级 advisory lock 串行化；`status/check/up` 独立于业务依赖；正常启动只做只读结构核对，绝不隐式建表；结构漂移、校验和不符、版本过新都会拒绝就绪。
 
@@ -326,6 +329,20 @@ stateDiagram-v2
 - 唯一结构化日志：`request_id=... code=...`，不含正文、Authorization、密钥。
 - **没有** `/metrics`、OpenTelemetry、Prometheus、日志聚合、告警、追踪。作为生产网关，这是必须补齐的能力，而不是"可选优化"。
 
+### 3.10 账单对账（0010，证据驱动的人工闭环）
+
+- **导入**：仅组织 owner/admin。请求体 `provider / account_ref / evidence_ref / csv`；CSV 固定 7 列（`record_id, request_id, period, currency, amount, input_tokens, output_tokens`），每批 ≤100 条、≤24 KiB，币种仅 `CNY_MICRO`，金额为非负整数字符串（≤ `2^53-1`），标识限定安全 ASCII；不保存原始文件或附件，只保留证据引用。
+- **幂等**：批次摘要按 `record_id` 排序计算，CRLF 与行序差异不重复导入；同项目同摘要重试返回已有批次。`(org, provider, account_ref, record_id)` 唯一，跨项目重复认领同一账单记录会整批回滚。
+- **审核**：必须由另一位组织 owner/admin 执行（`issuer+subject` 与导入人不同）；导入人可驳回自己的错误证据；决定提交后不可覆盖（`revision` 0→1），同审核人/动作/请求/原因的精确重试幂等。
+- **财务效果**：只支持 `dispatched`/`uncertain` 的最终结算、`settled` 同金额确认、最终零费用 → `settled/actual=0`。`reserved`、`released`、`estimated_final`、已结算不同金额、超过预留上界的账单一律不改余额，留给独立调整/贷项流程。
+- **事务与隔离**：复用预算的 `request_id` 事务锁与"组织账户 → 项目账户"锁顺序；财务余额、outbox、审核决定、审计在同一事务提交，任一失败整体回滚；`approved` 的 `resolved_request_id` 有唯一索引，防止不同证据重复结清同一请求。
+- **执行元数据不变**：财务审核不会把 `unfinished` 改写为 `completed`，也不会补造上游响应。
+- **明确限制**：只吃标准 CSV（不是三家官方导出格式），关联靠人工填写，不做模糊匹配或自动验真；列表逐条查询实时差异，未声明大账单容量。
+
+---
+
+## 4. 编码规范（可执行版）
+
 ---
 
 ## 4. 编码规范（可执行版）
@@ -415,7 +432,7 @@ CI（`.github/workflows/verify.yml`）：ubuntu + Go 1.27.3 + Node（`.node-vers
 
 图例：✅ 代码实现且有本地集成测试记录　⚠️ 实现但缺真实环境验收　❌ 未实现
 
-### 5.1 管理面（20 个端点）
+### 5.1 管理面（23 个端点）
 
 | 能力 | 端点 | 状态 | 缺口 |
 | --- | --- | --- | --- |
@@ -431,6 +448,9 @@ CI（`.github/workflows/verify.yml`）：ubuntu + Go 1.27.3 + Node（`.node-vers
 | 故障核查 | `GET .../inspection` | ✅ | 只读，无财务处置入口 |
 | 调用账本 | `GET .../requests`、`.../requests/{request}` | ✅ | 仅已建立预留的请求；无导出 |
 | 运行状态 | `GET .../runtime` | ✅ | 实例观测为有界内存，非集群聚合 |
+| 账单导入 | `POST .../billing/imports` | ✅ | 仅标准 CSV；三家官方格式需先转换；不保存原始文件 |
+| 对账列表 | `GET .../billing/records` | ✅ | 逐条实时差异；大账单容量未声明 |
+| 对账审核 | `POST .../billing/records/{record}/review` | ✅ | 双人审核；不支持贷项与终态差额调整 |
 | 审计 | `GET /organizations/{org}/audit` | ✅ | 无字段级 diff，无导出，developer 403 |
 | 成员编辑 UI | — | ❌ | 后端已有接口，Web 未提供 |
 
@@ -459,7 +479,8 @@ CI（`.github/workflows/verify.yml`）：ubuntu + Go 1.27.3 + Node（`.node-vers
 | `organizations/projects/context/usage/keys/audit` | ✅ |
 | `requests list/get`（含 outcome 筛选） | ✅ |
 | `limits show`、`recovery inspect`、`runtime show`、`models list` | ✅ |
-| `tui`（组织→项目→概览→账本→运行状态） | ✅ |
+| `billing list`（只读，按 decision 筛选） | ✅ |
+| `tui`（组织→项目→概览→账本→运行状态→账单） | ✅ |
 | 任何写操作（建项目/建密钥/改限流） | ❌ 设计上只读 |
 | 令牌自动刷新 | ❌ 到期重新登录 |
 
@@ -470,7 +491,10 @@ CI（`.github/workflows/verify.yml`）：ubuntu + Go 1.27.3 + Node（`.node-vers
 | 百炼北京 / 方舟北京 / 智谱国内 文本适配 | ⚠️ 代码 + TLS fixture，无真实账号 |
 | 区域驻留证据校验（到期即拒绝） | ✅ 机制；证据本身待验收 |
 | `CNY_MICRO` 定价与指纹 | ✅ |
-| 价格发布、账单导入、人工对账、发票 | ❌ |
+| 标准账单 CSV 导入 + 双人审核 + 财务结算 | ⚠️ 已实现（0010）；真实格式与账号未验收 |
+| 官方账单格式适配、自动拉单、签名/附件验真 | ❌ |
+| 贷项/退款/税费/终态差额调整、发票 | ❌ |
+| 价格发布（数据库化、审批、生效时间） | ❌（价格仍为启动配置） |
 | 缓存折扣/阶梯价 | ❌（只能配置保守统一费率） |
 | 预算跨周期自动轮转 | ❌ |
 
@@ -574,6 +598,7 @@ npm --prefix web run build
 
 - [ ] 真实企业 IdP 验收：浏览器授权码 + PKCE、管理 JWT（RS256/audience/scope）、Device Flow、令牌过期与撤销行为
 - [ ] 真实供应商验收：三家账号与模型、大陆处理/存储/日志/备份证据、现行价格、token 上界；各完成一次非流式、流式、取消、错误请求，并保存 request_id、价格快照、usage 与账单核对记录
+- [ ] 真实账单对账演练：取官方账单样本转换为标准 CSV，走完导入 → 另一 owner/admin 审核 → 结算，核对差异并留存证据引用
 - [ ] 生产部署件：镜像、编排清单、TLS 反向代理（Host 透传、SSE 不缓冲、超时）、密钥注入、迁移 Job、只读根文件系统与最小权限
 - [ ] 可观测性：指标导出（请求量/错误分类/首 token/端到端/token/预留/结算积压）、日志聚合、告警、追踪；标签禁止高基数与敏感值
 - [ ] 备份与恢复演练：PostgreSQL PITR、配置与价格快照归档、恢复后账本一致性核对
@@ -585,7 +610,7 @@ npm --prefix web run build
 
 - [ ] 成员/项目管理 UI 与删除/转移 API
 - [ ] 预算修改与跨周期轮转
-- [ ] 结算积压与 uncertain 的人工处置流程（当前只有只读核查）
+- [ ] 终态差额、贷项与退款调整流程（现只支持 `dispatched/uncertain` 结算与 `settled` 同额确认）
 - [ ] `GET /v1/models` 兼容端点
 - [ ] 全链路 TTFT 与供应商追踪 ID
 - [ ] outbox 消费者（用量聚合/审计导出）
@@ -638,7 +663,7 @@ npm --prefix web run build
 
 1. 三家供应商全部验收 + 驻留证据台账。
 2. 预算周期轮转（或明确"周期=人工重置"的产品约束并写进 SLA）。
-3. 结算积压处理工具（人工结案/estimated_final 入口）。
+3. 对账闭环补齐：官方账单格式适配、贷项/差额调整、`estimated_final` 处置入口。
 4. 审计字段 diff、成员/项目下线、密钥轮换。
 5. 压测与容量结论；数据库连接池与限流参数定型。
 6. 安全测试（越权、CSRF、SSRF、注入、日志泄露）与依赖扫描。
@@ -686,7 +711,11 @@ npm --prefix web run build
 
 ### 8.5 价格发布与对账
 
-目标形态：价格目录入库 + 不可变版本 + 生效时间 + 审批审计；账本只引用版本指纹。对账：导入供应商账单 → 按 request_id/时间窗匹配 → 输出差异（用量差异、费率差异、缺失记录）→ 人工结案。当前只能靠归档 JSON + 人工表格，且 `estimated_final` 无 API，属于必须补齐的财务能力。
+**已具备的闭环（0010）**：标准 CSV 导入 → 批次摘要幂等 → 双人审核 → 按证据结算 `dispatched/uncertain`，`settled` 同金额只确认；记录与批次均有唯一约束，财务变更与审计同事务。关联由人工填写，系统不做模糊匹配，也不把"缺账单"当作零费用。
+
+**还缺的能力**：官方账单格式适配器（转换层，不应改动 0010 表结构）、自动拉单与签名/附件验真、贷项/退款/税费、以及 `reserved/released/estimated_final/超额` 的终态调整单、大账单分页与批量性能。原则是**只追加调整记录，不覆盖历史财务事实**，差异必须展示而不是自动抹平。
+
+**价格发布**仍未实现：当前价格来自启动配置，只能靠归档 JSON 与指纹保证可追溯。目标形态是价格目录入库 + 不可变版本 + 生效时间 + 审批审计，账本只引用版本号；在此之前，任何调价都必须重启并同步所有实例，否则会出现同请求不同价与 `route_key` 分裂。
 
 ### 8.6 多实例与拆分
 
@@ -700,6 +729,7 @@ npm --prefix web run build
 | --- | --- | --- | --- |
 | 真实 IdP 不支持 Device Flow / audience mapper | CLI 不可用，管理 JWT 校验失败 | 已要求 M0 提前验证 | 联调时 `device_authorization_endpoint` 缺失 |
 | 供应商 usage 与账单不一致 | 预算失真、财务争议 | 保守预留 + uncertain 保留 | 对账差异 > 阈值 |
+| 对账依赖人工关联与证据引用 | 误结清或长期挂账 | 双人审核、唯一约束、实时差异展示 | pending 积压、差异长期不收敛 |
 | 输入上界预留导致额度占用过高 | 用户被误拒、投诉 | 可调额度与限流 | 拒绝率升高但实际花费低 |
 | 数据库成为单点 | 全站不可用 | 备份、只读核查 | 连接池耗尽、迁移锁等待 |
 | 滚动发布中断流式请求 | 用户侧截断 | 10 秒 Shutdown | 发布期间 SSE 失败率上升 |
@@ -758,6 +788,9 @@ go build -o ./bin/aigw ./cmd/aigw
 | `upstream_unavailable` / `upstream_rejected` / `upstream_protocol_error` / `upstream_response_incomplete` / `upstream_usage_invalid` | 502 | 上游不可达、拒绝、协议/流/usage 异常，不回显正文 |
 | `uncertain_transition_failed` / `circuit_update_failed` / `upstream_timeout` | — | 仅日志/trace，表示收尾路径失败 |
 | `canceled` / `client_canceled` | — | 仅 trace/日志，表示取消来源 |
+| `forbidden`（管理面） | 403 | 身份有效但角色/作用域不足，含对账自批 |
+| `conflict`（管理面） | 409 | 版本冲突、唯一约束、重复对账证据 |
+| `service_unavailable`（管理面） | 503 | 管理面存储或配置不可用 |
 
 ### 10.3 术语
 
@@ -789,7 +822,9 @@ go build -o ./bin/aigw ./cmd/aigw
 | `docs/request-history.md` | 账本查询、游标、语义边界 |
 | `docs/traffic-and-recovery.md` | 限流策略与故障核查手册 |
 | `docs/supplier-resilience.md` | 熔断与运行状态操作 |
-| `docs/adr/0001..0009` | 关键决策的理由、替代方案与取舍 |
+| `docs/billing-reconciliation.md` | 标准账单导入、双人审核与结算边界 |
+| `docs/functional-coverage.md` | 功能覆盖与剩余工作清单 |
+| `docs/adr/0001..0010` | 关键决策的理由、替代方案与取舍 |
 
 ---
 
@@ -797,4 +832,5 @@ go build -o ./bin/aigw ./cmd/aigw
 
 | 日期 | 变更 |
 | --- | --- |
+| 2026-11-04 | 对齐 `9b8cf9d`：补充 0010 账单对账（导入/双人审核/结算边界）、19 张表、23 个端点、真实账单验收门禁与对账风险 |
 | 2026-11-04 | 基于 `92047a2` 首次建立全局产品说明：架构、实现原理、编码规范、功能矩阵、部署与发布门禁、扩展指南、风险登记 |
