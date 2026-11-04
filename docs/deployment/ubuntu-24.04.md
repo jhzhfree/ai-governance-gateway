@@ -417,7 +417,7 @@ curl -i https://gateway.example.com/health/ready
 
 ## 10. 首次业务配置与内容审计
 
-登录 Web → 创建组织（真实模式选择 CNY_MICRO）→ 创建项目与初始预算 → 配置模型白名单 → 发项目密钥 → 用授权别名请求 /v1/models 与 /v1/chat/completions → 核对同一 request_id 的用量、执行与财务状态。创建组织的身份成为 owner；IdP scope 不等于组织业务角色。现阶段没有在线预算调整与周期轮转，建立组织时先确定预算/周期。
+登录 Web → 创建组织（真实模式选择 CNY_MICRO）→ 创建项目与初始预算 → 配置模型白名单 → 发项目密钥 → 用授权别名请求 /v1/models 与 /v1/chat/completions → 核对同一 request_id 的用量、执行与财务状态。创建组织的身份成为 owner；IdP scope 不等于组织业务角色。预算管理页面支持在线调额、变更历史和月度轮转，操作约束见 [预算与关键词治理](../budget-and-keywords.md)。
 
 推理请求使用项目密钥 Bearer，管理使用 OIDC/浏览器会话，二者不能混用。测试正文仅用无敏感合成内容。实际付费 JSON/SSE/取消、账单关联与大陆驻留应逐家验收，不因 HTTP 200 宣告三家完成。
 
@@ -539,3 +539,7 @@ ExecStart=/opt/aigw/current/bin/gateway --listen 127.0.0.1:8080 --web-dir /opt/a
 供应商 API Key 现支持页面录入/替换与加密存储（迁移 0013），配置前完成独立主密钥初始化，详见[页面凭证配置](../provider-credentials.md)。
 
 数据库 0015 已加入正式 local 身份模式，可在无外部 IdP 环境部署；先执行离线初始化并完成首次改密。具体命令、平台主体绑定及恢复见[本地身份](../local-identity.md)。
+
+## 部署级监控
+
+通过独立 `AIGW_METRICS_TOKEN` 启用 Prometheus 抓取；境内部署、令牌文件、指标口径与 PromQL 见 [监控配置](../monitoring.md)。启用前在 HTTPS 反向代理对 `/metrics` 单独限制运维来源。

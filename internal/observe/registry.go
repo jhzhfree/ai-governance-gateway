@@ -30,6 +30,7 @@ type Registry struct {
 	id      string
 	started time.Time
 	scopes  map[[2]string]Counters
+	ingress map[ingressKey]ingressCounters
 }
 
 func New() *Registry {

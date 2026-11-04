@@ -140,7 +140,12 @@ func run(ctx context.Context, c config) error {
 		store.WithLocalIdentity(localIdentity)
 	}
 	monitor := observe.New()
+	metrics, err := monitor.MetricsHandler(os.Getenv("AIGW_METRICS_TOKEN"))
+	if err != nil {
+		return err
+	}
 	mux := http.NewServeMux()
+	mux.Handle("/metrics", metrics)
 	var sessions *browser.Service
 	if c.browserOrigin != "" {
 		if localIdentity != nil {

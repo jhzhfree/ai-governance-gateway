@@ -65,6 +65,17 @@ func (h *Handler) report(id, code string) {
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ingressStarted := time.Now()
+	ingress := &measuredWriter{ResponseWriter: w}
+	w = ingress
+	defer func() {
+		status := ingress.status
+		if status == 0 {
+			status = http.StatusOK
+		}
+		h.Monitor.RecordIngress(r.URL.Path, status, time.Since(ingressStarted))
+	}()
+
 	id := rand.Text()
 	w.Header().Set("X-Request-ID", id)
 	if r.URL.Path == "/v1/models" {
