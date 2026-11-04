@@ -614,3 +614,122 @@ test('platform provider editor publishes a database route used by real inference
   const a11y = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(a11y.violations.map((v) => v.id)).toEqual([]);
 });
+
+test('budget editing, monthly periods and keyword rules govern real inference', async ({
+  page,
+  baseURL,
+}) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: /使用组织账号登录/ }).click();
+  const session = (await (await page.request.get('/auth/session')).json()) as {
+    csrf_token: string;
+  };
+  const headers = { Origin: baseURL!, 'X-CSRF-Token': session.csrf_token };
+  const orgResponse = await page.request.post('/api/v1/organizations', {
+    headers,
+    data: { name: '预算规则团队', period: '2026-11', currency: 'CNY_MICRO', limit_amount: 10000 },
+  });
+  expect(orgResponse.status()).toBe(201);
+  const org = (await orgResponse.json()) as { id: string };
+  const orgPath = `/api/v1/organizations/${org.id}`;
+  const projectResponse = await page.request.post(`${orgPath}/projects`, {
+    headers,
+    data: { name: '预算规则项目', limit_amount: 5000 },
+  });
+  expect(projectResponse.status()).toBe(201);
+  const project = (await projectResponse.json()) as { id: string };
+  const projectPath = `${orgPath}/projects/${project.id}`;
+  expect(
+    (
+      await page.request.put(`${projectPath}/models`, {
+        headers,
+        data: { models: ['aliyun/fixture'] },
+      })
+    ).status(),
+  ).toBe(204);
+  const keyResponse = await page.request.post(`${projectPath}/keys`, {
+    headers,
+    data: { name: '治理验证', models: ['aliyun/fixture'], ttl_seconds: 3600 },
+  });
+  expect(keyResponse.status()).toBe(201);
+  const key = (await keyResponse.json()) as { secret: string };
+  await page.goto(`/?view=budget&org=${org.id}&project=${project.id}`);
+  await page.getByLabel('项目预算上限新上限', { exact: true }).fill('9000');
+  await page.getByLabel('项目预算上限调整原因', { exact: true }).fill('本地合成验收调整');
+  await page.getByRole('button', { name: '保存项目预算上限', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: '预算已更新' })).toBeVisible();
+  await page.getByLabel('启用预算月度轮转', { exact: true }).check();
+  await page.getByRole('button', { name: '保存月度轮转设置', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: '月度轮转设置已更新' })).toBeVisible();
+  await page.getByRole('button', { name: '关键字匹配', exact: true }).click();
+  await page.getByRole('button', { name: '添加关键字规则', exact: true }).click();
+  await page.getByLabel('关键字文本 1', { exact: true }).fill('stop-word');
+  await page.getByRole('button', { name: '保存关键字策略', exact: true }).click();
+  await expect
+    .poll(
+      async () =>
+        ((await (await page.request.get(`${projectPath}/keywords`)).json()) as { revision: number })
+          .revision,
+    )
+    .toBe(1);
+  const invoke = (stream: boolean, text: string) =>
+    page.request.post('/v1/chat/completions', {
+      headers: { Authorization: `Bearer ${key.secret}` },
+      data: {
+        model: 'aliyun/fixture',
+        max_tokens: 8,
+        stream,
+        messages: [{ role: 'user', content: text }],
+      },
+    });
+  expect((await invoke(false, 'stop-word')).status()).toBe(403);
+  await page.getByRole('button', { name: '刷新命中记录', exact: true }).click();
+  await expect(
+    page
+      .getByRole('region', { name: '关键字命中记录表' })
+      .getByRole('cell', { name: '输入 / 阻断', exact: true }),
+  ).toBeVisible();
+  await page.getByLabel('关键字文本 1', { exact: true }).fill('synthetic');
+  await page.getByLabel('关键字方向 1', { exact: true }).selectOption('output');
+  await page.getByLabel('关键字处置 1', { exact: true }).selectOption('redact');
+  await page.getByRole('button', { name: '保存关键字策略', exact: true }).click();
+  await expect
+    .poll(
+      async () =>
+        ((await (await page.request.get(`${projectPath}/keywords`)).json()) as { revision: number })
+          .revision,
+    )
+    .toBe(2);
+  const redacted = await invoke(false, 'allowed message');
+  expect(redacted.status()).toBe(200);
+  const result = (await redacted.json()) as { choices: { message: { content: string } }[] };
+  expect(result.choices[0].message.content).toContain('[REDACTED]');
+  expect(result.choices[0].message.content).not.toContain('synthetic');
+  expect((await invoke(true, 'allowed message')).status()).toBe(400);
+  await page.getByLabel('关键字处置 1', { exact: true }).selectOption('alert');
+  await page.getByRole('button', { name: '保存关键字策略', exact: true }).click();
+  await expect
+    .poll(
+      async () =>
+        ((await (await page.request.get(`${projectPath}/keywords`)).json()) as { revision: number })
+          .revision,
+    )
+    .toBe(3);
+  const streamed = await invoke(true, 'allowed message');
+  expect(streamed.status()).toBe(200);
+  expect(await streamed.text()).toContain('[DONE]');
+  await page.getByRole('button', { name: '预算管理', exact: true }).click();
+  const account = (await (await page.request.get(`${orgPath}/budget`)).json()) as {
+    period: string;
+  };
+  const [year, month] = account.period.split('-').map(Number);
+  const next = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 7);
+  await page.getByLabel('新预算周期', { exact: true }).fill(next);
+  await page.getByLabel('确认立即切换预算周期', { exact: true }).check();
+  await page.getByRole('button', { name: '切换预算周期', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: '预算周期已切换' })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const a11y = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(a11y.violations.map((v) => v.id)).toEqual([]);
+});

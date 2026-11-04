@@ -102,3 +102,7 @@ AIGW_VERIFY_WEB=1 bash scripts/verify.sh
 0012 新增 provider_configuration 和 provider_configuration_events；配置与发布快照/主体/摘要同事务，无供应商秘密。正常启动只检查结构，先独立迁移再运行。
 
 供应商 API Key 现支持页面录入/替换与加密存储（迁移 0013），配置前完成独立主密钥初始化，详见[页面凭证配置](provider-credentials.md)。
+
+## 预算运营与关键字匹配首阶段（0014）
+
+新增在线调额/历史、月度自动与手动轮转，以及项目输入告警/阻断、JSON 输出告警/阻断/脱敏、SSE 字面告警和命中留痕。参见[操作与边界](budget-and-keywords.md)。整个 P0/P1 尚未完成，后续及外部依赖见[交付跟踪](p0-p1-delivery.md)。

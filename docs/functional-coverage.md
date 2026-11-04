@@ -14,7 +14,7 @@
 | 项目密钥 | 高熵摘要存储、一次性展示、到期、实时撤销、模型约束、读写权限分离 | 无完整轮换/审批流程，密钥自助管理主要通过 Web；供应商密钥支持页面加密保存或环境注入，无 KMS 集成 | internal/control/store.go、web/src/features/keys |
 | 模型与供应商 | 百炼、方舟、智谱固定国内入口、目录/别名、项目白名单、驻留证据及到期校验 | 真实账号/合同/模型参数/价格/大陆处理和存储未验收；已补齐平台配置台；厂商密钥可页面加密保存或部署注入，尚无自动拉取价格/模型 | internal/provider、docs/mainland-providers.md |
 | 推理协议 | POST /v1/chat/completions 文本 JSON/SSE、取消、超时、输出与 usage 校验；项目密钥 GET /v1/models | 管理目录 /api/v1/models 与推理目录分开；无工具、多模态、embedding/rerank 等扩展 | internal/gateway/handler.go、internal/provider/protocol.go、api/openapi/management.json |
-| 预算治理 | 组织/项目原子预留、保守成本上界、价格指纹、结算/不确定状态、outbox、币种隔离 | 预算主要创建时设定，无在线预算调整/周期滚动/完整不可变策略发布；超过预留的财务差额不强行入账 | internal/budget、docs/prototype.md |
+| 预算治理 | 组织/项目原子预留、保守成本上界、价格指纹、结算/不确定状态、outbox、币种隔离 | 已补在线调额与周期轮转；仍缺调额审批、阈值通知和完整版本化策略引擎；超过预留的财务差额不强行入账 | internal/budget、docs/prototype.md |
 | 调用记录 | request_id/attempt_id、结果与财务分离、模型/用量/时间、筛选、详情与游标分页 | 单次 attempt；无供应商原始请求号关联、全量拒绝前访问日志、TTFT、批量导出或自动修复 unfinished | internal/execution、internal/control/requests.go |
 | 项目限流 | PostgreSQL 跨实例并发租约、滚动 60 秒频率、CAS 策略修改与审计、故障关闭放行 | 固定窗口定义和有界请求时长；没有容量基准、排队或租约续期；不需要 Redis 才能运行 | internal/admission、docs/traffic-and-recovery.md |
 | 故障隔离 | 共享路由熔断、5 次失败/30 秒冷却、单探测租约、迟到结果隔离 | 无生产供应商恢复演练；没有供应商整体联动策略或运维告警集成 | internal/circuit、docs/supplier-resilience.md |
@@ -23,9 +23,9 @@
 | 人工对账 | 标准 CSV、整批幂等/冲突、精确人工关联、重复候选、两人审核、原子财务/决定/审计、最终零费用、Web 工作台和 CLI/TUI 查询 | 不等于原生官方账单验真；无自动拉单、附件验证、税费/折扣/贷项、终态差额调整或超出上界处置；组织 owner 可通过 Web 或 API 设置审核人的成员角色 | internal/control/billing.go、docs/billing-reconciliation.md |
 | Web | 组织/项目、模型授权、密钥、预算用量、账本/审计、流量/运行状态/对账/成员管理；桌面/窄屏和自动无障碍检查 | 预算编辑页、完整成员生命周期仍未补齐；供应商配置页已实现；无完整首次接入向导、复杂趋势图/全量导出；筛选 URL 能力未覆盖所有新面板 | web/src/features、web/tests/console.spec.ts |
 | CLI/TUI | OIDC 登录、上下文、JSON/分页、用量/密钥元数据/模型/审计/请求；s 运行状态、b 账单 | 首期业务只读；TUI 无独立 inspection 核查屏；平台与屏幕阅读器人工验收待做 | internal/terminal、docs/terminal-client.md |
-| 数据与发布保障 | 0013 迁移、结构/校验和漂移检查、事务回滚、旧数据保留、readiness/liveness、优雅关闭 | 无生产备份恢复、RPO/RTO、跨版本应用回退、容量/压测、安全专项或数据保留/销毁演练 | internal/database、cmd/gateway/health.go、docs/database-migrations.md |
+| 数据与发布保障 | 0014 迁移、结构/校验和漂移检查、事务回滚、旧数据保留、readiness/liveness、优雅关闭 | 无生产备份恢复、RPO/RTO、跨版本应用回退、容量/压测、安全专项或数据保留/销毁演练 | internal/database、cmd/gateway/health.go、docs/database-migrations.md |
 
-当前受管迁移 13 个；OpenAPI 32 个路径、42 个操作，数量只说明契约规模，不代表功能完整度。历史设计中 Redis、sqlc、完整策略发布、OTel 等内容应视为选择或目标，不能算作已集成能力。
+当前受管迁移 14 个；OpenAPI 40 个路径、54 个操作，数量只说明契约规模，不代表功能完整度。历史设计中 Redis、sqlc、完整策略发布、OTel 等内容应视为选择或目标，不能算作已集成能力。
 
 ## 主链路验收结论
 
@@ -69,3 +69,7 @@
 ## 真实供应商管理增量
 
 新增真实供应商管理页/API、0012 迁移、平台身份隔离与动态路由；正常启动不使用模拟供应商。配置元数据由页面发布，厂商秘密仍通过部署环境注入。真实付费与大陆驻留验收仍待完成。
+
+## 预算运营与关键字匹配首阶段（0014）
+
+新增在线调额/历史、月度自动与手动轮转，以及项目输入告警/阻断、JSON 输出告警/阻断/脱敏、SSE 字面告警和命中留痕。参见[操作与边界](budget-and-keywords.md)。整个 P0/P1 尚未完成，后续及外部依赖见[交付跟踪](p0-p1-delivery.md)。

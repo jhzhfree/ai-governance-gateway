@@ -70,3 +70,10 @@ export async function api<T>(
 
 export type ProviderConfiguration = components['schemas']['ProviderConfiguration'];
 export type ProviderConfigurationStatus = components['schemas']['ProviderConfigurationStatus'];
+
+export type BudgetAccount = components['schemas']['BudgetAccount'];
+export type BudgetChange = components['schemas']['BudgetChange'];
+export type BudgetCycle = components['schemas']['BudgetCycle'];
+export type KeywordPolicy = components['schemas']['KeywordPolicy'];
+export type KeywordMatch = components['schemas']['KeywordMatch'];
+export type KeywordRule = components['schemas']['KeywordRule'];

@@ -14,6 +14,7 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
 	"github.com/jhzhfree/ai-governance-gateway/internal/circuit"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
+	"github.com/jhzhfree/ai-governance-gateway/internal/keyword"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 )
 
@@ -60,6 +61,10 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 		return
 	}
 	defer sealContent()
+	guard, allowedKeywords := h.beginKeywords(w, r, id, scope, req)
+	if !allowedKeywords {
+		return
+	}
 	r, release, ok := h.admit(w, r, id, scope)
 	if !ok {
 		return
@@ -175,6 +180,14 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 			reply(503, "settlement_failed")
 			return
 		}
+		guardCtx, guardCancel := keywordFinishContext()
+		guardErr := keywordResponse(guardCtx, guard, &value, false)
+		guardCancel()
+		if guardErr != nil {
+			status, code := keywordProblem(guardErr)
+			reply(status, code)
+			return
+		}
 		if trace.complete() != nil {
 			reply(503, "metadata_finalize_failed")
 			return
@@ -185,10 +198,10 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 		_ = json.NewEncoder(w).Encode(value)
 		return
 	}
-	outcome = streamProvider(w, response.Body, req, id, route, settle, h.report, trace, ctx)
+	outcome = streamProvider(w, response.Body, req, id, route, settle, h.report, trace, ctx, guard)
 }
 
-func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id string, route *provider.Route, settle func(int64) error, report func(string, string), trace *attemptTrace, ctx context.Context) circuit.Outcome {
+func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id string, route *provider.Route, settle func(int64) error, report func(string, string), trace *attemptTrace, ctx context.Context, guard *keyword.Session) circuit.Outcome {
 	started, finished := false, false
 	var actual *int64
 	write := func(data string) error {
@@ -216,7 +229,11 @@ func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id strin
 			data, _ := json.Marshal(map[string]any{"error": map[string]string{"code": code, "request_id": id}})
 			_ = write(string(data))
 		} else {
-			problem(w, 502, code, id)
+			status := 502
+			if code == "keyword_unavailable" {
+				status = 503
+			}
+			problem(w, status, code, id)
 		}
 	}
 	scanner := bufio.NewScanner(io.LimitReader(body, 16<<20))
@@ -280,6 +297,11 @@ func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id strin
 			}
 			trace.usage(*value.Usage.PromptTokens, *value.Usage.CompletionTokens)
 			actual = &cost
+		}
+		if err := keywordResponse(ctx, guard, &value, true); err != nil {
+			_, code := keywordProblem(err)
+			fail(code)
+			return circuit.Neutral
 		}
 		normalized, _ := json.Marshal(value)
 		if write(string(normalized)) != nil {

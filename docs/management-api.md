@@ -113,3 +113,7 @@ go run ./cmd/gateway --mock-only
 GET/PUT /api/v1/providers 提供平台配置状态/原子发布，PUT 需要部署绑定的精确 OIDC 身份。公开状态不含秘密或内部驻留证据；Cookie 写入仍受 CSRF/Origin 约束。
 
 供应商 API Key 现支持页面录入/替换与加密存储（迁移 0013），配置前完成独立主密钥初始化，详见[页面凭证配置](provider-credentials.md)。
+
+## 预算运营与关键字匹配首阶段（0014）
+
+新增在线调额/历史、月度自动与手动轮转，以及项目输入告警/阻断、JSON 输出告警/阻断/脱敏、SSE 字面告警和命中留痕。参见[操作与边界](budget-and-keywords.md)。整个 P0/P1 尚未完成，后续及外部依赖见[交付跟踪](p0-p1-delivery.md)。

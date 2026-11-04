@@ -4,6 +4,8 @@ AI 治理网关：面向团队的统一模型接入、访问控制、预算限�
 
 当前状态：已实现预算/SSE、组织/项目权限、项目密钥，以及带 OIDC 服务端会话的 Web 控制台、只读 CLI/TUI 与 Device Flow 登录。另已实现百炼北京、火山方舟北京、智谱国内服务的受控适配与人民币计价；真实账号、模型参数、价格与大陆数据驻留仍待验收。已补充共享限流、熔断、运行状态、标准账单人工对账、项目密钥模型发现与 Web 成员管理。企业 IdP、原生钥匙串、真实账单及生产部署尚未验收，整体仍为开发集成版本。
 
+- [预算运营与关键字匹配](docs/budget-and-keywords.md)
+- [P0/P1 交付跟踪](docs/p0-p1-delivery.md)
 - [真实供应商页面配置与应用接入](docs/provider-management.md)
 - [Ubuntu 24.04 环境搭建、开发与部署](docs/deployment/ubuntu-24.04.md)
 - [开发环境安装记录（本机实测）](docs/dev-environment-setup.md)

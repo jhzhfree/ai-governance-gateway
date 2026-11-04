@@ -6,6 +6,10 @@ export const roleNames: Record<string, string> = {
 };
 
 export const actionNames: Record<string, string> = {
+  'budget.limit_changed': '调整预算上限',
+  'budget.cycle_changed': '调整预算轮转',
+  'budget.period_rotated': '切换预算周期',
+  'keyword.policy_changed': '调整关键字策略',
   'organization.created': '创建组织',
   'content_audit.policy_changed': '调整内容采集策略',
   'content_audit.auditor_changed': '调整内容审计授权',

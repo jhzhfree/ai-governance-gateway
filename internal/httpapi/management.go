@@ -38,6 +38,19 @@ func NewWithSession(store *control.Store, auth identity.Authenticator, session S
 func NewWithRuntime(store *control.Store, auth identity.Authenticator, session SessionAuthenticator, monitor *observe.Registry) http.Handler {
 	h := &Handler{Store: store, Auth: auth, Monitor: monitor}
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/organizations/{org}/budget", h.getBudget)
+	mux.HandleFunc("PUT /api/v1/organizations/{org}/budget", h.setBudget)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/budget/changes", h.budgetChanges)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/budget/cycle", h.budgetCycle)
+	mux.HandleFunc("PUT /api/v1/organizations/{org}/budget/cycle", h.setBudgetCycle)
+	mux.HandleFunc("POST /api/v1/organizations/{org}/budget/period", h.rotateBudget)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/budget", h.getBudget)
+	mux.HandleFunc("PUT /api/v1/organizations/{org}/projects/{project}/budget", h.setBudget)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/budget/changes", h.budgetChanges)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/keywords", h.keywordPolicy)
+	mux.HandleFunc("PUT /api/v1/organizations/{org}/projects/{project}/keywords", h.setKeywordPolicy)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/keywords/matches", h.keywordMatches)
+
 	mux.HandleFunc("GET /api/v1/providers", h.providerConfiguration)
 	mux.HandleFunc("PUT /api/v1/providers", h.publishProviders)
 	mux.HandleFunc("PUT /api/v1/providers/{provider}/credential", h.setProviderCredential)
@@ -124,7 +137,7 @@ func failure(w http.ResponseWriter, r *http.Request, err error) {
 		status, code = 403, "forbidden"
 	case errors.Is(err, control.ErrNotFound):
 		status, code = 404, "not_found"
-	case errors.Is(err, contentaudit.ErrConflict) || errors.Is(err, provider.ErrConfigurationConflict):
+	case errors.Is(err, control.ErrBudgetConflict) || errors.Is(err, control.ErrKeywordConflict) || errors.Is(err, contentaudit.ErrConflict) || errors.Is(err, provider.ErrConfigurationConflict):
 		status, code = 409, "conflict"
 	case errors.Is(err, admission.ErrConflict) || errors.Is(err, control.ErrBillingConflict) || errors.Is(err, control.ErrMemberConflict):
 		status, code = 409, "conflict"

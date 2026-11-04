@@ -19,6 +19,7 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/contentaudit"
 	"github.com/jhzhfree/ai-governance-gateway/internal/execution"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
+	"github.com/jhzhfree/ai-governance-gateway/internal/keyword"
 	"github.com/jhzhfree/ai-governance-gateway/internal/observe"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 )
@@ -31,6 +32,7 @@ type Ledger interface {
 }
 
 type Handler struct {
+	Keywords   *keyword.Service
 	Content    *contentaudit.Service
 	ListModels func(context.Context, string) ([]provider.InferenceModel, error)
 	Circuits   circuit.Gate

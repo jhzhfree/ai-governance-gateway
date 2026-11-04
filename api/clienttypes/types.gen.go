@@ -155,6 +155,26 @@ const (
 	OpenHold            InspectionItemReasons = "open_hold"
 )
 
+// Defines values for KeywordRuleAction.
+const (
+	Alert  KeywordRuleAction = "alert"
+	Block  KeywordRuleAction = "block"
+	Redact KeywordRuleAction = "redact"
+)
+
+// Defines values for KeywordRuleDirection.
+const (
+	Both   KeywordRuleDirection = "both"
+	Input  KeywordRuleDirection = "input"
+	Output KeywordRuleDirection = "output"
+)
+
+// Defines values for KeywordRuleKind.
+const (
+	Literal KeywordRuleKind = "literal"
+	Regex   KeywordRuleKind = "regex"
+)
+
 // Defines values for MemberExpectedRole.
 const (
 	MemberExpectedRoleAdmin     MemberExpectedRole = "admin"
@@ -460,6 +480,38 @@ type BrowserSession struct {
 		Issuer  string `json:"issuer"`
 		Subject string `json:"subject"`
 	} `json:"user"`
+}
+
+// BudgetAccount defines model for BudgetAccount.
+type BudgetAccount struct {
+	Currency string `json:"currency"`
+	Held     int64  `json:"held"`
+	Limit    int64  `json:"limit"`
+	Period   string `json:"period"`
+	Revision int64  `json:"revision"`
+	Spent    int64  `json:"spent"`
+}
+
+// BudgetChange defines model for BudgetChange.
+type BudgetChange struct {
+	Actor         Principal `json:"actor"`
+	CreatedAt     time.Time `json:"created_at"`
+	NewLimit      int64     `json:"new_limit"`
+	PreviousLimit int64     `json:"previous_limit"`
+	Reason        string    `json:"reason"`
+	Revision      int64     `json:"revision"`
+}
+
+// BudgetChangePage defines model for BudgetChangePage.
+type BudgetChangePage struct {
+	Data       []BudgetChange `json:"data"`
+	NextCursor string         `json:"next_cursor"`
+}
+
+// BudgetCycle defines model for BudgetCycle.
+type BudgetCycle struct {
+	Enabled  bool  `json:"enabled"`
+	Revision int64 `json:"revision"`
 }
 
 // ContentAccess defines model for ContentAccess.
@@ -782,6 +834,47 @@ type KeyPage struct {
 	NextCursor string `json:"next_cursor"`
 }
 
+// KeywordMatch defines model for KeywordMatch.
+type KeywordMatch struct {
+	Action         string    `json:"action"`
+	CreatedAt      time.Time `json:"created_at"`
+	Direction      string    `json:"direction"`
+	Id             int64     `json:"id"`
+	PolicyRevision int64     `json:"policy_revision"`
+	RequestId      string    `json:"request_id"`
+	RuleId         string    `json:"rule_id"`
+}
+
+// KeywordMatchPage defines model for KeywordMatchPage.
+type KeywordMatchPage struct {
+	Data       []KeywordMatch `json:"data"`
+	NextCursor string         `json:"next_cursor"`
+}
+
+// KeywordPolicy defines model for KeywordPolicy.
+type KeywordPolicy struct {
+	Revision int64         `json:"revision"`
+	Rules    []KeywordRule `json:"rules"`
+}
+
+// KeywordRule defines model for KeywordRule.
+type KeywordRule struct {
+	Action    KeywordRuleAction    `json:"action"`
+	Direction KeywordRuleDirection `json:"direction"`
+	Id        string               `json:"id"`
+	Kind      KeywordRuleKind      `json:"kind"`
+	Pattern   string               `json:"pattern"`
+}
+
+// KeywordRuleAction defines model for KeywordRule.Action.
+type KeywordRuleAction string
+
+// KeywordRuleDirection defines model for KeywordRule.Direction.
+type KeywordRuleDirection string
+
+// KeywordRuleKind defines model for KeywordRule.Kind.
+type KeywordRuleKind string
+
 // Member defines model for Member.
 type Member struct {
 	// ExpectedRole Optional role comparison; empty requires absence. Web always supplies it.
@@ -872,6 +965,12 @@ type OrganizationPage struct {
 
 	// NextCursor Pass as after; empty means end. Ordering is by ID, not creation time.
 	NextCursor string `json:"next_cursor"`
+}
+
+// Principal defines model for Principal.
+type Principal struct {
+	Issuer  string `json:"issuer"`
+	Subject string `json:"subject"`
 }
 
 // Project defines model for Project.
@@ -1008,6 +1107,12 @@ type RequestRecord struct {
 // RequestRecordState defines model for RequestRecord.State.
 type RequestRecordState string
 
+// RotateBudgetPeriod defines model for RotateBudgetPeriod.
+type RotateBudgetPeriod struct {
+	ExpectedPeriod string `json:"expected_period"`
+	NextPeriod     string `json:"next_period"`
+}
+
 // RouteStatus defines model for RouteStatus.
 type RouteStatus struct {
 	Model      string              `json:"model"`
@@ -1068,6 +1173,20 @@ type SupplierStatus struct {
 	Region               string `json:"region"`
 }
 
+// UpdateBudget defines model for UpdateBudget.
+type UpdateBudget struct {
+	ExpectedRevision int64  `json:"expected_revision"`
+	Limit            int64  `json:"limit"`
+	Period           string `json:"period"`
+	Reason           string `json:"reason"`
+}
+
+// UpdateBudgetCycle defines model for UpdateBudgetCycle.
+type UpdateBudgetCycle struct {
+	Enabled          bool  `json:"enabled"`
+	ExpectedRevision int64 `json:"expected_revision"`
+}
+
 // UpdateContentPolicy defines model for UpdateContentPolicy.
 type UpdateContentPolicy struct {
 	ConsentRef       string `json:"consent_ref"`
@@ -1075,6 +1194,12 @@ type UpdateContentPolicy struct {
 	ExpectedRevision int64  `json:"expected_revision"`
 	MaxBytes         int    `json:"max_bytes"`
 	RetentionDays    int    `json:"retention_days"`
+}
+
+// UpdateKeywordPolicy defines model for UpdateKeywordPolicy.
+type UpdateKeywordPolicy struct {
+	ExpectedRevision int64         `json:"expected_revision"`
+	Rules            []KeywordRule `json:"rules"`
 }
 
 // UpdateProjectLimits defines model for UpdateProjectLimits.
@@ -1108,6 +1233,12 @@ type ListOrganizationAuditParams struct {
 	After *string `form:"after,omitempty" json:"after,omitempty"`
 }
 
+// ListOrganizationBudgetChangesParams defines parameters for ListOrganizationBudgetChanges.
+type ListOrganizationBudgetChangesParams struct {
+	Period string  `form:"period" json:"period"`
+	After  *string `form:"after,omitempty" json:"after,omitempty"`
+}
+
 // ListOrganizationMembersParams defines parameters for ListOrganizationMembers.
 type ListOrganizationMembersParams struct {
 	After *string `form:"after,omitempty" json:"after,omitempty"`
@@ -1129,6 +1260,12 @@ type ListBillingRecordsParams struct {
 
 // ListBillingRecordsParamsDecision defines parameters for ListBillingRecords.
 type ListBillingRecordsParamsDecision string
+
+// ListProjectBudgetChangesParams defines parameters for ListProjectBudgetChanges.
+type ListProjectBudgetChangesParams struct {
+	Period string  `form:"period" json:"period"`
+	After  *string `form:"after,omitempty" json:"after,omitempty"`
+}
 
 // ListContentAccessParams defines parameters for ListContentAccess.
 type ListContentAccessParams struct {
@@ -1158,6 +1295,11 @@ type InspectProjectParams struct {
 // ListProjectKeysParams defines parameters for ListProjectKeys.
 type ListProjectKeysParams struct {
 	Limit *int    `form:"limit,omitempty" json:"limit,omitempty"`
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+}
+
+// ListKeywordMatchesParams defines parameters for ListKeywordMatches.
+type ListKeywordMatchesParams struct {
 	After *string `form:"after,omitempty" json:"after,omitempty"`
 }
 
@@ -1194,6 +1336,15 @@ type CompleteBrowserLoginParams struct {
 // CreateOrganizationJSONRequestBody defines body for CreateOrganization for application/json ContentType.
 type CreateOrganizationJSONRequestBody = CreateOrganization
 
+// SetOrganizationBudgetJSONRequestBody defines body for SetOrganizationBudget for application/json ContentType.
+type SetOrganizationBudgetJSONRequestBody = UpdateBudget
+
+// SetBudgetCycleJSONRequestBody defines body for SetBudgetCycle for application/json ContentType.
+type SetBudgetCycleJSONRequestBody = UpdateBudgetCycle
+
+// RotateBudgetPeriodJSONRequestBody defines body for RotateBudgetPeriod for application/json ContentType.
+type RotateBudgetPeriodJSONRequestBody = RotateBudgetPeriod
+
 // PutOrganizationMemberJSONRequestBody defines body for PutOrganizationMember for application/json ContentType.
 type PutOrganizationMemberJSONRequestBody = Member
 
@@ -1206,6 +1357,9 @@ type ImportStatementJSONRequestBody = StatementImport
 // ReviewStatementRecordJSONRequestBody defines body for ReviewStatementRecord for application/json ContentType.
 type ReviewStatementRecordJSONRequestBody = BillingReview
 
+// SetProjectBudgetJSONRequestBody defines body for SetProjectBudget for application/json ContentType.
+type SetProjectBudgetJSONRequestBody = UpdateBudget
+
 // GrantContentAuditorJSONRequestBody defines body for GrantContentAuditor for application/json ContentType.
 type GrantContentAuditorJSONRequestBody = ContentAuditor
 
@@ -1217,6 +1371,9 @@ type RevealContentJSONRequestBody = ContentReveal
 
 // CreateProjectKeyJSONRequestBody defines body for CreateProjectKey for application/json ContentType.
 type CreateProjectKeyJSONRequestBody = CreateKey
+
+// SetKeywordPolicyJSONRequestBody defines body for SetKeywordPolicy for application/json ContentType.
+type SetKeywordPolicyJSONRequestBody = UpdateKeywordPolicy
 
 // SetProjectLimitsJSONRequestBody defines body for SetProjectLimits for application/json ContentType.
 type SetProjectLimitsJSONRequestBody = UpdateProjectLimits

@@ -197,6 +197,10 @@ func (s *Store) CreateProject(ctx context.Context, p identity.Principal, org, na
 		if err := orgAdmin(ctx, tx, p, org); err != nil {
 			return err
 		}
+		var lockedOrg string
+		if err := tx.QueryRow(ctx, `SELECT id FROM organizations WHERE id=$1 FOR SHARE`, org).Scan(&lockedOrg); err != nil {
+			return err
+		}
 		if _, err := tx.Exec(ctx, `INSERT INTO projects VALUES($1,$2,$3)`, org, project.ID, name); err != nil {
 			return err
 		}
@@ -443,6 +447,12 @@ func (s *Store) ResolveKey(ctx context.Context, secret, model string) (scope bud
 	}
 	for _, m := range models {
 		if m == model && allowed {
+			if err := s.EnsureBudgetPeriod(ctx, scope.Organization); err != nil {
+				return budget.Scope{}, err
+			}
+			if err := s.pool.QueryRow(ctx, `SELECT period_id FROM organizations WHERE id=$1`, scope.Organization).Scan(&scope.Period); err != nil {
+				return budget.Scope{}, err
+			}
 			return scope, nil
 		}
 	}

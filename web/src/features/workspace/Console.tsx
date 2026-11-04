@@ -24,6 +24,8 @@ import { RequestPanel } from '../requests/RequestPanel';
 import { ModelAccessPanel, currencyLabel } from '../models/ModelAccessPanel';
 import { OperationsPanel } from '../operations/OperationsPanel';
 import { ContentAuditPanel } from '../content/ContentAuditPanel';
+import { BudgetPanel } from '../governance/BudgetPanel';
+import { KeywordPanel } from '../governance/KeywordPanel';
 import { ProviderPanel } from '../providers/ProviderPanel';
 import { MemberPanel } from '../members/MemberPanel';
 import { AuditPanel } from '../audit/AuditPanel';
@@ -69,21 +71,32 @@ export function Console({ session }: { session: Session }) {
     Boolean(orgID && projectID),
   );
   const view =
-    params.get('view') === 'providers'
-      ? 'providers'
-      : params.get('view') === 'content'
-        ? 'content'
-        : params.get('view') === 'members'
-          ? 'members'
-          : params.get('view') === 'operations'
-            ? 'operations'
-            : params.get('view') === 'requests'
-              ? 'requests'
-              : params.get('view') === 'audit'
-                ? 'audit'
-                : params.get('view') === 'keys'
-                  ? 'keys'
-                  : 'overview';
+    (
+      [
+        'overview',
+        'keys',
+        'audit',
+        'requests',
+        'operations',
+        'members',
+        'content',
+        'providers',
+        'budget',
+        'keywords',
+      ] as const
+    ).find((value) => value === params.get('view')) ?? 'overview';
+  const viewLabel = {
+    overview: '项目概览',
+    keys: '访问密钥',
+    audit: '审计记录',
+    requests: '调用账本',
+    operations: '流量与核查',
+    members: '成员管理',
+    content: '内容审计',
+    providers: '供应商配置',
+    budget: '预算管理',
+    keywords: '关键字匹配',
+  }[view];
   const audit = usePage<Audit>(
     identity,
     'audit',
@@ -228,8 +241,10 @@ export function Console({ session }: { session: Session }) {
             ['members', '♧', '成员管理'],
             ['content', '▤', '内容审计'],
             ['providers', '⇄', '供应商配置'],
+            ['budget', '▥', '预算管理'],
+            ['keywords', '⌕', '关键字匹配'],
           ]
-            .filter(([id]) => (id !== 'members' && id !== 'content') || canManage)
+            .filter(([id]) => !['members', 'content', 'keywords'].includes(id) || canManage)
             .map(([id, icon, label]) => (
               <button
                 key={id}
@@ -256,22 +271,7 @@ export function Console({ session }: { session: Session }) {
       <div className="workspace">
         <header className="topbar">
           <span className="breadcrumb">
-            控制台 <span>/</span>{' '}
-            {view === 'providers'
-              ? '供应商配置'
-              : view === 'content'
-                ? '内容审计'
-                : view === 'members'
-                  ? '成员管理'
-                  : view === 'operations'
-                    ? '流量与核查'
-                    : view === 'requests'
-                      ? '调用账本'
-                      : view === 'audit'
-                        ? '审计记录'
-                        : view === 'keys'
-                          ? '访问密钥'
-                          : '项目概览'}
+            控制台 <span>/</span> {viewLabel}
           </span>
           <div className="account">
             <span className="avatar" aria-hidden="true">
@@ -301,21 +301,7 @@ export function Console({ session }: { session: Session }) {
             <div>
               <div className="eyebrow">WORKSPACE / GOVERNANCE</div>
               <h1>
-                {view === 'providers'
-                  ? '供应商配置'
-                  : view === 'content'
-                    ? '内容审计'
-                    : view === 'members'
-                      ? '成员管理'
-                      : view === 'operations'
-                        ? '流量与核查'
-                        : view === 'requests'
-                          ? '调用账本'
-                          : view === 'audit'
-                            ? '审计记录'
-                            : view === 'keys'
-                              ? '访问密钥'
-                              : '项目概览'}
+                {viewLabel}
                 <span className="heading-dot">.</span>
               </h1>
               <p>
@@ -452,29 +438,47 @@ export function Console({ session }: { session: Session }) {
                   }}
                 />
               )}
-              {!projectID && !projects.isPending && view !== 'audit' && view !== 'members' && (
-                <section className="panel">
-                  <Empty
-                    title="还没有可访问的项目"
-                    description={
-                      canManage
-                        ? '新建项目，配置预算并生成模型访问密钥。'
-                        : '请联系组织管理员为你分配项目。'
-                    }
-                  />
-                  {canManage && (
-                    <div className="empty-action">
-                      <Button theme="primary" onClick={() => open('project')}>
-                        创建项目
-                      </Button>
-                    </div>
-                  )}
-                </section>
-              )}
-              {project.error && view !== 'audit' && view !== 'members' && (
+              {!projectID &&
+                !projects.isPending &&
+                view !== 'audit' &&
+                view !== 'members' &&
+                view !== 'budget' && (
+                  <section className="panel">
+                    <Empty
+                      title="还没有可访问的项目"
+                      description={
+                        canManage
+                          ? '新建项目，配置预算并生成模型访问密钥。'
+                          : '请联系组织管理员为你分配项目。'
+                      }
+                    />
+                    {canManage && (
+                      <div className="empty-action">
+                        <Button theme="primary" onClick={() => open('project')}>
+                          创建项目
+                        </Button>
+                      </div>
+                    )}
+                  </section>
+                )}
+              {project.error && view !== 'audit' && view !== 'members' && view !== 'budget' && (
                 <ErrorBox error={project.error} />
               )}
-              {view === 'content' && projectID ? (
+              {view === 'budget' ? (
+                <BudgetPanel
+                  identity={identity}
+                  orgPath={orgPath}
+                  projectPath={projectID ? projectPath : undefined}
+                  canManage={canManage}
+                  csrf={session.csrf_token}
+                />
+              ) : view === 'keywords' && projectID ? (
+                <KeywordPanel
+                  identity={identity}
+                  projectPath={projectPath}
+                  csrf={session.csrf_token}
+                />
+              ) : view === 'content' && projectID ? (
                 <>
                   <p className="content-audit-entry">
                     独立审计员访问地址：

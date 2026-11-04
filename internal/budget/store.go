@@ -124,6 +124,12 @@ func (s *Store) Reserve(ctx context.Context, q Quote) (created bool, err error) 
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
+		var currentPeriod string
+		if err := tx.QueryRow(ctx, `SELECT period_id FROM organizations WHERE id=$1 FOR SHARE`, q.Organization).Scan(&currentPeriod); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		} else if err == nil && currentPeriod != q.Period {
+			return ErrConflict
+		}
 		if err := lockAccounts(ctx, tx, q.Scope); err != nil {
 			return err
 		}
