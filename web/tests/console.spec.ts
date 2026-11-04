@@ -330,7 +330,9 @@ test('project traffic policy saves with revision and inspection stays read only'
   await expect(page.getByLabel('并发上限', { exact: true })).toHaveValue('2');
   await page.getByLabel('核查时间阈值').selectOption('3600');
   await expect(page.getByRole('heading', { name: '暂无待核查请求' })).toBeVisible();
+  await page.screenshot({ path: '/tmp/aigw-operations-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: '/tmp/aigw-operations-mobile.png', fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const accessibility = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
@@ -432,7 +434,9 @@ test('project-key model discovery and web member grants stay scoped', async ({ p
   await page.reload();
   await page.getByLabel('成员范围', { exact: true }).selectOption('project');
   await expect(row.getByRole('cell', { name: '未授权', exact: true })).toBeVisible();
+  await page.screenshot({ path: '/tmp/aigw-members-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: '/tmp/aigw-members-mobile.png', fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const a11y = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(a11y.violations.map((v) => v.id)).toEqual([]);
@@ -494,6 +498,7 @@ test('content audit is opt in, explicitly granted and hidden after viewing', asy
   await expect(detail).toContainText('synthetic private audit request');
   await page.getByRole('button', { name: '隐藏正文', exact: true }).click();
   await expect(detail).toHaveCount(0);
+  await page.screenshot({ path: '/tmp/aigw-content-desktop.png', fullPage: true });
   await page.getByRole('link', { name: '打开当前项目内容审计专用入口' }).click();
   await expect(page.getByRole('heading', { name: '项目内容审计专用访问' })).toBeVisible();
   await expect(page.getByRole('heading', { name: '内容采集策略' })).toHaveCount(0);

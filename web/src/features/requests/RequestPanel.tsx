@@ -105,14 +105,16 @@ export function RequestPanel({
           </select>
         </label>
         <form key={id} onSubmit={search}>
-          <label htmlFor="request-search">请求编号</label>
-          <input
-            id="request-search"
-            name="request"
-            defaultValue={id}
-            maxLength={256}
-            placeholder="输入完整 request_id"
-          />
+          <label htmlFor="request-search">
+            请求编号
+            <input
+              id="request-search"
+              name="request"
+              defaultValue={id}
+              maxLength={256}
+              placeholder="输入完整 request_id"
+            />
+          </label>
           <Button type="submit" variant="outline">
             查询详情
           </Button>

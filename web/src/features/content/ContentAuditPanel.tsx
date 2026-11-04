@@ -157,7 +157,7 @@ export function ContentAuditPanel({
   return (
     <>
       {canManage && (
-        <section className="panel">
+        <section className="panel governance-panel">
           <div className="panel-heading">
             <div>
               <h2>内容采集策略</h2>
@@ -303,7 +303,7 @@ export function ContentAuditPanel({
           )}
         </section>
       )}
-      <section className="panel">
+      <section className="panel governance-panel">
         <div className="panel-heading">
           <div>
             <h2>内容审计记录</h2>
@@ -448,7 +448,7 @@ export function ContentAuditPanel({
         )}
       </section>
       {canManage && (
-        <section className="panel">
+        <section className="panel governance-panel">
           <h2>正文访问留痕</h2>
           {access.error && <ErrorBox error={access.error} />}
           <div className="table-scroll" role="region" aria-label="正文访问留痕表" tabIndex={0}>

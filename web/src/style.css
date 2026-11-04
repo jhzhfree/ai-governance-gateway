@@ -969,13 +969,16 @@ input:invalid:not(:placeholder-shown) {
   font-size: 13px;
 }
 .request-filters form {
+  flex: 1 1 360px;
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: end;
   gap: 8px;
 }
 .request-filters form label {
-  flex-basis: 100%;
+  flex: 1;
+  min-width: 0;
 }
 .request-filters input,
 .request-filters select {
@@ -1050,4 +1053,147 @@ fieldset.model-selection {
 }
 .model-strip p {
   overflow-wrap: anywhere;
+}
+
+/* Shared content rhythm for project administration panels. */
+.governance-panel {
+  font-size: 13px;
+  line-height: 1.7;
+}
+.governance-panel > h2 {
+  margin: 23px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.governance-panel > label {
+  margin: 16px 23px;
+  max-width: 360px;
+}
+.content-audit-entry {
+  margin: 0 0 20px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #41544a;
+  overflow-wrap: anywhere;
+}
+.content-audit-entry a {
+  color: var(--td-brand-color);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.governance-panel h3 {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.governance-panel h4 {
+  margin: 16px 0 8px;
+  font-size: 13px;
+}
+.governance-panel > p,
+.governance-panel > h3,
+.governance-panel > .error-box {
+  margin: 16px 23px;
+  overflow-wrap: anywhere;
+}
+.governance-panel > .t-button {
+  margin: 12px 0 16px 23px;
+}
+.governance-panel form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 16px 20px;
+  padding: 20px 23px;
+  border-top: 1px solid var(--line);
+}
+.governance-panel form > h3,
+.governance-panel form > p {
+  grid-column: 1 / -1;
+}
+.governance-panel form > p {
+  color: var(--muted);
+}
+.governance-panel label {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+  color: #41544a;
+}
+.governance-panel select {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid #d8e0dc;
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: white;
+  color: #293d32;
+  line-height: 1.5;
+}
+.governance-panel label:has(input[type='checkbox']) {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.governance-panel input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin: 0;
+}
+.governance-panel form > .t-button {
+  justify-self: start;
+  max-width: 100%;
+}
+.governance-panel > section[aria-label='审计正文详情'] {
+  margin: 20px 23px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  overflow-wrap: anywhere;
+}
+.governance-panel pre {
+  padding: 16px;
+  background: #f6f8fb;
+  font-size: 12px;
+  line-height: 1.7;
+}
+@media (max-width: 760px) {
+  .request-panel .request-filters {
+    margin: 16px;
+    gap: 16px;
+  }
+  .request-filters > label {
+    flex: 1 1 120px;
+    min-width: 0;
+  }
+  .request-filters form {
+    flex-basis: 100%;
+  }
+  .governance-panel .panel-heading {
+    flex-wrap: wrap;
+    align-items: start;
+  }
+  .governance-panel .panel-heading p {
+    max-width: none;
+  }
+  .governance-panel form {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 20px 16px;
+  }
+  .governance-panel > h2,
+  .governance-panel > label,
+  .governance-panel > p,
+  .governance-panel > h3,
+  .governance-panel > .error-box,
+  .governance-panel > section[aria-label='审计正文详情'] {
+    margin-left: 16px;
+    margin-right: 16px;
+  }
+  .governance-panel > .t-button {
+    margin-left: 16px;
+  }
 }

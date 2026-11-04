@@ -110,13 +110,13 @@ export function MemberPanel({
   }
   if (!canRead)
     return (
-      <section className="panel">
+      <section className="panel governance-panel">
         <h2>成员与授权</h2>
         <p>仅组织所有者或管理员可查看成员标识和管理授权。</p>
       </section>
     );
   return (
-    <section className="panel">
+    <section className="panel governance-panel">
       <div className="panel-heading">
         <div>
           <h2>成员与授权</h2>

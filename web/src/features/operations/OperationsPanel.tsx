@@ -75,7 +75,7 @@ export function OperationsPanel({
           csrf={csrf}
         />
       )}
-      <section className="panel">
+      <section className="panel governance-panel">
         <div className="panel-heading">
           <div>
             <h2>项目流量控制</h2>
@@ -142,7 +142,7 @@ export function OperationsPanel({
         {Boolean(error) && <ErrorBox error={error} />}
         {notice && <p role="status">{notice}</p>}
       </section>
-      <section className="panel">
+      <section className="panel governance-panel">
         <div className="panel-heading">
           <div>
             <h2>执行与预算核查</h2>

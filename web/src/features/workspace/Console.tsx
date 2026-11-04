@@ -462,7 +462,7 @@ export function Console({ session }: { session: Session }) {
               )}
               {view === 'content' && projectID ? (
                 <>
-                  <p>
+                  <p className="content-audit-entry">
                     独立审计员访问地址：
                     <a
                       href={`/?audit_only=1&org=${encodeURIComponent(orgID)}&project=${encodeURIComponent(projectID)}`}

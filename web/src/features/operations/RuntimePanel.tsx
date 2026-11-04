@@ -25,7 +25,7 @@ export function RuntimePanel({
   const metrics = data?.instance;
   const counters = metrics?.counters;
   return (
-    <section className="panel">
+    <section className="panel governance-panel">
       <div className="panel-heading">
         <div>
           <h2>供应商运行状态</h2>
