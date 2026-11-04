@@ -51,6 +51,7 @@ var managedTables = map[int][]string{
 	8:  {"project_limits", "admission_events", "admission_leases"},
 	9:  {"supplier_circuits"},
 	10: {"billing_imports", "billing_records"},
+	11: {"content_audit_policies", "content_audit_auditors", "content_audit_deks", "content_audit_records", "content_audit_payloads", "content_audit_payloads_default", "content_audit_heads", "content_audit_chain", "content_audit_access_log"},
 }
 
 func plan() ([]migration, error) {

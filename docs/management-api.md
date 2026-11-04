@@ -103,3 +103,7 @@ go run ./cmd/gateway --mock-only
 标准账单导入、项目差异查询和独立管理员审核位于项目 `/billing/imports`、`/billing/records`、`/billing/records/{record}/review`；权限、原子财务与幂等边界见[对账手册](billing-reconciliation.md)。
 
 组织/项目 members 支持受权 GET 分页；PUT 增加可选 expected_role，DELETE 项目 members 撤销显式项目授权。另提供推理密钥 GET /v1/models。权限、向后兼容及项目密钥独立生命周期见[操作手册](model-discovery-and-members.md)。
+
+## 内容审计增量
+
+项目内容审计新增 policy/auditors/records/reveal/access 路径，实际契约见 OpenAPI；正文使用 POST reveal 并要求独立授权和理由，先留痕再解密。 详见[内容审计手册](content-audit.md)。

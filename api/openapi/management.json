@@ -3272,6 +3272,810 @@
         },
         "summary": "List ready models allowed by this active project key; no inference or reservation"
       }
+    },
+    "/api/v1/organizations/{org}/projects/{project}/content-audit/policy": {
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        {
+          "name": "project",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getContentPolicy",
+        "description": "Readable with project access; returns logical defaults without creating policy rows.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentPolicy"
+                }
+              }
+            }
+          }
+        },
+        "summary": "getContentPolicy"
+      },
+      "put": {
+        "operationId": "setContentPolicy",
+        "description": "Org owner/admin only; audited with compare-and-swap expected_revision. Lower limits do not kill existing requests. Revision zero is the unmodified default.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          },
+          {
+            "browserSessionDev": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentPolicy"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Configuration changed; fetch the latest revision before retrying.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateContentPolicy"
+              }
+            }
+          }
+        },
+        "parameters": [],
+        "summary": "setContentPolicy"
+      }
+    },
+    "/api/v1/organizations/{org}/projects/{project}/content-audit/records": {
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        {
+          "name": "project",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      ],
+      "get": {
+        "operationId": "listContentAudit",
+        "description": "Readable with project access; returns logical defaults without creating policy rows.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentPage"
+                }
+              }
+            }
+          }
+        },
+        "summary": "listContentAudit",
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/organizations/{org}/projects/{project}/content-audit/auditors": {
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        {
+          "name": "project",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      ],
+      "get": {
+        "operationId": "listContentAuditors",
+        "description": "Readable with project access; returns logical defaults without creating policy rows.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentAuditorPage"
+                }
+              }
+            }
+          }
+        },
+        "summary": "listContentAuditors",
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ]
+      },
+      "put": {
+        "operationId": "grantContentAuditor",
+        "description": "Org owner/admin only; audited with compare-and-swap expected_revision. Lower limits do not kill existing requests. Revision zero is the unmodified default.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          },
+          {
+            "browserSessionDev": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Configuration changed; fetch the latest revision before retrying.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Explicit content-auditor permission changed"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentAuditor"
+              }
+            }
+          }
+        },
+        "parameters": [],
+        "summary": "grantContentAuditor"
+      }
+    },
+    "/api/v1/organizations/{org}/projects/{project}/content-audit/access": {
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        {
+          "name": "project",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      ],
+      "get": {
+        "operationId": "listContentAccess",
+        "description": "Readable with project access; returns logical defaults without creating policy rows.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentAccessPage"
+                }
+              }
+            }
+          }
+        },
+        "summary": "listContentAccess",
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/organizations/{org}/projects/{project}/content-audit/records/{request}/reveal": {
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        {
+          "name": "project",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        {
+          "name": "request",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        }
+      ],
+      "post": {
+        "operationId": "revealContent",
+        "description": "Org owner/admin only; audited with compare-and-swap expected_revision. Lower limits do not kill existing requests. Revision zero is the unmodified default.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          },
+          {
+            "browserSessionDev": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentDetail"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Configuration changed; fetch the latest revision before retrying.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentReveal"
+              }
+            }
+          }
+        },
+        "parameters": [],
+        "summary": "revealContent"
+      }
     }
   },
   "components": {
@@ -5202,6 +6006,351 @@
         "required": [
           "object",
           "data"
+        ]
+      },
+      "ContentPolicy": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "retention_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 90
+          },
+          "max_bytes": {
+            "type": "integer",
+            "minimum": 1024,
+            "maximum": 262144
+          },
+          "consent_ref": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "configured": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "retention_days",
+          "max_bytes",
+          "consent_ref",
+          "revision",
+          "configured"
+        ]
+      },
+      "UpdateContentPolicy": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "retention_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 90
+          },
+          "max_bytes": {
+            "type": "integer",
+            "minimum": 1024,
+            "maximum": 262144
+          },
+          "consent_ref": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "expected_revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "enabled",
+          "retention_days",
+          "max_bytes",
+          "consent_ref",
+          "expected_revision"
+        ]
+      },
+      "ContentAuditor": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "issuer": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "subject": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "issuer",
+          "subject",
+          "active"
+        ]
+      },
+      "ContentMeta": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "request_id": {
+            "type": "string"
+          },
+          "organization_id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "key_prefix": {
+            "type": "string"
+          },
+          "consent_ref": {
+            "type": "string"
+          },
+          "policy_revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "max_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "retention_days": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "capturing",
+              "complete",
+              "incomplete",
+              "canceled",
+              "expired"
+            ]
+          },
+          "status": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 599
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finished_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "request_id",
+          "organization_id",
+          "project_id",
+          "model",
+          "key_prefix",
+          "consent_ref",
+          "policy_revision",
+          "max_bytes",
+          "retention_days",
+          "state",
+          "status",
+          "created_at",
+          "expires_at",
+          "finished_at"
+        ]
+      },
+      "ContentPlain": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string",
+            "maxLength": 262144
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "observed_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "captured_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 262144
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "content",
+          "sha256",
+          "observed_bytes",
+          "captured_bytes",
+          "truncated"
+        ]
+      },
+      "ContentDetail": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "meta": {
+            "$ref": "#/components/schemas/ContentMeta"
+          },
+          "request": {
+            "$ref": "#/components/schemas/ContentPlain"
+          },
+          "response": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContentPlain"
+              }
+            ],
+            "nullable": true
+          }
+        },
+        "required": [
+          "meta",
+          "request",
+          "response"
+        ]
+      },
+      "ContentReveal": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "ContentAccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "actor": {
+            "$ref": "#/components/schemas/BillingActor"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "actor",
+          "request_id",
+          "reason",
+          "created_at"
+        ]
+      },
+      "ContentPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentMeta"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "next_cursor"
+        ]
+      },
+      "ContentAuditorPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentAuditor"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "next_cursor"
+        ]
+      },
+      "ContentAccessPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentAccess"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "next_cursor"
         ]
       }
     }

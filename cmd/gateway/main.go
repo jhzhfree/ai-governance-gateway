@@ -22,6 +22,7 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
 	"github.com/jhzhfree/ai-governance-gateway/internal/circuit"
 	"github.com/jhzhfree/ai-governance-gateway/internal/console"
+	"github.com/jhzhfree/ai-governance-gateway/internal/contentaudit"
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
 	"github.com/jhzhfree/ai-governance-gateway/internal/database"
 	"github.com/jhzhfree/ai-governance-gateway/internal/execution"
@@ -108,6 +109,12 @@ func run(ctx context.Context, c config) error {
 	if err != nil {
 		return err
 	}
+	ring, err := contentaudit.ParseKeys(os.Getenv("AIGW_CONTENT_AUDIT_KEYS"), os.Getenv("AIGW_CONTENT_AUDIT_ACTIVE_KEY"))
+	if err != nil {
+		return errors.New("content audit key configuration invalid")
+	}
+	content := contentaudit.New(pool, ring)
+	store.WithContentAudit(content)
 	monitor := observe.New()
 	mux := http.NewServeMux()
 	var sessions *browser.Service
@@ -126,11 +133,18 @@ func run(ctx context.Context, c config) error {
 	} else {
 		mux.Handle("/api/v1/", httpapi.NewWithRuntime(store, auth, nil, monitor))
 	}
-	mux.Handle("/v1/", &gateway.Handler{ListModels: store.KeyModels, Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Providers: providers, Ledger: ledger, Authorize: store.ResolveKey, Client: client, Upstream: c.upstream, Report: func(id, code string) { log.Printf("request_id=%s code=%s", id, code) }})
+	mux.Handle("/v1/", &gateway.Handler{Content: content, ListModels: store.KeyModels, Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Providers: providers, Ledger: ledger, Authorize: store.ResolveKey, Client: client, Upstream: c.upstream, Report: func(id, code string) { log.Printf("request_id=%s code=%s", id, code) }})
 	mux.HandleFunc("GET /health/live", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) })
 	dbReady := readiness(pool)
 	mux.HandleFunc("GET /health/ready", func(w http.ResponseWriter, r *http.Request) {
 		if providers != nil && !providers.Ready() {
+			w.WriteHeader(503)
+			return
+		}
+		auditCtx, auditCancel := context.WithTimeout(r.Context(), 2*time.Second)
+		auditReady := content.Ready(auditCtx)
+		auditCancel()
+		if !auditReady {
 			w.WriteHeader(503)
 			return
 		}

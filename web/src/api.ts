@@ -1,5 +1,10 @@
 import type { components } from './generated/api';
 
+export type ContentPolicy = components['schemas']['ContentPolicy'];
+export type ContentMeta = components['schemas']['ContentMeta'];
+export type ContentDetail = components['schemas']['ContentDetail'];
+export type ContentAuditor = components['schemas']['ContentAuditor'];
+export type ContentAccess = components['schemas']['ContentAccess'];
 export type MemberRecord = components['schemas']['MemberRecord'];
 export type BillingRecord = components['schemas']['BillingRecord'];
 export type BillingPage = components['schemas']['BillingPage'];

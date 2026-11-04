@@ -406,3 +406,16 @@ func TestRuntimeCLIAndTUIShareScopedSnapshot(t *testing.T) {
 		t.Fatal("runtime CLI exposed another tenant")
 	}
 }
+
+func TestContentAuditMetadataCLIStaysReadOnlyAndScoped(t *testing.T) {
+	f := fixture(t)
+	code, out, _ := f.execute(t, f.token, "content-audit", "list", "--org", f.org.ID, "--project", f.project.ID, "--output", "json")
+	var page types.ContentPage
+	if code != 0 || json.Unmarshal([]byte(out), &page) != nil || len(page.Data) != 0 {
+		t.Fatal("content metadata CLI contract failed")
+	}
+	code, _, _ = f.execute(t, f.issuer.Token(t, "outsider", nil), "content-audit", "list", "--org", f.org.ID, "--project", f.project.ID)
+	if code == 0 {
+		t.Fatal("content metadata leaked across tenant")
+	}
+}

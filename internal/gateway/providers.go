@@ -51,6 +51,11 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 	}
 	w, measured := h.measure(w, scope)
 	defer measured()
+	w, sealContent, captured := h.capture(w, r, id, token, scope, req)
+	if !captured {
+		return
+	}
+	defer sealContent()
 	r, release, ok := h.admit(w, r, id, scope)
 	if !ok {
 		return

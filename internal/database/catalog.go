@@ -38,7 +38,7 @@ func catalog(ctx context.Context, tx pgx.Tx, schema string, names []string) ([]t
 	result := make([]tableDefinition, 0, len(names))
 	for _, name := range names {
 		var oid uint32
-		err := tx.QueryRow(ctx, `SELECT c.oid FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=$1 AND c.relname=$2 AND c.relkind='r'`, schema, name).Scan(&oid)
+		err := tx.QueryRow(ctx, `SELECT c.oid FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=$1 AND c.relname=$2 AND c.relkind IN ('r','p')`, schema, name).Scan(&oid)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrSchemaDrift
 		}
@@ -65,6 +65,12 @@ FROM pg_catalog.pg_index i JOIN pg_catalog.pg_class c ON c.oid=i.indexrelid WHER
 UNION ALL
 SELECT 'trigger', t.tgname, pg_catalog.pg_get_triggerdef(t.oid,true)||'|'||t.tgenabled::text
 FROM pg_catalog.pg_trigger t WHERE t.tgrelid=$1 AND NOT t.tgisinternal
+UNION ALL
+SELECT 'partition', 'key', pg_catalog.pg_get_partkeydef(c.oid) FROM pg_catalog.pg_class c WHERE c.oid=$1 AND c.relkind='p'
+UNION ALL
+SELECT 'partition', 'bound', pg_catalog.pg_get_expr(c.relpartbound,c.oid,true) FROM pg_catalog.pg_class c WHERE c.oid=$1 AND c.relispartition
+UNION ALL
+SELECT 'partition', 'parent', p.relname FROM pg_catalog.pg_inherits i JOIN pg_catalog.pg_class p ON p.oid=i.inhparent WHERE i.inhrelid=$1
 UNION ALL
 SELECT 'policy', p.polname, p.polcmd::text||'|'||p.polpermissive::text||'|'||p.polroles::text||'|'||COALESCE(pg_catalog.pg_get_expr(p.polqual,p.polrelid,true),'')||'|'||COALESCE(pg_catalog.pg_get_expr(p.polwithcheck,p.polrelid,true),'')
 FROM pg_catalog.pg_policy p WHERE p.polrelid=$1

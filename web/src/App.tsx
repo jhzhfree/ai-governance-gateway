@@ -2,10 +2,13 @@ import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError, type Session } from './api';
 import { Mark, ErrorBox } from './shared/Feedback';
+import { useSearchParams } from 'react-router-dom';
+import { AuditorWorkspace } from './features/content/AuditorWorkspace';
 import { Console } from './features/workspace/Console';
 
 export function App() {
   const client = useQueryClient();
+  const [params] = useSearchParams();
   const [expired, setExpired] = useState(false);
   useEffect(() => {
     const expired = () => {
@@ -70,6 +73,14 @@ export function App() {
         </main>
         <footer>序衡 · AI 治理网关</footer>
       </div>
+    );
+  if (params.get('audit_only') === '1' && params.get('org') && params.get('project'))
+    return (
+      <AuditorWorkspace
+        session={session.data}
+        org={params.get('org')!}
+        project={params.get('project')!}
+      />
     );
   return <Console session={session.data} />;
 }

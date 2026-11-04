@@ -94,3 +94,7 @@ AIGW_VERIFY_WEB=1 bash scripts/verify.sh
 CNY_MICRO 项目的流量与核查页新增账单工作台：标准 CSV、差异/重复候选、导入人不可自批、审核决定及原因；未结与终态调整边界见[对账手册](billing-reconciliation.md)。成员管理仍通过 API 设置，不将该工作台视为完整财务系统。
 
 新增“成员管理”：组织 owner/admin 可读，owner 编辑组织成员；组织 owner/admin 管理项目显式授权，页面展示组织继承与实际生效角色，移除需确认。不创建企业 IdP 账号，不自动撤销项目密钥。见[操作手册](model-discovery-and-members.md)。
+
+## 内容审计增量
+
+项目内容审计面板支持策略、独立审计员、元数据、查看理由与访问记录；审计专用身份使用 /?audit_only=1&org=...&project=...。正文仅短时组件内存，离开/隐藏/超时清除。 详见[内容审计手册](content-audit.md)。

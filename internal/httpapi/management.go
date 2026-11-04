@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/jhzhfree/ai-governance-gateway/internal/admission"
+	"github.com/jhzhfree/ai-governance-gateway/internal/contentaudit"
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
 	"github.com/jhzhfree/ai-governance-gateway/internal/observe"
@@ -55,6 +56,14 @@ func NewWithRuntime(store *control.Store, auth identity.Authenticator, session S
 	mux.HandleFunc("DELETE /api/v1/organizations/{org}/projects/{project}/keys/{key}", h.revokeKey)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/usage", h.usage)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/runtime", h.runtime)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/content-audit/policy", h.contentPolicy)
+	mux.HandleFunc("PUT /api/v1/organizations/{org}/projects/{project}/content-audit/policy", h.setContentPolicy)
+	mux.HandleFunc("PUT /api/v1/organizations/{org}/projects/{project}/content-audit/auditors", h.contentAuditor)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/content-audit/auditors", h.contentAuditors)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/content-audit/records", h.contentRecords)
+	mux.HandleFunc("POST /api/v1/organizations/{org}/projects/{project}/content-audit/records/{request}/reveal", h.contentReveal)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/content-audit/access", h.contentAccess)
+
 	mux.HandleFunc("POST /api/v1/organizations/{org}/projects/{project}/billing/imports", h.importStatement)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/billing/records", h.billingRecords)
 	mux.HandleFunc("POST /api/v1/organizations/{org}/projects/{project}/billing/records/{record}/review", h.reviewBill)
@@ -111,6 +120,8 @@ func failure(w http.ResponseWriter, r *http.Request, err error) {
 		status, code = 403, "forbidden"
 	case errors.Is(err, control.ErrNotFound):
 		status, code = 404, "not_found"
+	case errors.Is(err, contentaudit.ErrConflict):
+		status, code = 409, "conflict"
 	case errors.Is(err, admission.ErrConflict) || errors.Is(err, control.ErrBillingConflict) || errors.Is(err, control.ErrMemberConflict):
 		status, code = 409, "conflict"
 	case errors.Is(err, control.ErrInvalid) || errors.Is(err, admission.ErrInvalid):

@@ -7,6 +7,7 @@ AI 治理网关：面向团队的统一模型接入、访问控制、预算限�
 - [全局产品说明（开发与发布基线）](docs/product-handbook.md)
 - [深层技术可行性评估（Token 治理 + 内容审计 + 软硬一体）](docs/technical-feasibility.md)
 - [项目密钥模型发现与成员管理](docs/model-discovery-and-members.md)
+- [加密内容审计与维护](docs/content-audit.md)
 - [整体功能覆盖与剩余工作](docs/functional-coverage.md)
 - [标准账单与人工对账](docs/billing-reconciliation.md)
 - [共享熔断与运行状态](docs/supplier-resilience.md)

@@ -63,6 +63,15 @@ const (
 	Reject  BillingReviewAction = "reject"
 )
 
+// Defines values for ContentMetaState.
+const (
+	ContentMetaStateCanceled   ContentMetaState = "canceled"
+	ContentMetaStateCapturing  ContentMetaState = "capturing"
+	ContentMetaStateComplete   ContentMetaState = "complete"
+	ContentMetaStateExpired    ContentMetaState = "expired"
+	ContentMetaStateIncomplete ContentMetaState = "incomplete"
+)
+
 // Defines values for CreateOrganizationCurrency.
 const (
 	CreateOrganizationCurrencyCNYMICRO CreateOrganizationCurrency = "CNY_MICRO"
@@ -302,11 +311,11 @@ const (
 
 // Defines values for ListRequestsParamsOutcome.
 const (
-	ListRequestsParamsOutcomeCanceled   ListRequestsParamsOutcome = "canceled"
-	ListRequestsParamsOutcomeCompleted  ListRequestsParamsOutcome = "completed"
-	ListRequestsParamsOutcomeEmpty      ListRequestsParamsOutcome = ""
-	ListRequestsParamsOutcomeFailed     ListRequestsParamsOutcome = "failed"
-	ListRequestsParamsOutcomeUnfinished ListRequestsParamsOutcome = "unfinished"
+	Canceled   ListRequestsParamsOutcome = "canceled"
+	Completed  ListRequestsParamsOutcome = "completed"
+	Empty      ListRequestsParamsOutcome = ""
+	Failed     ListRequestsParamsOutcome = "failed"
+	Unfinished ListRequestsParamsOutcome = "unfinished"
 )
 
 // AccountCheck defines model for AccountCheck.
@@ -434,6 +443,92 @@ type BrowserSession struct {
 		Issuer  string `json:"issuer"`
 		Subject string `json:"subject"`
 	} `json:"user"`
+}
+
+// ContentAccess defines model for ContentAccess.
+type ContentAccess struct {
+	Actor     BillingActor `json:"actor"`
+	CreatedAt time.Time    `json:"created_at"`
+	Id        int64        `json:"id"`
+	Reason    string       `json:"reason"`
+	RequestId string       `json:"request_id"`
+}
+
+// ContentAccessPage defines model for ContentAccessPage.
+type ContentAccessPage struct {
+	Data       []ContentAccess `json:"data"`
+	NextCursor string          `json:"next_cursor"`
+}
+
+// ContentAuditor defines model for ContentAuditor.
+type ContentAuditor struct {
+	Active  bool   `json:"active"`
+	Issuer  string `json:"issuer"`
+	Subject string `json:"subject"`
+}
+
+// ContentAuditorPage defines model for ContentAuditorPage.
+type ContentAuditorPage struct {
+	Data       []ContentAuditor `json:"data"`
+	NextCursor string           `json:"next_cursor"`
+}
+
+// ContentDetail defines model for ContentDetail.
+type ContentDetail struct {
+	Meta     ContentMeta   `json:"meta"`
+	Request  ContentPlain  `json:"request"`
+	Response *ContentPlain `json:"response"`
+}
+
+// ContentMeta defines model for ContentMeta.
+type ContentMeta struct {
+	ConsentRef     string           `json:"consent_ref"`
+	CreatedAt      time.Time        `json:"created_at"`
+	ExpiresAt      time.Time        `json:"expires_at"`
+	FinishedAt     *time.Time       `json:"finished_at"`
+	KeyPrefix      string           `json:"key_prefix"`
+	MaxBytes       int64            `json:"max_bytes"`
+	Model          string           `json:"model"`
+	OrganizationId string           `json:"organization_id"`
+	PolicyRevision int64            `json:"policy_revision"`
+	ProjectId      string           `json:"project_id"`
+	RequestId      string           `json:"request_id"`
+	RetentionDays  int64            `json:"retention_days"`
+	State          ContentMetaState `json:"state"`
+	Status         int              `json:"status"`
+}
+
+// ContentMetaState defines model for ContentMeta.State.
+type ContentMetaState string
+
+// ContentPage defines model for ContentPage.
+type ContentPage struct {
+	Data       []ContentMeta `json:"data"`
+	NextCursor string        `json:"next_cursor"`
+}
+
+// ContentPlain defines model for ContentPlain.
+type ContentPlain struct {
+	CapturedBytes int64  `json:"captured_bytes"`
+	Content       string `json:"content"`
+	ObservedBytes int64  `json:"observed_bytes"`
+	Sha256        string `json:"sha256"`
+	Truncated     bool   `json:"truncated"`
+}
+
+// ContentPolicy defines model for ContentPolicy.
+type ContentPolicy struct {
+	Configured    bool   `json:"configured"`
+	ConsentRef    string `json:"consent_ref"`
+	Enabled       bool   `json:"enabled"`
+	MaxBytes      int    `json:"max_bytes"`
+	RetentionDays int    `json:"retention_days"`
+	Revision      int64  `json:"revision"`
+}
+
+// ContentReveal defines model for ContentReveal.
+type ContentReveal struct {
+	Reason string `json:"reason"`
 }
 
 // CreateKey defines model for CreateKey.
@@ -885,6 +980,15 @@ type StatementImport struct {
 // StatementImportProvider defines model for StatementImport.Provider.
 type StatementImportProvider string
 
+// UpdateContentPolicy defines model for UpdateContentPolicy.
+type UpdateContentPolicy struct {
+	ConsentRef       string `json:"consent_ref"`
+	Enabled          bool   `json:"enabled"`
+	ExpectedRevision int64  `json:"expected_revision"`
+	MaxBytes         int    `json:"max_bytes"`
+	RetentionDays    int    `json:"retention_days"`
+}
+
 // UpdateProjectLimits defines model for UpdateProjectLimits.
 type UpdateProjectLimits struct {
 	ExpectedRevision  int64 `json:"expected_revision"`
@@ -937,6 +1041,24 @@ type ListBillingRecordsParams struct {
 
 // ListBillingRecordsParamsDecision defines parameters for ListBillingRecords.
 type ListBillingRecordsParamsDecision string
+
+// ListContentAccessParams defines parameters for ListContentAccess.
+type ListContentAccessParams struct {
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+	Limit *int    `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListContentAuditorsParams defines parameters for ListContentAuditors.
+type ListContentAuditorsParams struct {
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+	Limit *int    `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListContentAuditParams defines parameters for ListContentAudit.
+type ListContentAuditParams struct {
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+	Limit *int    `form:"limit,omitempty" json:"limit,omitempty"`
+}
 
 // InspectProjectParams defines parameters for InspectProject.
 type InspectProjectParams struct {
@@ -995,6 +1117,15 @@ type ImportStatementJSONRequestBody = StatementImport
 
 // ReviewStatementRecordJSONRequestBody defines body for ReviewStatementRecord for application/json ContentType.
 type ReviewStatementRecordJSONRequestBody = BillingReview
+
+// GrantContentAuditorJSONRequestBody defines body for GrantContentAuditor for application/json ContentType.
+type GrantContentAuditorJSONRequestBody = ContentAuditor
+
+// SetContentPolicyJSONRequestBody defines body for SetContentPolicy for application/json ContentType.
+type SetContentPolicyJSONRequestBody = UpdateContentPolicy
+
+// RevealContentJSONRequestBody defines body for RevealContent for application/json ContentType.
+type RevealContentJSONRequestBody = ContentReveal
 
 // CreateProjectKeyJSONRequestBody defines body for CreateProjectKey for application/json ContentType.
 type CreateProjectKeyJSONRequestBody = CreateKey

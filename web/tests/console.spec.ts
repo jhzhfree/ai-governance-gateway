@@ -437,3 +437,73 @@ test('project-key model discovery and web member grants stay scoped', async ({ p
   const a11y = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(a11y.violations.map((v) => v.id)).toEqual([]);
 });
+
+test('content audit is opt in, explicitly granted and hidden after viewing', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: /使用组织账号登录/ }).click();
+  await page.getByRole('button', { name: /新建组织/ }).click();
+  await page.getByLabel('组织名称', { exact: true }).fill('内容审计团队');
+  await page.getByLabel('预算单位', { exact: true }).selectOption('CNY_MICRO');
+  await page.getByRole('button', { name: '确认创建', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: '组织已创建' })).toBeVisible();
+  await page.getByRole('button', { name: /新建项目/ }).click();
+  await page.getByLabel('项目名称', { exact: true }).fill('内容审计项目');
+  await page.getByRole('button', { name: '确认创建', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '内容审计项目' })).toBeVisible();
+  await page.getByRole('button', { name: '配置模型', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: '项目模型授权' });
+  await dialog.getByRole('checkbox', { name: /aliyun\/fixture/ }).check();
+  await page.getByRole('button', { name: '保存模型授权', exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  await page.getByRole('button', { name: /创建密钥/ }).click();
+  await page.getByLabel('密钥名称', { exact: true }).fill('审计合成密钥');
+  await page.getByRole('button', { name: '确认创建', exact: true }).click();
+  const key = await page.getByLabel('新密钥', { exact: true }).inputValue();
+  await page.getByRole('button', { name: '我已保存，关闭', exact: true }).click();
+  await page.getByRole('button', { name: '内容审计', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '内容采集策略' })).toBeVisible();
+  await expect(page.getByLabel('启用内容审计采集')).not.toBeChecked();
+  await page.getByLabel('启用内容审计采集').check();
+  await page.getByLabel('正文保留天数').fill('1');
+  await page.getByLabel('告知与用途证据引用').fill('synthetic-consent');
+  await page.getByRole('button', { name: '保存采集策略', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: '内容审计策略已保存' })).toBeVisible();
+  const session = (await (await page.request.get('/auth/session')).json()) as {
+    user: { subject: string };
+  };
+  await page.getByLabel('审计员subject', { exact: true }).fill(session.user.subject);
+  await page.getByRole('button', { name: '保存审计员授权', exact: true }).click();
+  await expect(
+    page.getByRole('status').filter({ hasText: '独立内容审计授权已保存' }),
+  ).toBeVisible();
+  const response = await page.request.post('/v1/chat/completions', {
+    headers: { Authorization: `Bearer ${key}` },
+    data: {
+      model: 'aliyun/fixture',
+      max_tokens: 8,
+      messages: [{ role: 'user', content: 'synthetic private audit request' }],
+    },
+  });
+  expect(response.status()).toBe(200);
+  const id = response.headers()['x-request-id'];
+  await page.getByRole('button', { name: '刷新内容记录', exact: true }).click();
+  await page.getByLabel('审计请求编号', { exact: true }).fill(id);
+  await page.getByLabel('内容查看理由', { exact: true }).fill('合成数据验证内容采集');
+  await page.getByRole('button', { name: '留痕并查看正文', exact: true }).click();
+  const detail = page.getByRole('region', { name: '审计正文详情' });
+  await expect(detail).toContainText('synthetic private audit request');
+  await page.getByRole('button', { name: '隐藏正文', exact: true }).click();
+  await expect(detail).toHaveCount(0);
+  await page.getByRole('link', { name: '打开当前项目内容审计专用入口' }).click();
+  await expect(page.getByRole('heading', { name: '项目内容审计专用访问' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '内容采集策略' })).toHaveCount(0);
+  await page.getByLabel('审计请求编号', { exact: true }).fill(id);
+  await page.getByLabel('内容查看理由', { exact: true }).fill('验证独立审计入口');
+  await page.getByRole('button', { name: '留痕并查看正文', exact: true }).click();
+  await expect(detail).toContainText('synthetic private audit request');
+  await page.getByRole('button', { name: '隐藏正文', exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const a11y = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(a11y.violations.map((v) => v.id)).toEqual([]);
+});

@@ -75,3 +75,7 @@ NO_COLOR=1 ./bin/aigw tui
 供应商共享熔断与当前实例 HTTP 观测见[运行手册](supplier-resilience.md)，使用 `runtime show`；TUI 项目页按 `s`，上下滚动、`r` 刷新、Esc 返回。
 
 标准账单只读查询使用 `billing list --decision pending --output json`，TUI 的 CNY_MICRO 项目页按 `b`；财务审核通过 Web/受权 API。见[对账手册](billing-reconciliation.md)。
+
+## 内容审计增量
+
+新增 aigw content-audit list --org <ID> --project <ID> --output json，仅返回分页元数据。正文不进入终端；数据库侧 cmd/content-audit purge/verify 为独立维护命令。 详见[内容审计手册](content-audit.md)。

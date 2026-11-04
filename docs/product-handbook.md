@@ -3,7 +3,7 @@
 | 项目 | 内容 |
 | --- | --- |
 | 产品名 | 序衡（AI GOVERNANCE）；技术名 `ai-governance-gateway` |
-| 代码基线 | 初稿分析基线为 `main` @ `9b8cf9d`；已同步 2026-11-04 模型发现/成员管理增量（ADR 0011），数据库仍为 0010 |
+| 代码基线 | 初稿分析基线为 `main` @ `9b8cf9d`；已同步 2026-11-04 模型发现/成员管理增量（ADR 0011），内容审计增量见 ADR 0012，数据库为 0011 |
 | 文档性质 | 面向研发、运维、产品与发布的全局说明；不是营销材料，也不替代各专题文档 |
 | 分析方式 | 初稿为静态阅读，原分析环境未运行测试；模型发现/成员管理增量已通过 113 个 Go 顶层测试、Web 构建及 8 个 Chromium 场景，详见专题验证记录 |
 | 维护规则 | 架构边界、发布门禁变化必须更新本文；专题细节仍以 `docs/` 下对应文档和 ADR 为准 |
@@ -125,16 +125,17 @@ internal/observe/    进程内 HTTP 计数（非持久化、非导出）
 internal/console/    仅托管构建后的 `index.html` 与 `/assets/*`
 api/openapi/         管理契约（单一事实源）
 web/src/features/    按业务组织的页面（workspace/keys/models/requests/operations/audit/billing/members）
-docs/adr/            11 份架构决策记录（含模型发现/成员管理 ADR 0011）
+docs/adr/            12 份架构决策记录（含内容审计 ADR 0012）
 ```
 
 ### 2.3 部署单元与进程
 
-共 **4 个可执行产物**：
+共 **5 个可执行产物**：
 
 | 产物 | 作用 | 是否面向公网 |
 | --- | --- | --- |
 | `cmd/gateway` | 管理 API + 推理网关 + 控制台静态资源 + 健康检查 | 只监听 loopback，必须由反向代理暴露 |
+| `cmd/content-audit` | 数据库侧 purge/verify 维护，不解密、不面向远程客户端 | 否 |
 | `cmd/migrate` | `up / status / check`，独立部署步骤执行 | 否 |
 | `cmd/aigw` | 运维与开发者的只读 CLI/TUI | 否（出站访问网关） |
 | `cmd/mock-provider` | 本地联调模拟上游 | 否（loopback） |
@@ -180,7 +181,7 @@ flowchart TB
 
 ### 2.5 数据架构
 
-**19 张业务表 + 1 张迁移台账**，全部结构变更经内嵌 SQL 迁移管理。
+**原 19 张业务表，加 8 张内容审计逻辑表、1 个默认分区与 1 张迁移台账**，全部结构变更经内嵌 SQL 迁移管理。
 
 | 域 | 表 | 关键约束 |
 | --- | --- | --- |
@@ -458,7 +459,7 @@ CI（`.github/workflows/verify.yml`）：ubuntu + Go 1.27.3 + Node（`.node-vers
 
 补充事实：管理 API 错误体的 `message` 当前直接等于 `code`（`internal/httpapi/management.go`），可读文案由 Web 按 HTTP 状态码映射、CLI 直接展示 code。对第三方 API 使用者不友好，属于发布前应改进的接口体验问题。
 
-其余体验缺口（按用户旅程排序）：无独立"首次接入指引"页面；无项目删除/成员删除/离线；无预算周期可视化切换；无调用详情中的提示词/响应正文（这是刻意的隐私取舍，但需在文档中向用户说明）。
+其余体验缺口（按用户旅程排序）：无独立"首次接入指引"页面；无项目删除/成员删除/离线；无预算周期可视化切换；正文仅在独立内容审计面板按项目显式授权查看，不在普通调用详情默认展示。
 
 ### 5.2 推理面
 
@@ -828,7 +829,7 @@ go build -o ./bin/aigw ./cmd/aigw
 | `docs/billing-reconciliation.md` | 标准账单导入、双人审核与结算边界 |
 | `docs/technical-feasibility.md` | 内容审计、路由、开源基座与 ARM/x86 盒子的可行性评估 |
 | `docs/functional-coverage.md` | 功能覆盖与剩余工作清单 |
-| `docs/adr/0001..0010` | 关键决策的理由、替代方案与取舍 |
+| `docs/adr/0001..0012` | 关键决策的理由、替代方案与取舍 |
 
 ---
 
@@ -842,3 +843,9 @@ go build -o ./bin/aigw ./cmd/aigw
 ## 后续增量记录
 
 2026-11-04：已补齐 [GET /v1/models 与 Web 成员管理](model-discovery-and-members.md)。目录没有推理副作用；成员变更审计失败回滚，组织 owner 受保护。组织成员删除、所有权转移及项目密钥生命周期联动仍未提供。当前覆盖和验证证据以[功能覆盖报告](functional-coverage.md)为准，生产门禁未因此解除。
+
+## 内容审计实现增量（0011 / ADR 0012）
+
+默认不采正文；项目显式开启后保存经过校验的请求与规范化输出，AES-GCM 信封加密。独立项目审计员能力不等于普通 owner/admin；查看理由及访问日志先提交再解密。策略快照、截断、保留、取消、同步封存与故障语义见[内容审计手册](content-audit.md)。没有自动内容安全分类或护栏模型。
+
+新增 content_audit_policies/auditors/deks/records/payloads/heads/chain/access_log（各名称共用 content_audit_ 前缀），正文为分区父表并配 content_audit_payloads_default。5 个新增 OpenAPI 路径、7 个操作；维护程序与远程只读客户端分离。异步 spool、自动月分区、KMS 与外部锚定未实现，不能对外承诺崩溃零丢失或数据库超级用户不可篡改。密钥遗失必须从秘密备份恢复；DB 备份本身不能恢复密文。真实大陆存储、供应商与生产恢复门禁保持待验收。

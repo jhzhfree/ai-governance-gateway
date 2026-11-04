@@ -16,6 +16,7 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/admission"
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
 	"github.com/jhzhfree/ai-governance-gateway/internal/circuit"
+	"github.com/jhzhfree/ai-governance-gateway/internal/contentaudit"
 	"github.com/jhzhfree/ai-governance-gateway/internal/execution"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
 	"github.com/jhzhfree/ai-governance-gateway/internal/observe"
@@ -30,6 +31,7 @@ type Ledger interface {
 }
 
 type Handler struct {
+	Content    *contentaudit.Service
 	ListModels func(context.Context, string) ([]provider.InferenceModel, error)
 	Circuits   circuit.Gate
 	Monitor    *observe.Registry
@@ -125,6 +127,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w, measured := h.measure(w, scope)
 	defer measured()
+	w, sealContent, captured := h.capture(w, r, id, token, scope, req)
+	if !captured {
+		return
+	}
+	defer sealContent()
 	r, release, ok := h.admit(w, r, id, scope)
 	if !ok {
 		return

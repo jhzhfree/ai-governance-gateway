@@ -55,7 +55,7 @@ func TestFreshSchemaAndReadOnlyStatus(t *testing.T) {
 	pool := testutil.EmptyDatabase(t)
 	ctx := context.Background()
 	initial := status(t, pool)
-	if initial.Managed || initial.Ready || initial.CurrentVersion != 0 || len(initial.Pending) != 10 {
+	if initial.Managed || initial.Ready || initial.CurrentVersion != 0 || len(initial.Pending) != 11 {
 		t.Fatal("unexpected unmanaged status")
 	}
 	if relation(t, pool, "aigw_schema_migrations") {
@@ -68,7 +68,7 @@ func TestFreshSchemaAndReadOnlyStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := status(t, pool)
-	if !before.Ready || before.CurrentVersion != 10 || len(before.Applied) != 10 {
+	if !before.Ready || before.CurrentVersion != 11 || len(before.Applied) != 11 {
 		t.Fatal("fresh migration incomplete")
 	}
 	for _, a := range before.Applied {
@@ -206,7 +206,7 @@ func TestConcurrentMigrationsRunExactlyOnce(t *testing.T) {
 	close(start)
 	wg.Wait()
 	r := status(t, pool)
-	if len(r.Applied) != 10 || !r.Ready {
+	if len(r.Applied) != 11 || !r.Ready {
 		t.Fatal("concurrent migration history invalid")
 	}
 }
@@ -217,6 +217,7 @@ func TestMigrationBatchRollsBackDDLAndHistory(t *testing.T) {
 	if err := database.Migrate(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
+	execSQL(t, pool, `DROP TABLE content_audit_access_log,content_audit_chain,content_audit_heads,content_audit_payloads,content_audit_records,content_audit_deks,content_audit_auditors,content_audit_policies; DELETE FROM aigw_schema_migrations WHERE version=11`)
 	execSQL(t, pool, `DROP TABLE billing_records,billing_imports; DELETE FROM aigw_schema_migrations WHERE version=10`)
 	execSQL(t, pool, `DROP TABLE supplier_circuits; DELETE FROM aigw_schema_migrations WHERE version=9`)
 	execSQL(t, pool, `DROP TABLE admission_leases,admission_events,project_limits; DELETE FROM aigw_schema_migrations WHERE version=8`)
@@ -252,7 +253,7 @@ func TestHistoryAndSchemaDriftFailClosed(t *testing.T) {
 	}{
 		{"checksum", `UPDATE aigw_schema_migrations SET checksum=repeat('0',64) WHERE version=1`, database.ErrChecksum},
 		{"gap", `DELETE FROM aigw_schema_migrations WHERE version=2`, database.ErrHistory},
-		{"newer", `INSERT INTO aigw_schema_migrations(version,name,checksum,schema_hash,adopted) VALUES(11,'0011_future.sql',repeat('0',64),repeat('0',64),false)`, database.ErrNewer},
+		{"newer", `INSERT INTO aigw_schema_migrations(version,name,checksum,schema_hash,adopted) VALUES(12,'0012_future.sql',repeat('0',64),repeat('0',64),false)`, database.ErrNewer},
 		{"missing_index", `DROP INDEX budget_recovery_idx`, database.ErrSchemaDrift},
 		{"extra_column", `ALTER TABLE browser_sessions ADD COLUMN unexpected text`, database.ErrSchemaDrift},
 		{"missing_table", `DROP TABLE browser_sessions`, database.ErrSchemaDrift},
@@ -314,6 +315,7 @@ func TestRequestHistoryIndexUpgradePreservesData(t *testing.T) {
 	if _, err := ledger.Reserve(context.Background(), budget.Quote{Scope: scope, RequestID: "history-upgrade", PriceVersion: "mock-v1", Amount: 10}); err != nil {
 		t.Fatal(err)
 	}
+	execSQL(t, pool, `DROP TABLE content_audit_access_log,content_audit_chain,content_audit_heads,content_audit_payloads,content_audit_records,content_audit_deks,content_audit_auditors,content_audit_policies; DELETE FROM aigw_schema_migrations WHERE version=11`)
 	execSQL(t, pool, `DROP TABLE billing_records,billing_imports; DELETE FROM aigw_schema_migrations WHERE version=10`)
 	execSQL(t, pool, `DROP TABLE supplier_circuits; DELETE FROM aigw_schema_migrations WHERE version=9`)
 	execSQL(t, pool, `DROP TABLE admission_leases,admission_events,project_limits; DELETE FROM aigw_schema_migrations WHERE version=8`)
@@ -344,6 +346,7 @@ func TestMainlandCurrencyMigrationRollsBackAndPreservesMockLedger(t *testing.T) 
 	if _, err := ledger.Reserve(context.Background(), budget.Quote{Scope: scope, RequestID: "mock-before-currencies", PriceVersion: "mock-v1", Amount: 10}); err != nil {
 		t.Fatal(err)
 	}
+	execSQL(t, pool, `DROP TABLE content_audit_access_log,content_audit_chain,content_audit_heads,content_audit_payloads,content_audit_records,content_audit_deks,content_audit_auditors,content_audit_policies; DELETE FROM aigw_schema_migrations WHERE version=11`)
 	execSQL(t, pool, `DROP TABLE billing_records,billing_imports; DELETE FROM aigw_schema_migrations WHERE version=10`)
 	execSQL(t, pool, `DROP TABLE supplier_circuits; DELETE FROM aigw_schema_migrations WHERE version=9`)
 	execSQL(t, pool, `DROP TABLE admission_leases,admission_events,project_limits; DELETE FROM aigw_schema_migrations WHERE version=8`)
@@ -376,6 +379,7 @@ func TestAttemptMigrationRollbackAndHistoricalRecords(t *testing.T) {
 	if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "before-attempts", PriceVersion: "mock-v1", Amount: 10}); err != nil {
 		t.Fatal(err)
 	}
+	execSQL(t, pool, `DROP TABLE content_audit_access_log,content_audit_chain,content_audit_heads,content_audit_payloads,content_audit_records,content_audit_deks,content_audit_auditors,content_audit_policies; DELETE FROM aigw_schema_migrations WHERE version=11`)
 	execSQL(t, pool, `DROP TABLE billing_records,billing_imports; DELETE FROM aigw_schema_migrations WHERE version=10`)
 	execSQL(t, pool, `DROP TABLE supplier_circuits; DELETE FROM aigw_schema_migrations WHERE version=9`)
 	execSQL(t, pool, `DROP TABLE admission_leases,admission_events,project_limits; DELETE FROM aigw_schema_migrations WHERE version=8`)
@@ -414,6 +418,7 @@ func TestAdmissionMigrationRollsBackAndPreservesHeldBudget(t *testing.T) {
 	if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "before-admission", PriceVersion: "mock-v1", Amount: 10}); err != nil {
 		t.Fatal(err)
 	}
+	execSQL(t, pool, `DROP TABLE content_audit_access_log,content_audit_chain,content_audit_heads,content_audit_payloads,content_audit_records,content_audit_deks,content_audit_auditors,content_audit_policies; DELETE FROM aigw_schema_migrations WHERE version=11`)
 	execSQL(t, pool, `DROP TABLE billing_records,billing_imports; DELETE FROM aigw_schema_migrations WHERE version=10`)
 	execSQL(t, pool, `DROP TABLE supplier_circuits; DELETE FROM aigw_schema_migrations WHERE version=9`)
 	execSQL(t, pool, `DROP TABLE admission_leases,admission_events,project_limits; DELETE FROM aigw_schema_migrations WHERE version=8; ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v8 CHECK(version<>8)`)
@@ -448,6 +453,7 @@ func TestCircuitMigrationRollbackAndExistingHoldPreservation(t *testing.T) {
 	if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "before-circuit", PriceVersion: "mock-v1", Amount: 10}); err != nil {
 		t.Fatal(err)
 	}
+	execSQL(t, pool, `DROP TABLE content_audit_access_log,content_audit_chain,content_audit_heads,content_audit_payloads,content_audit_records,content_audit_deks,content_audit_auditors,content_audit_policies; DELETE FROM aigw_schema_migrations WHERE version=11`)
 	execSQL(t, pool, `DROP TABLE billing_records,billing_imports; DELETE FROM aigw_schema_migrations WHERE version=10`)
 	execSQL(t, pool, `DROP TABLE supplier_circuits; DELETE FROM aigw_schema_migrations WHERE version=9; ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v9 CHECK(version<>9)`)
 	if err := database.Migrate(ctx, pool); err == nil {
@@ -476,6 +482,7 @@ func TestBillingMigrationRollbackAndHoldPreservation(t *testing.T) {
 	if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "before-billing", PriceVersion: "mock-v1", Amount: 10}); err != nil {
 		t.Fatal(err)
 	}
+	execSQL(t, pool, `DROP TABLE content_audit_access_log,content_audit_chain,content_audit_heads,content_audit_payloads,content_audit_records,content_audit_deks,content_audit_auditors,content_audit_policies; DELETE FROM aigw_schema_migrations WHERE version=11`)
 	execSQL(t, pool, `DROP TABLE billing_records,billing_imports; DELETE FROM aigw_schema_migrations WHERE version=10; ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v10 CHECK(version<>10)`)
 	if err := database.Migrate(ctx, pool); err == nil {
 		t.Fatal("expected failed migration")
@@ -493,5 +500,40 @@ func TestBillingMigrationRollbackAndHoldPreservation(t *testing.T) {
 	r, err := ledger.Get(ctx, "before-billing")
 	if err != nil || r.State != "reserved" || r.Amount != 10 {
 		t.Fatal("billing migration changed hold")
+	}
+}
+
+func TestContentAuditMigrationRollbackPreservesBudget(t *testing.T) {
+	pool, ledger, scope := testutil.Database(t)
+	ctx := context.Background()
+	testutil.Accounts(t, ledger, scope, 100, 100)
+	if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "before-content", PriceVersion: "mock-v1", Amount: 10}); err != nil {
+		t.Fatal(err)
+	}
+	execSQL(t, pool, `DROP TABLE content_audit_access_log,content_audit_chain,content_audit_heads,content_audit_payloads,content_audit_records,content_audit_deks,content_audit_auditors,content_audit_policies; DELETE FROM aigw_schema_migrations WHERE version=11; ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v11 CHECK(version<>11)`)
+	if err := database.Migrate(ctx, pool); err == nil {
+		t.Fatal("expected failed content migration")
+	}
+	if relation(t, pool, "content_audit_records") || status(t, pool).CurrentVersion != 10 {
+		t.Fatal("failed content migration partially committed")
+	}
+	execSQL(t, pool, `ALTER TABLE aigw_schema_migrations DROP CONSTRAINT reject_v11`)
+	if err := database.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Check(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	record, err := ledger.Get(ctx, "before-content")
+	if err != nil || record.State != "reserved" || record.Amount != 10 {
+		t.Fatal("content migration changed budget")
+	}
+}
+
+func TestContentPartitionDetachFailsReadiness(t *testing.T) {
+	pool, _, _ := testutil.Database(t)
+	execSQL(t, pool, `ALTER TABLE content_audit_payloads DETACH PARTITION content_audit_payloads_default`)
+	if err := database.Check(context.Background(), pool); !errors.Is(err, database.ErrSchemaDrift) {
+		t.Fatal("partition binding drift not detected", err)
 	}
 }

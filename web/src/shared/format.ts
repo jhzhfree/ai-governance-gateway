@@ -7,6 +7,8 @@ export const roleNames: Record<string, string> = {
 
 export const actionNames: Record<string, string> = {
   'organization.created': '创建组织',
+  'content_audit.policy_changed': '调整内容采集策略',
+  'content_audit.auditor_changed': '调整内容审计授权',
   'organization.member_changed': '调整组织成员',
   'project.created': '创建项目',
   'project.member_removed': '移除项目授权',

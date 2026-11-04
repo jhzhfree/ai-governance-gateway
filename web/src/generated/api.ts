@@ -501,6 +501,130 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organizations/{org}/projects/{project}/content-audit/policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * getContentPolicy
+         * @description Readable with project access; returns logical defaults without creating policy rows.
+         */
+        get: operations["getContentPolicy"];
+        /**
+         * setContentPolicy
+         * @description Org owner/admin only; audited with compare-and-swap expected_revision. Lower limits do not kill existing requests. Revision zero is the unmodified default.
+         */
+        put: operations["setContentPolicy"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{org}/projects/{project}/content-audit/records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * listContentAudit
+         * @description Readable with project access; returns logical defaults without creating policy rows.
+         */
+        get: operations["listContentAudit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{org}/projects/{project}/content-audit/auditors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * listContentAuditors
+         * @description Readable with project access; returns logical defaults without creating policy rows.
+         */
+        get: operations["listContentAuditors"];
+        /**
+         * grantContentAuditor
+         * @description Org owner/admin only; audited with compare-and-swap expected_revision. Lower limits do not kill existing requests. Revision zero is the unmodified default.
+         */
+        put: operations["grantContentAuditor"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{org}/projects/{project}/content-audit/access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * listContentAccess
+         * @description Readable with project access; returns logical defaults without creating policy rows.
+         */
+        get: operations["listContentAccess"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{org}/projects/{project}/content-audit/records/{request}/reveal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+                request: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * revealContent
+         * @description Org owner/admin only; audited with compare-and-swap expected_revision. Lower limits do not kill existing requests. Revision zero is the unmodified default.
+         */
+        post: operations["revealContent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -967,6 +1091,89 @@ export interface components {
             /** @enum {string} */
             object: "list";
             data: components["schemas"]["InferenceModel"][];
+        };
+        ContentPolicy: {
+            enabled: boolean;
+            retention_days: number;
+            max_bytes: number;
+            consent_ref: string;
+            /** Format: int64 */
+            revision: number;
+            configured: boolean;
+        };
+        UpdateContentPolicy: {
+            enabled: boolean;
+            retention_days: number;
+            max_bytes: number;
+            consent_ref: string;
+            /** Format: int64 */
+            expected_revision: number;
+        };
+        ContentAuditor: {
+            issuer: string;
+            subject: string;
+            active: boolean;
+        };
+        ContentMeta: {
+            request_id: string;
+            organization_id: string;
+            project_id: string;
+            model: string;
+            key_prefix: string;
+            consent_ref: string;
+            /** Format: int64 */
+            policy_revision: number;
+            /** Format: int64 */
+            max_bytes: number;
+            /** Format: int64 */
+            retention_days: number;
+            /** @enum {string} */
+            state: "capturing" | "complete" | "incomplete" | "canceled" | "expired";
+            status: number;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at: string;
+            /** Format: date-time */
+            finished_at: string | null;
+        };
+        ContentPlain: {
+            content: string;
+            sha256: string;
+            /** Format: int64 */
+            observed_bytes: number;
+            /** Format: int64 */
+            captured_bytes: number;
+            truncated: boolean;
+        };
+        ContentDetail: {
+            meta: components["schemas"]["ContentMeta"];
+            request: components["schemas"]["ContentPlain"];
+            response: components["schemas"]["ContentPlain"] | null;
+        };
+        ContentReveal: {
+            reason: string;
+        };
+        ContentAccess: {
+            /** Format: int64 */
+            id: number;
+            actor: components["schemas"]["BillingActor"];
+            request_id: string;
+            reason: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        ContentPage: {
+            data: components["schemas"]["ContentMeta"][];
+            next_cursor: string;
+        };
+        ContentAuditorPage: {
+            data: components["schemas"]["ContentAuditor"][];
+            next_cursor: string;
+        };
+        ContentAccessPage: {
+            data: components["schemas"]["ContentAccess"][];
+            next_cursor: string;
         };
     };
     responses: never;
@@ -3191,6 +3398,529 @@ export interface operations {
                 headers: {
                     /** @description Present when supplier circuit blocks dispatch; positive seconds, no capacity guarantee. */
                     "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getContentPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentPolicy"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    setContentPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateContentPolicy"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentPolicy"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Configuration changed; fetch the latest revision before retrying. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listContentAudit: {
+        parameters: {
+            query?: {
+                after?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentPage"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listContentAuditors: {
+        parameters: {
+            query?: {
+                after?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentAuditorPage"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    grantContentAuditor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContentAuditor"];
+            };
+        };
+        responses: {
+            /** @description Explicit content-auditor permission changed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Configuration changed; fetch the latest revision before retrying. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listContentAccess: {
+        parameters: {
+            query?: {
+                after?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentAccessPage"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    revealContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+                request: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContentReveal"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentDetail"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Configuration changed; fetch the latest revision before retrying. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
                     [name: string]: unknown;
                 };
                 content: {

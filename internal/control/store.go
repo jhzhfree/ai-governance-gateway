@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
+	"github.com/jhzhfree/ai-governance-gateway/internal/contentaudit"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
 )
 
@@ -26,6 +27,7 @@ var (
 const MaxAPIAmount int64 = 9007199254740991
 
 type Store struct {
+	content *contentaudit.Service
 	pool    *pgxpool.Pool
 	catalog ModelCatalog
 }
