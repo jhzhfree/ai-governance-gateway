@@ -402,7 +402,8 @@ ADR 0011 已用于[模型发现与成员管理](adr/0011-model-discovery-and-mem
 | --- | --- | --- |
 | [0012](adr/0012-encrypted-content-audit.md) | 内容审计存储与加密（同步 MVP 已实现） | 加密、分权、保留；spool/KMS/外部锚定仍待完成 |
 | [0013](adr/0013-managed-real-provider-configuration.md) | 真实供应商数据库管理（已实现） | 全局权限、原子发布、运行时路由 |
-| 0023（建议） | 开源基座与兼容策略 | 借鉴边界、许可证、升级路径 |
+| [0023](adr/0023-scoped-member-offboarding.md) | 成员停用与恢复（验收见交付跟踪） | 凭据回收、作用域、竞态、显式恢复 |
+| 0026（建议） | 开源基座与兼容策略 | 借鉴边界、许可证、升级路径 |
 | [0014](adr/0014-encrypted-provider-credentials.md) | 页面供应商凭证（已实现） | 写入授权、加密、轮换、恢复 |
 | [0017](adr/0017-offline-local-identity.md) | 正式离线身份（已实现） | 初始化、密码、会话、恢复 |
 | [0022](adr/0022-two-party-organization-ownership.md) | 两方所有权交接（验收见交付跟踪） | 身份确认、原子角色切换、唯一约束与审计 |

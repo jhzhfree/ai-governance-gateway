@@ -14,9 +14,11 @@ var ErrMemberConflict = errors.New("member role changed")
 
 type MemberRecord struct {
 	identity.Principal
-	Role          string  `json:"role"`
-	ProjectRole   *string `json:"project_role"`
-	EffectiveRole string  `json:"effective_role"`
+	Role              string  `json:"role"`
+	ProjectRole       *string `json:"project_role"`
+	EffectiveRole     string  `json:"effective_role"`
+	Enabled           bool    `json:"enabled"`
+	LifecycleRevision int64   `json:"lifecycle_revision"`
 }
 
 func (m MemberRecord) Cursor() string {
@@ -56,14 +58,14 @@ func (s *Store) ListMembers(ctx context.Context, p identity.Principal, org, proj
 				return err
 			}
 		}
-		rows, err := tx.Query(ctx, `SELECT m.issuer,m.subject,m.role,g.role FROM organization_members m LEFT JOIN project_members g ON g.organization_id=m.organization_id AND g.project_id=$2 AND g.issuer=m.issuer AND g.subject=m.subject WHERE m.organization_id=$1 AND ($3='' OR (m.issuer,m.subject)>($3,$4)) ORDER BY m.issuer,m.subject LIMIT $5`, org, project, cursor.Issuer, cursor.Subject, limit+1)
+		rows, err := tx.Query(ctx, `SELECT m.issuer,m.subject,m.role,g.role,m.enabled,m.lifecycle_revision FROM organization_members m LEFT JOIN project_members g ON g.organization_id=m.organization_id AND g.project_id=$2 AND g.issuer=m.issuer AND g.subject=m.subject WHERE m.organization_id=$1 AND ($3='' OR (m.issuer,m.subject)>($3,$4)) ORDER BY m.issuer,m.subject LIMIT $5`, org, project, cursor.Issuer, cursor.Subject, limit+1)
 		if err != nil {
 			return err
 		}
 		defer rows.Close()
 		for rows.Next() {
 			var m MemberRecord
-			if err := rows.Scan(&m.Issuer, &m.Subject, &m.Role, &m.ProjectRole); err != nil {
+			if err := rows.Scan(&m.Issuer, &m.Subject, &m.Role, &m.ProjectRole, &m.Enabled, &m.LifecycleRevision); err != nil {
 				return err
 			}
 			m.EffectiveRole = m.Role
@@ -79,6 +81,9 @@ func (s *Store) ListMembers(ctx context.Context, p identity.Principal, org, proj
 						m.EffectiveRole = *m.ProjectRole
 					}
 				}
+			}
+			if !m.Enabled {
+				m.EffectiveRole = "none"
 			}
 			items = append(items, m)
 		}
@@ -127,6 +132,13 @@ func (s *Store) ChangeMember(ctx context.Context, p identity.Principal, org, pro
 			}
 		}
 		var current string
+		var disabled bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM organization_members WHERE organization_id=$1 AND issuer=$2 AND subject=$3 AND NOT enabled)`, org, m.Issuer, m.Subject).Scan(&disabled); err != nil {
+			return err
+		}
+		if disabled {
+			return ErrMemberConflict
+		}
 		if project == "" {
 			err = tx.QueryRow(ctx, `SELECT role FROM organization_members WHERE organization_id=$1 AND issuer=$2 AND subject=$3 FOR UPDATE`, org, m.Issuer, m.Subject).Scan(&current)
 		} else {

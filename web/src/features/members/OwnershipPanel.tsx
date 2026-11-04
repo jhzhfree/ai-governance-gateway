@@ -29,7 +29,7 @@ export function OwnershipPanel({
     isOwner,
   );
   const choices =
-    members.data?.pages.flatMap((p) => p.data).filter((m) => m.role !== 'owner') ?? [];
+    members.data?.pages.flatMap((p) => p.data).filter((m) => m.role !== 'owner' && m.enabled) ?? [];
   const [target, setTarget] = useState('');
   const [reason, setReason] = useState('');
   const [confirmed, setConfirmed] = useState(false);

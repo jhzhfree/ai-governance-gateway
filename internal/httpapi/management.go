@@ -38,6 +38,8 @@ func NewWithSession(store *control.Store, auth identity.Authenticator, session S
 func NewWithRuntime(store *control.Store, auth identity.Authenticator, session SessionAuthenticator, monitor *observe.Registry) http.Handler {
 	h := &Handler{Store: store, Auth: auth, Monitor: monitor}
 	mux := http.NewServeMux()
+	mux.HandleFunc("PUT /api/v1/organizations/{org}/members/enabled", h.memberEnabled)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/members/lifecycle", h.memberLifecycle)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/ownership-transfer", h.ownership)
 	mux.HandleFunc("POST /api/v1/organizations/{org}/ownership-transfer", h.requestOwnership)
 	mux.HandleFunc("POST /api/v1/organizations/{org}/ownership-transfer/{transfer}/{action}", func(w http.ResponseWriter, r *http.Request) {

@@ -320,9 +320,9 @@ const (
 
 // Defines values for RequestOwnershipExpectedRole.
 const (
-	Admin     RequestOwnershipExpectedRole = "admin"
-	Developer RequestOwnershipExpectedRole = "developer"
-	Viewer    RequestOwnershipExpectedRole = "viewer"
+	RequestOwnershipExpectedRoleAdmin     RequestOwnershipExpectedRole = "admin"
+	RequestOwnershipExpectedRoleDeveloper RequestOwnershipExpectedRole = "developer"
+	RequestOwnershipExpectedRoleViewer    RequestOwnershipExpectedRole = "viewer"
 )
 
 // Defines values for RequestRecordState.
@@ -361,6 +361,13 @@ const (
 	SetAlertPolicyThresholdsN80  SetAlertPolicyThresholds = 80
 	SetAlertPolicyThresholdsN90  SetAlertPolicyThresholds = 90
 	SetAlertPolicyThresholdsN95  SetAlertPolicyThresholds = 95
+)
+
+// Defines values for SetMemberEnabledRestoreRole.
+const (
+	SetMemberEnabledRestoreRoleAdmin     SetMemberEnabledRestoreRole = "admin"
+	SetMemberEnabledRestoreRoleDeveloper SetMemberEnabledRestoreRole = "developer"
+	SetMemberEnabledRestoreRoleViewer    SetMemberEnabledRestoreRole = "viewer"
 )
 
 // Defines values for StatementImportProvider.
@@ -1081,6 +1088,27 @@ type MemberExpectedRole string
 // MemberRole defines model for Member.Role.
 type MemberRole string
 
+// MemberLifecycleEvent defines model for MemberLifecycleEvent.
+type MemberLifecycleEvent struct {
+	Actor                Principal `json:"actor"`
+	CanceledTransfers    int64     `json:"canceled_transfers"`
+	CreatedAt            time.Time `json:"created_at"`
+	Enabled              bool      `json:"enabled"`
+	NewRole              string    `json:"new_role"`
+	PreviousRole         string    `json:"previous_role"`
+	Reason               string    `json:"reason"`
+	RemovedProjectGrants int64     `json:"removed_project_grants"`
+	Revision             int64     `json:"revision"`
+	RevokedAuditors      int64     `json:"revoked_auditors"`
+	RevokedKeys          int64     `json:"revoked_keys"`
+}
+
+// MemberLifecyclePage defines model for MemberLifecyclePage.
+type MemberLifecyclePage struct {
+	Data       []MemberLifecycleEvent `json:"data"`
+	NextCursor string                 `json:"next_cursor"`
+}
+
 // MemberPage defines model for MemberPage.
 type MemberPage struct {
 	Data       []MemberRecord `json:"data"`
@@ -1089,11 +1117,13 @@ type MemberPage struct {
 
 // MemberRecord defines model for MemberRecord.
 type MemberRecord struct {
-	EffectiveRole MemberRecordEffectiveRole `json:"effective_role"`
-	Issuer        string                    `json:"issuer"`
-	ProjectRole   *MemberRecordProjectRole  `json:"project_role"`
-	Role          MemberRecordRole          `json:"role"`
-	Subject       string                    `json:"subject"`
+	EffectiveRole     MemberRecordEffectiveRole `json:"effective_role"`
+	Enabled           bool                      `json:"enabled"`
+	Issuer            string                    `json:"issuer"`
+	LifecycleRevision int64                     `json:"lifecycle_revision"`
+	ProjectRole       *MemberRecordProjectRole  `json:"project_role"`
+	Role              MemberRecordRole          `json:"role"`
+	Subject           string                    `json:"subject"`
 }
 
 // MemberRecordEffectiveRole defines model for MemberRecord.EffectiveRole.
@@ -1379,6 +1409,20 @@ type SetAlertPolicy struct {
 // SetAlertPolicyThresholds defines model for SetAlertPolicy.Thresholds.
 type SetAlertPolicyThresholds int
 
+// SetMemberEnabled defines model for SetMemberEnabled.
+type SetMemberEnabled struct {
+	Enabled          bool   `json:"enabled"`
+	ExpectedRevision int64  `json:"expected_revision"`
+	Reason           string `json:"reason"`
+
+	// RestoreRole Required when enabling; omitted when disabling. Explicitly selects the restored organization role.
+	RestoreRole *SetMemberEnabledRestoreRole `json:"restore_role,omitempty"`
+	Target      Principal                    `json:"target"`
+}
+
+// SetMemberEnabledRestoreRole Required when enabling; omitted when disabling. Explicitly selects the restored organization role.
+type SetMemberEnabledRestoreRole string
+
 // SetModels defines model for SetModels.
 type SetModels struct {
 	Models []string `json:"models"`
@@ -1507,6 +1551,18 @@ type ExportOrganizationCostReportParams struct {
 type ListOrganizationMembersParams struct {
 	After *string `form:"after,omitempty" json:"after,omitempty"`
 	Limit *int    `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListMemberLifecycleParams defines parameters for ListMemberLifecycle.
+type ListMemberLifecycleParams struct {
+	// Issuer Target identity or ascending revision cursor; fixed 50 rows per page.
+	Issuer string `form:"issuer" json:"issuer"`
+
+	// Subject Target identity or ascending revision cursor; fixed 50 rows per page.
+	Subject string `form:"subject" json:"subject"`
+
+	// After Target identity or ascending revision cursor; fixed 50 rows per page.
+	After *string `form:"after,omitempty" json:"after,omitempty"`
 }
 
 // ListProjectsParams defines parameters for ListProjects.
@@ -1650,6 +1706,9 @@ type RotateBudgetPeriodJSONRequestBody = RotateBudgetPeriod
 
 // PutOrganizationMemberJSONRequestBody defines body for PutOrganizationMember for application/json ContentType.
 type PutOrganizationMemberJSONRequestBody = Member
+
+// SetOrganizationMemberEnabledJSONRequestBody defines body for SetOrganizationMemberEnabled for application/json ContentType.
+type SetOrganizationMemberEnabledJSONRequestBody = SetMemberEnabled
 
 // RequestOwnershipJSONRequestBody defines body for RequestOwnership for application/json ContentType.
 type RequestOwnershipJSONRequestBody = RequestOwnership

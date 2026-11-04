@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button } from 'tdesign-react';
 import { api, type MemberRecord } from '../../api';
 import { usePage } from '../../shared/useResourcePage';
+import { MemberLifecycleDialog } from './MemberLifecycleDialog';
 import { ErrorBox, Empty } from '../../shared/Feedback';
 
 const roles: Record<string, string> = {
@@ -29,6 +30,9 @@ export function MemberPanel({
 }) {
   const client = useQueryClient();
   const [scope, setScope] = useState('organization');
+  const [lifecycle, setLifecycle] = useState<{ member: MemberRecord; historyOnly: boolean } | null>(
+    null,
+  );
   const [selected, setSelected] = useState<MemberRecord | null>(null);
   const [removing, setRemoving] = useState(false);
   const [pending, setPending] = useState(false);
@@ -40,6 +44,7 @@ export function MemberPanel({
   const editable = scope === 'project' ? canRead : isOwner;
   function changed() {
     setSelected(null);
+    setLifecycle(null);
     setRemoving(false);
     setError(null);
     setNotice('');
@@ -117,6 +122,29 @@ export function MemberPanel({
     );
   return (
     <section className="panel governance-panel">
+      {lifecycle && (
+        <MemberLifecycleDialog
+          key={JSON.stringify([
+            lifecycle.member.issuer,
+            lifecycle.member.subject,
+            lifecycle.historyOnly,
+            lifecycle.member.lifecycle_revision,
+          ])}
+          identity={identity}
+          member={lifecycle.member}
+          historyOnly={lifecycle.historyOnly}
+          orgPath={orgPath}
+          csrf={csrf}
+          onClose={() => setLifecycle(null)}
+          onChanged={() => {
+            setSelected(null);
+            setNotice('组织成员状态已更新，旧密钥和已移除授权不会自动恢复。');
+            void client.invalidateQueries({
+              predicate: (q) => q.queryKey[0] === identity[0] && q.queryKey[1] === identity[1],
+            });
+          }}
+        />
+      )}
       <div className="panel-heading">
         <div>
           <h2>成员与授权</h2>
@@ -166,7 +194,7 @@ export function MemberPanel({
             <thead>
               <tr>
                 <th>身份标识</th>
-                <th>组织角色</th>
+                <th>组织角色 / 状态</th>
                 <th>项目单独授权</th>
                 <th>当前范围有效权限</th>
                 <th>操作</th>
@@ -180,11 +208,16 @@ export function MemberPanel({
                     <br />
                     <small>{member.issuer}</small>
                   </td>
-                  <td>{roles[member.role]}</td>
+                  <td>
+                    {roles[member.role]}
+                    <br />
+                    {member.enabled ? '启用' : '已停用'}
+                  </td>
                   <td>{member.project_role ? roles[member.project_role] : '—'}</td>
                   <td>{roles[member.effective_role]}</td>
                   <td>
                     {editable &&
+                      member.enabled &&
                       (scope === 'organization'
                         ? member.role !== 'owner'
                         : member.role === 'developer') && (
@@ -200,6 +233,32 @@ export function MemberPanel({
                           配置权限 {member.subject}
                         </Button>
                       )}
+                    {scope === 'organization' && (
+                      <>
+                        {isOwner && member.role !== 'owner' && (
+                          <Button
+                            tag="button"
+                            size="small"
+                            onClick={() => {
+                              changed();
+                              setLifecycle({ member, historyOnly: false });
+                            }}
+                          >
+                            {member.enabled ? '停用成员' : '恢复成员'} {member.subject}
+                          </Button>
+                        )}
+                        <Button
+                          tag="button"
+                          size="small"
+                          variant="text"
+                          onClick={() => {
+                            setLifecycle({ member, historyOnly: true });
+                          }}
+                        >
+                          状态历史 {member.subject}
+                        </Button>
+                      </>
+                    )}
                     {scope === 'project' && member.project_role && (
                       <Button
                         size="small"

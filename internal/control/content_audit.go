@@ -70,6 +70,9 @@ func (s *Store) GrantContentAuditor(ctx context.Context, p identity.Principal, o
 		return ErrInvalid
 	}
 	return transaction(ctx, s.pool, func(tx pgx.Tx) error {
+		if err := memberLock(ctx, tx, org); err != nil {
+			return err
+		}
 		role, err := orgRole(ctx, tx, p, org)
 		if err != nil {
 			return err
@@ -80,6 +83,13 @@ func (s *Store) GrantContentAuditor(ctx context.Context, p identity.Principal, o
 		if _, err := projectRole(ctx, tx, p, org, project); err != nil {
 			return err
 		}
+		var disabled bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM organization_members WHERE organization_id=$1 AND issuer=$2 AND subject=$3 AND NOT enabled)`, org, target.Issuer, target.Subject).Scan(&disabled); err != nil {
+			return err
+		}
+		if target.Active && disabled {
+			return ErrMemberConflict
+		}
 		if _, err := tx.Exec(ctx, `INSERT INTO content_audit_auditors(organization_id,project_id,issuer,subject,active) VALUES($1,$2,$3,$4,$5) ON CONFLICT(organization_id,project_id,issuer,subject) DO UPDATE SET active=excluded.active`, org, project, target.Issuer, target.Subject, target.Active); err != nil {
 			return err
 		}
@@ -87,6 +97,14 @@ func (s *Store) GrantContentAuditor(ctx context.Context, p identity.Principal, o
 	})
 }
 func contentReader(ctx context.Context, tx pgx.Tx, p identity.Principal, org, project string) error {
+	var enabled bool
+	memberErr := tx.QueryRow(ctx, `SELECT enabled FROM organization_members WHERE organization_id=$1 AND issuer=$2 AND subject=$3 FOR SHARE`, org, p.Issuer, p.Subject).Scan(&enabled)
+	if memberErr != nil && !errors.Is(memberErr, pgx.ErrNoRows) {
+		return memberErr
+	}
+	if memberErr == nil && !enabled {
+		return identity.ErrForbidden
+	}
 	var active bool
 	err := tx.QueryRow(ctx, `SELECT active FROM content_audit_auditors WHERE organization_id=$1 AND project_id=$2 AND issuer=$3 AND subject=$4 FOR SHARE`, org, project, p.Issuer, p.Subject).Scan(&active)
 	if errors.Is(err, pgx.ErrNoRows) || (!active && err == nil) {

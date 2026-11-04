@@ -1310,3 +1310,24 @@ fieldset.model-selection {
   max-width: 100%;
   min-width: 0;
 }
+
+.member-lifecycle-form {
+  display: grid;
+  gap: 16px;
+}
+.member-lifecycle-form > label {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.member-lifecycle-form > .t-button {
+  justify-self: start;
+}
+.member-identity {
+  overflow-wrap: anywhere;
+}
+.member-state-event {
+  margin: 20px 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #d9e2e7;
+}

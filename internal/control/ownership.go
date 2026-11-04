@@ -73,7 +73,7 @@ func (s *Store) RequestOwnership(ctx context.Context, p identity.Principal, org 
 			return identity.ErrForbidden
 		}
 		var current string
-		if err := tx.QueryRow(ctx, `SELECT role FROM organization_members WHERE organization_id=$1 AND issuer=$2 AND subject=$3`, org, target.Issuer, target.Subject).Scan(&current); errors.Is(err, pgx.ErrNoRows) {
+		if err := tx.QueryRow(ctx, `SELECT role FROM organization_members WHERE organization_id=$1 AND issuer=$2 AND subject=$3 AND enabled`, org, target.Issuer, target.Subject).Scan(&current); errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		} else if err != nil {
 			return err

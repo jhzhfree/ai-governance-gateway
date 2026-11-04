@@ -6,6 +6,8 @@ export const roleNames: Record<string, string> = {
 };
 
 export const actionNames: Record<string, string> = {
+  'organization.member_disabled': '停用组织成员',
+  'organization.member_enabled': '恢复组织成员',
   'organization.ownership_requested': '发起所有权交接',
   'organization.ownership_accepted': '确认所有权交接',
   'organization.ownership_canceled': '取消所有权交接',

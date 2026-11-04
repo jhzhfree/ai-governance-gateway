@@ -122,3 +122,7 @@ AIGW_VERIFY_WEB=1 bash scripts/verify.sh
 ## 组织所有权交接增量（0018）
 
 增加交接表及组织唯一 owner / 唯一待办索引。旧版多 owner 数据会使升级失败、整体回滚，需人工核查后重试，不自动降权。旧成员、凭据、余额与占额不改写。写操作通过 Web 双方确认，详见 [组织交接](organization-ownership.md)。
+
+## 组织成员生命周期增量（0019）
+
+旧成员增加 enabled=true 与 lifecycle_revision=0，追加状态历史与签发者索引，约束 owner 必须启用。旧数据不自动回收，必须显式操作。升级/回滚及旧版数据保留纳入测试；恢复不复活旧密钥，见 [成员生命周期](organization-member-lifecycle.md)。

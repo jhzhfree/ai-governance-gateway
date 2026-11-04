@@ -51,7 +51,7 @@ func audit(ctx context.Context, tx pgx.Tx, org string, p identity.Principal, act
 
 func orgRole(ctx context.Context, tx pgx.Tx, p identity.Principal, org string) (string, error) {
 	var role string
-	err := tx.QueryRow(ctx, `SELECT role FROM organization_members WHERE organization_id=$1 AND issuer=$2 AND subject=$3 FOR SHARE`, org, p.Issuer, p.Subject).Scan(&role)
+	err := tx.QueryRow(ctx, `SELECT role FROM organization_members WHERE organization_id=$1 AND issuer=$2 AND subject=$3 AND enabled FOR SHARE`, org, p.Issuer, p.Subject).Scan(&role)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", ErrNotFound
 	}
@@ -160,7 +160,7 @@ func (s *Store) CreateOrganizationWithCurrency(ctx context.Context, p identity.P
 		if _, err := tx.Exec(ctx, `INSERT INTO organizations(id,name,period_id,currency) VALUES($1,$2,$3,$4)`, o.ID, o.Name, o.Period, o.Currency); err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO organization_members VALUES($1,$2,$3,'owner')`, o.ID, p.Issuer, p.Subject); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO organization_members(organization_id,issuer,subject,role) VALUES($1,$2,$3,'owner')`, o.ID, p.Issuer, p.Subject); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO budget_accounts(organization_id,project_id,period_id,currency,limit_amount) VALUES($1,'',$2,$3,$4)`, o.ID, o.Period, o.Currency, limit); err != nil {
@@ -171,7 +171,7 @@ func (s *Store) CreateOrganizationWithCurrency(ctx context.Context, p identity.P
 	return
 }
 func (s *Store) ListOrganizations(ctx context.Context, p identity.Principal, after string, limit int) ([]Organization, error) {
-	rows, err := s.pool.Query(ctx, `SELECT o.id,o.name,o.period_id,o.currency,m.role FROM organizations o JOIN organization_members m ON m.organization_id=o.id WHERE m.issuer=$1 AND m.subject=$2 AND o.id>$3 ORDER BY o.id LIMIT $4`, p.Issuer, p.Subject, after, limit)
+	rows, err := s.pool.Query(ctx, `SELECT o.id,o.name,o.period_id,o.currency,m.role FROM organizations o JOIN organization_members m ON m.organization_id=o.id WHERE m.issuer=$1 AND m.subject=$2 AND m.enabled AND o.id>$3 ORDER BY o.id LIMIT $4`, p.Issuer, p.Subject, after, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -445,7 +445,7 @@ func (s *Store) ResolveKey(ctx context.Context, secret, model string) (scope bud
 	var allowed bool
 	err = s.pool.QueryRow(ctx, `SELECT k.organization_id,k.project_id,o.period_id,o.currency,k.models,
 		EXISTS(SELECT 1 FROM project_models m WHERE m.organization_id=k.organization_id AND m.project_id=k.project_id AND m.model=$2)
-		FROM project_keys k JOIN organizations o ON o.id=k.organization_id
+		FROM project_keys k JOIN organizations o ON o.id=k.organization_id JOIN organization_members creator ON creator.organization_id=k.organization_id AND creator.issuer=k.creator_issuer AND creator.subject=k.creator_subject AND creator.enabled
 		WHERE k.digest=$1 AND k.revoked_at IS NULL AND k.expires_at>clock_timestamp()`, digest[:], model).Scan(&scope.Organization, &scope.Project, &scope.Period, &scope.Currency, &models, &allowed)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return budget.Scope{}, identity.ErrUnauthenticated

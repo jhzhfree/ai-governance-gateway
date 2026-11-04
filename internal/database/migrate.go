@@ -44,6 +44,7 @@ type migration struct {
 const legacyBaselineVersion = 3
 
 var managedTables = map[int][]string{
+	19: {"organization_member_lifecycle"},
 	18: {"organization_ownership_transfers"},
 	17: {"content_audit_checkpoints", "content_audit_checkpoint_parts"},
 	16: {"budget_alert_policies", "budget_alerts", "budget_alert_policy_versions"},

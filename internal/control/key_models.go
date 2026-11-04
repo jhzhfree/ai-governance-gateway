@@ -21,7 +21,7 @@ func (s *Store) KeyModels(ctx context.Context, secret string) (items []provider.
 	digest := sha256.Sum256([]byte(secret))
 	var allowed []string
 	var currency string
-	err = s.pool.QueryRow(ctx, `SELECT o.currency,ARRAY(SELECT m.model FROM project_models m WHERE m.organization_id=k.organization_id AND m.project_id=k.project_id AND m.model=ANY(k.models) ORDER BY m.model) FROM project_keys k JOIN organizations o ON o.id=k.organization_id WHERE k.digest=$1 AND k.revoked_at IS NULL AND k.expires_at>clock_timestamp()`, digest[:]).Scan(&currency, &allowed)
+	err = s.pool.QueryRow(ctx, `SELECT o.currency,ARRAY(SELECT m.model FROM project_models m WHERE m.organization_id=k.organization_id AND m.project_id=k.project_id AND m.model=ANY(k.models) ORDER BY m.model) FROM project_keys k JOIN organizations o ON o.id=k.organization_id JOIN organization_members creator ON creator.organization_id=k.organization_id AND creator.issuer=k.creator_issuer AND creator.subject=k.creator_subject AND creator.enabled WHERE k.digest=$1 AND k.revoked_at IS NULL AND k.expires_at>clock_timestamp()`, digest[:]).Scan(&currency, &allowed)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, identity.ErrUnauthenticated
 	}

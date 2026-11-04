@@ -175,6 +175,91 @@ test('offline administrator, forced password changes and user offboarding', asyn
     expect(organizations.data.find((item) => item.id === org.id)?.role).toBe('owner');
     await page.getByRole('button', { name: '刷新组织交接', exact: true }).click();
     await expect(page.getByRole('button', { name: '发起组织交接', exact: true })).toHaveCount(0);
+    // The new owner can offboard the former owner in this organization while
+    // the former owner's platform account and authentication stay independent.
+    const receiverSession = (await (await receiver.request.get('/auth/session')).json()) as {
+      csrf_token: string;
+    };
+    const receiverHeaders = { Origin: baseURL!, 'X-CSRF-Token': receiverSession.csrf_token };
+    const projectResponse = await receiver.request.post(`${orgPath}/projects`, {
+      headers: receiverHeaders,
+      data: { name: '成员回收项目', limit_amount: 500 },
+    });
+    expect(projectResponse.status()).toBe(201);
+    const project = (await projectResponse.json()) as { id: string };
+    const projectPath = `${orgPath}/projects/${project.id}`;
+    expect(
+      (
+        await receiver.request.put(`${projectPath}/models`, {
+          headers: receiverHeaders,
+          data: { models: ['aliyun/fixture'] },
+        })
+      ).status(),
+    ).toBe(204);
+    const issued = await page.request.post(`${projectPath}/keys`, {
+      headers: adminHeaders,
+      data: { name: '原负责人密钥', models: ['aliyun/fixture'], ttl_seconds: 3600 },
+    });
+    expect(issued.status()).toBe(201);
+    const oldKey = (await issued.json()) as { secret: string };
+    expect(
+      (
+        await page.request.get('/v1/models', {
+          headers: { Authorization: `Bearer ${oldKey.secret}` },
+        })
+      ).status(),
+    ).toBe(200);
+    await receiver.getByRole('button', { name: '成员管理', exact: true }).click();
+    const memberTable = receiver.getByRole('region', { name: '成员权限表', exact: true });
+    const formerOwner = memberTable.getByRole('row').filter({ hasText: adminSession.user.subject });
+    await formerOwner
+      .getByRole('button', { name: `停用成员 ${adminSession.user.subject}`, exact: true })
+      .click();
+    await receiver
+      .getByLabel('成员状态变更原因', { exact: true })
+      .fill('合成验收：回收原负责人组织权限');
+    await receiver.getByLabel('我确认停用该组织成员并永久撤销旧密钥', { exact: true }).check();
+    await receiver.getByRole('button', { name: '确认停用成员并回收授权', exact: true }).click();
+    await expect(formerOwner.getByRole('cell').filter({ hasText: '已停用' })).toBeVisible();
+    expect((await page.request.get(`${projectPath}/usage`)).status()).toBe(404);
+    expect(
+      (
+        await page.request.get('/v1/models', {
+          headers: { Authorization: `Bearer ${oldKey.secret}` },
+        })
+      ).status(),
+    ).toBe(401);
+    await formerOwner
+      .getByRole('button', { name: `恢复成员 ${adminSession.user.subject}`, exact: true })
+      .click();
+    await receiver
+      .getByRole('combobox', { name: '恢复后的组织角色', exact: true })
+      .selectOption('developer');
+    await receiver.getByLabel('成员状态变更原因', { exact: true }).fill('合成验收：按最小权限恢复');
+    await receiver
+      .getByLabel('我确认按所选角色恢复组织身份并重新配置授权', { exact: true })
+      .check();
+    await receiver.getByRole('button', { name: '确认恢复组织成员', exact: true }).click();
+    await expect(formerOwner.getByRole('cell').filter({ hasText: '启用' })).toBeVisible();
+    expect((await page.request.get(`${projectPath}/usage`)).status()).toBe(404);
+    expect(
+      (
+        await page.request.get('/v1/models', {
+          headers: { Authorization: `Bearer ${oldKey.secret}` },
+        })
+      ).status(),
+    ).toBe(401);
+    await formerOwner
+      .getByRole('button', { name: `状态历史 ${adminSession.user.subject}`, exact: true })
+      .click();
+    await expect(receiver.getByRole('heading', { name: /第 1 次变更.*停用/ })).toBeVisible();
+    await expect(receiver.getByRole('heading', { name: /第 2 次变更.*恢复/ })).toBeVisible();
+    await receiver.setViewportSize({ width: 390, height: 844 });
+    const historyA11y = await new AxeBuilder({ page: receiver })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+      .analyze();
+    expect(historyA11y.violations.map((item) => item.id)).toEqual([]);
+    await receiver.keyboard.press('Escape');
     await receiver.setViewportSize({ width: 390, height: 844 });
     expect(await receiver.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
@@ -186,6 +271,7 @@ test('offline administrator, forced password changes and user offboarding', asyn
   } finally {
     await recipientContext.close();
   }
+  await page.reload();
   await page.getByRole('button', { name: '本地账号', exact: true }).click();
   await expect(page.getByRole('heading', { name: '本地账号管理', exact: true })).toBeVisible();
   expect(await page.evaluate(() => Object.keys(localStorage).length)).toBe(0);

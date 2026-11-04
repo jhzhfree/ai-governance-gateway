@@ -1359,6 +1359,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organizations/{org}/members/enabled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Organization-scoped lifecycle. Owner-only mutation; owner/self cannot be disabled. Atomic key revocation, project grant removal, content-auditor revocation, pending handoff cancellation and audit. Enabling requires an explicit role and never restores revoked keys or removed grants. Already-authorized in-flight inference may complete; other organizations/global login remain independent. */
+        put: operations["setOrganizationMemberEnabled"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{org}/members/lifecycle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+            };
+            cookie?: never;
+        };
+        /** @description Organization-scoped lifecycle. Owner-only mutation; owner/self cannot be disabled. Atomic key revocation, project grant removal, content-auditor revocation, pending handoff cancellation and audit. Enabling requires an explicit role and never restores revoked keys or removed grants. Already-authorized in-flight inference may complete; other organizations/global login remain independent. */
+        get: operations["listMemberLifecycle"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1803,6 +1841,9 @@ export interface components {
             project_role: "admin" | "developer" | "viewer" | null;
             /** @enum {string} */
             effective_role: "owner" | "admin" | "developer" | "viewer" | "none";
+            enabled: boolean;
+            /** Format: int64 */
+            lifecycle_revision: number;
         };
         MemberPage: {
             data: components["schemas"]["MemberRecord"][];
@@ -2223,6 +2264,41 @@ export interface components {
             target: components["schemas"]["Principal"];
             /** @enum {string} */
             expected_role: "admin" | "developer" | "viewer";
+            reason: string;
+        };
+        MemberLifecycleEvent: {
+            /** Format: int64 */
+            revision: number;
+            enabled: boolean;
+            previous_role: string;
+            new_role: string;
+            reason: string;
+            actor: components["schemas"]["Principal"];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: int64 */
+            revoked_keys: number;
+            /** Format: int64 */
+            removed_project_grants: number;
+            /** Format: int64 */
+            revoked_auditors: number;
+            /** Format: int64 */
+            canceled_transfers: number;
+        };
+        MemberLifecyclePage: {
+            data: components["schemas"]["MemberLifecycleEvent"][];
+            next_cursor: string;
+        };
+        SetMemberEnabled: {
+            target: components["schemas"]["Principal"];
+            enabled: boolean;
+            /** Format: int64 */
+            expected_revision: number;
+            /**
+             * @description Required when enabling; omitted when disabling. Explicitly selects the restored organization role.
+             * @enum {string}
+             */
+            restore_role?: "admin" | "developer" | "viewer";
             reason: string;
         };
     };
@@ -8210,6 +8286,169 @@ export interface operations {
                 };
             };
             /** @description Expired, completed, or membership changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    setOrganizationMemberEnabled: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetMemberEnabled"];
+            };
+        };
+        responses: {
+            /** @description Committed lifecycle event or scoped history */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberLifecycleEvent"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Lifecycle revision or state changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listMemberLifecycle: {
+        parameters: {
+            query: {
+                /** @description Target identity or ascending revision cursor; fixed 50 rows per page. */
+                issuer: string;
+                /** @description Target identity or ascending revision cursor; fixed 50 rows per page. */
+                subject: string;
+                /** @description Target identity or ascending revision cursor; fixed 50 rows per page. */
+                after?: string;
+            };
+            header?: never;
+            path: {
+                org: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Committed lifecycle event or scoped history */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberLifecyclePage"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Version, period or committed balance conflict */
             409: {
                 headers: {
                     [name: string]: unknown;

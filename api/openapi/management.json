@@ -8525,6 +8525,247 @@
           }
         }
       ]
+    },
+    "/api/v1/organizations/{org}/members/enabled": {
+      "put": {
+        "operationId": "setOrganizationMemberEnabled",
+        "description": "Organization-scoped lifecycle. Owner-only mutation; owner/self cannot be disabled. Atomic key revocation, project grant removal, content-auditor revocation, pending handoff cancellation and audit. Enabling requires an explicit role and never restores revoked keys or removed grants. Already-authorized in-flight inference may complete; other organizations/global login remain independent.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Committed lifecycle event or scoped history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberLifecycleEvent"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle revision or state changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetMemberEnabled"
+              }
+            }
+          }
+        }
+      },
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      ]
+    },
+    "/api/v1/organizations/{org}/members/lifecycle": {
+      "get": {
+        "operationId": "listMemberLifecycle",
+        "description": "Organization-scoped lifecycle. Owner-only mutation; owner/self cannot be disabled. Atomic key revocation, project grant removal, content-auditor revocation, pending handoff cancellation and audit. Enabling requires an explicit role and never restores revoked keys or removed grants. Already-authorized in-flight inference may complete; other organizations/global login remain independent.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Committed lifecycle event or scoped history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberLifecyclePage"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version, period or committed balance conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "issuer",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Target identity or ascending revision cursor; fixed 50 rows per page."
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Target identity or ascending revision cursor; fixed 50 rows per page."
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Target identity or ascending revision cursor; fixed 50 rows per page."
+          }
+        ]
+      },
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      ]
     }
   },
   "components": {
@@ -10357,6 +10598,15 @@
               "viewer",
               "none"
             ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "lifecycle_revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
           }
         },
         "required": [
@@ -10364,7 +10614,9 @@
           "subject",
           "role",
           "project_role",
-          "effective_role"
+          "effective_role",
+          "enabled",
+          "lifecycle_revision"
         ]
       },
       "MemberPage": {
@@ -12072,6 +12324,126 @@
               "developer",
               "viewer"
             ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        }
+      },
+      "MemberLifecycleEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "revision",
+          "enabled",
+          "previous_role",
+          "new_role",
+          "reason",
+          "actor",
+          "created_at",
+          "revoked_keys",
+          "removed_project_grants",
+          "revoked_auditors",
+          "canceled_transfers"
+        ],
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "previous_role": {
+            "type": "string"
+          },
+          "new_role": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "actor": {
+            "$ref": "#/components/schemas/Principal"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revoked_keys": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "removed_project_grants": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "revoked_auditors": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "canceled_transfers": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "MemberLifecyclePage": {
+        "type": "object",
+        "required": [
+          "data",
+          "next_cursor"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/MemberLifecycleEvent"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        }
+      },
+      "SetMemberEnabled": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "target",
+          "enabled",
+          "expected_revision",
+          "reason"
+        ],
+        "properties": {
+          "target": {
+            "$ref": "#/components/schemas/Principal"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "restore_role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "developer",
+              "viewer"
+            ],
+            "description": "Required when enabling; omitted when disabling. Explicitly selects the restored organization role."
           },
           "reason": {
             "type": "string",
