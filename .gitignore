@@ -10,3 +10,4 @@ __pycache__/
 /web/dist/
 /web/test-results/
 /web/playwright-report/
+/dist/
