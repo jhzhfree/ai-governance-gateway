@@ -823,6 +823,7 @@ go build -o ./bin/aigw ./cmd/aigw
 | `docs/traffic-and-recovery.md` | 限流策略与故障核查手册 |
 | `docs/supplier-resilience.md` | 熔断与运行状态操作 |
 | `docs/billing-reconciliation.md` | 标准账单导入、双人审核与结算边界 |
+| `docs/technical-feasibility.md` | 内容审计、路由、开源基座与 ARM/x86 盒子的可行性评估 |
 | `docs/functional-coverage.md` | 功能覆盖与剩余工作清单 |
 | `docs/adr/0001..0010` | 关键决策的理由、替代方案与取舍 |
 
