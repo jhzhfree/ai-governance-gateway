@@ -376,6 +376,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organizations/{org}/projects/{project}/runtime": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Read authorized model circuits, durable unresolved totals and instance-local HTTP counters
+         * @description Readable with project access; returns logical defaults without creating policy rows.
+         */
+        get: operations["getProjectRuntime"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -698,6 +721,47 @@ export interface components {
             accounts_truncated: boolean;
             data: components["schemas"]["InspectionItem"][];
             next_cursor: string;
+        };
+        RouteStatus: {
+            model: string;
+            /** @enum {string} */
+            provider: "mock" | "aliyun" | "volcengine" | "zhipu";
+            /** @enum {string} */
+            state: "not_applicable" | "unobserved" | "closed" | "open" | "half_open";
+            retry_after: number;
+        };
+        HTTPCounters: {
+            /** Format: int64 */
+            requests: number;
+            /** Format: int64 */
+            rejected: number;
+            /** Format: int64 */
+            server_errors: number;
+            /** Format: int64 */
+            duration_ms: number;
+            /** @description Cumulative latency counts <=100,500,1000,5000,30000,120000 ms. HTTP semantics; SSE errors may retain HTTP 200. */
+            buckets: number[];
+        };
+        InstanceMetrics: {
+            instance_id: string;
+            /** Format: date-time */
+            started_at: string;
+            /** @description False if this scope has no completed observation or the 4096-scope instance limit was reached. */
+            tracked: boolean;
+            counters: components["schemas"]["HTTPCounters"];
+        };
+        Runtime: {
+            /** Format: date-time */
+            observed_at: string;
+            models: components["schemas"]["RouteStatus"][];
+            /** Format: int64 */
+            open_holds: number;
+            /** @description All periods combined in the project currency, smallest ledger unit; not a refundable amount. */
+            held_amount: string;
+            /** Format: int64 */
+            unfinished_executions: number;
+            /** @description Process-local HTTP counters; null if monitoring is unavailable. Restart resets counters. Not cluster totals. */
+            instance: components["schemas"]["InstanceMetrics"] | null;
         };
     };
     responses: never;
@@ -1693,6 +1757,8 @@ export interface operations {
             /** @description Service unavailable */
             503: {
                 headers: {
+                    /** @description Present when supplier circuit blocks dispatch; positive seconds, no capacity guarantee. */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -2289,6 +2355,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Inspection"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getProjectRuntime: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Runtime"];
                 };
             };
             /** @description Invalid input */

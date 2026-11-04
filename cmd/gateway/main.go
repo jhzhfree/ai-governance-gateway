@@ -20,6 +20,7 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/admission"
 	"github.com/jhzhfree/ai-governance-gateway/internal/browser"
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
+	"github.com/jhzhfree/ai-governance-gateway/internal/circuit"
 	"github.com/jhzhfree/ai-governance-gateway/internal/console"
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
 	"github.com/jhzhfree/ai-governance-gateway/internal/database"
@@ -27,6 +28,7 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/gateway"
 	"github.com/jhzhfree/ai-governance-gateway/internal/httpapi"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
+	"github.com/jhzhfree/ai-governance-gateway/internal/observe"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 )
 
@@ -106,6 +108,7 @@ func run(ctx context.Context, c config) error {
 	if err != nil {
 		return err
 	}
+	monitor := observe.New()
 	mux := http.NewServeMux()
 	var sessions *browser.Service
 	if c.browserOrigin != "" {
@@ -119,11 +122,11 @@ func run(ctx context.Context, c config) error {
 		}
 		mux.Handle("/", assets)
 		mux.Handle("/auth/", sessions.Handler())
-		mux.Handle("/api/v1/", httpapi.NewWithSession(store, auth, sessions))
+		mux.Handle("/api/v1/", httpapi.NewWithRuntime(store, auth, sessions, monitor))
 	} else {
-		mux.Handle("/api/v1/", httpapi.New(store, auth))
+		mux.Handle("/api/v1/", httpapi.NewWithRuntime(store, auth, nil, monitor))
 	}
-	mux.Handle("/v1/", &gateway.Handler{Admission: admission.New(pool), Attempts: execution.New(pool), Providers: providers, Ledger: ledger, Authorize: store.ResolveKey, Client: client, Upstream: c.upstream, Report: func(id, code string) { log.Printf("request_id=%s code=%s", id, code) }})
+	mux.Handle("/v1/", &gateway.Handler{Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Providers: providers, Ledger: ledger, Authorize: store.ResolveKey, Client: client, Upstream: c.upstream, Report: func(id, code string) { log.Printf("request_id=%s code=%s", id, code) }})
 	mux.HandleFunc("GET /health/live", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) })
 	dbReady := readiness(pool)
 	mux.HandleFunc("GET /health/ready", func(w http.ResponseWriter, r *http.Request) {

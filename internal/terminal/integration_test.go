@@ -373,3 +373,36 @@ func TestOperationsCLIUsesScopedManagementAPI(t *testing.T) {
 		t.Fatal("inspection exposed another tenant")
 	}
 }
+
+func TestRuntimeCLIAndTUIShareScopedSnapshot(t *testing.T) {
+	f := fixture(t)
+	code, out, _ := f.execute(t, f.token, "runtime", "show", "--org", f.org.ID, "--project", f.project.ID, "--output", "json")
+	var v types.Runtime
+	if code != 0 || json.Unmarshal([]byte(out), &v) != nil || v.Instance != nil || v.HeldAmount != "0" || len(v.Models) != 1 || v.Models[0].State != "not_applicable" {
+		t.Fatal("runtime CLI contract mismatch")
+	}
+	client, err := NewClient(f.server.URL, f.token, true, f.server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := f.config
+	cfg.Organization = f.org.ID
+	cfg.Project = f.project.ID
+	m := NewModel(context.Background(), client, cfg, nil, true)
+	defer m.stop()
+	m = complete(t, m, m.Init())
+	next, cmd := m.Update(keyPress('s'))
+	m = complete(t, next.(Model), cmd)
+	if m.screen != runtimeScreen || !strings.Contains(m.View().Content, "模拟供应商") {
+		t.Fatal("runtime TUI did not load authorized snapshot")
+	}
+	next, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	m = complete(t, next.(Model), cmd)
+	if m.screen != dashboardScreen {
+		t.Fatal("runtime TUI did not return to project")
+	}
+	code, _, _ = f.execute(t, f.issuer.Token(t, "outsider", nil), "runtime", "show", "--org", f.org.ID, "--project", f.project.ID)
+	if code == 0 {
+		t.Fatal("runtime CLI exposed another tenant")
+	}
+}

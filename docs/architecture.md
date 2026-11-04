@@ -101,3 +101,5 @@ OpenTelemetry 串联管理 API、推理链路及供应商调用；指标包括�
 执行元数据由 `internal/execution` 持久化，开始记录先于网络派发，结束记录先于成功标记；账本与执行终态分别表述，不声称跨模块原子或客户端送达保证。见 [ADR 0007](adr/0007-durable-execution-metadata.md)。
 
 项目流量接纳使用 PostgreSQL 共享滑动窗口和并发租约，预算前检查，异常失败关闭；只读故障核查独立于财务处置。见 [ADR 0008](adr/0008-project-admission-and-inspection.md) 和[操作手册](traffic-and-recovery.md)。
+
+供应商路由使用 PostgreSQL 共享熔断与单探测租约，以 generation 隔离过期请求结果。项目运行状态区分共享数据库数据与有界实例 HTTP 观测；无重试或自动回退。见 [ADR 0009](adr/0009-shared-supplier-circuits.md)。

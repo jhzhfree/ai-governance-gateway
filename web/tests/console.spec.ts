@@ -259,6 +259,13 @@ test('mainland catalog authorizes three suppliers and preserves CNY accounting',
     expect(result.model).toBe(`${supplier}/fixture`);
     expect(result.usage.total_tokens).toBe(5);
   }
+  await page.getByRole('button', { name: '流量与核查', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '供应商运行状态' })).toBeVisible();
+  const circuits = page.getByRole('region', { name: '供应商熔断状态表' });
+  await expect(circuits.getByRole('cell', { name: '正常放行', exact: true })).toHaveCount(3);
+  await expect(page.getByText(/请求量：3/)).toBeVisible();
+  await page.reload();
+  await expect(circuits.getByRole('cell', { name: '正常放行', exact: true })).toHaveCount(3);
   await page.getByRole('button', { name: '调用账本', exact: true }).click();
   await expect(page.locator('tbody tr')).toHaveCount(3);
   await page.getByLabel('执行结果', { exact: true }).selectOption('failed');

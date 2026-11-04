@@ -132,13 +132,15 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, target 
 		required = []string{"requests_per_minute", "max_concurrent", "revision", "active_requests", "recent_requests", "observed_at"}
 	case *types.Inspection:
 		required = []string{"data", "next_cursor", "limits", "accounts", "accounts_truncated", "observed_at", "cutoff"}
+	case *types.Runtime:
+		required = []string{"observed_at", "models", "open_holds", "held_amount", "unfinished_executions", "instance"}
 	case *types.Usage:
 		required = []string{"period", "currency", "limit_amount", "spent", "held"}
 	case *types.ProjectDetails:
 		required = []string{"id", "organization_id", "name", "role", "models"}
 	}
 	for _, name := range required {
-		if value, ok := object[name]; !ok || (string(value) == "null" && name != "actual" && name != "attempt") {
+		if value, ok := object[name]; !ok || (string(value) == "null" && name != "actual" && name != "attempt" && name != "instance") {
 			return errors.New("服务响应缺少必需字段")
 		}
 	}

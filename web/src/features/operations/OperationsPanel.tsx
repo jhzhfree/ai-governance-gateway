@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Button } from 'tdesign-react';
 import { api, type ProjectLimits, type Inspection } from '../../api';
+import { RuntimePanel } from './RuntimePanel';
 import { ErrorBox, Empty } from '../../shared/Feedback';
 
 export function OperationsPanel({
@@ -62,6 +63,7 @@ export function OperationsPanel({
   const items = inspection.data?.pages.flatMap((page) => page.data) ?? [];
   return (
     <>
+      <RuntimePanel identity={identity} projectPath={projectPath} />
       <section className="panel">
         <div className="panel-heading">
           <div>

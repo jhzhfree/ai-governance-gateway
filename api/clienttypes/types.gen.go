@@ -153,6 +153,23 @@ const (
 	RequestRecordStateUncertain      RequestRecordState = "uncertain"
 )
 
+// Defines values for RouteStatusProvider.
+const (
+	Aliyun     RouteStatusProvider = "aliyun"
+	Mock       RouteStatusProvider = "mock"
+	Volcengine RouteStatusProvider = "volcengine"
+	Zhipu      RouteStatusProvider = "zhipu"
+)
+
+// Defines values for RouteStatusState.
+const (
+	Closed        RouteStatusState = "closed"
+	HalfOpen      RouteStatusState = "half_open"
+	NotApplicable RouteStatusState = "not_applicable"
+	Open          RouteStatusState = "open"
+	Unobserved    RouteStatusState = "unobserved"
+)
+
 // Defines values for UsageCurrency.
 const (
 	UsageCurrencyCNYMICRO UsageCurrency = "CNY_MICRO"
@@ -309,6 +326,16 @@ type ExecutionAttemptProvider string
 // ExecutionAttemptRegion defines model for ExecutionAttempt.Region.
 type ExecutionAttemptRegion string
 
+// HTTPCounters defines model for HTTPCounters.
+type HTTPCounters struct {
+	// Buckets Cumulative latency counts <=100,500,1000,5000,30000,120000 ms. HTTP semantics; SSE errors may retain HTTP 200.
+	Buckets      []int64 `json:"buckets"`
+	DurationMs   int64   `json:"duration_ms"`
+	Rejected     int64   `json:"rejected"`
+	Requests     int64   `json:"requests"`
+	ServerErrors int64   `json:"server_errors"`
+}
+
 // InferenceRequest defines model for InferenceRequest.
 type InferenceRequest struct {
 	MaxTokens int64 `json:"max_tokens"`
@@ -383,6 +410,16 @@ type InspectionItem struct {
 
 // InspectionItemReasons defines model for InspectionItem.Reasons.
 type InspectionItemReasons string
+
+// InstanceMetrics defines model for InstanceMetrics.
+type InstanceMetrics struct {
+	Counters   HTTPCounters `json:"counters"`
+	InstanceId string       `json:"instance_id"`
+	StartedAt  time.Time    `json:"started_at"`
+
+	// Tracked False if this scope has no completed observation or the 4096-scope instance limit was reached.
+	Tracked bool `json:"tracked"`
+}
 
 // IssuedKey defines model for IssuedKey.
 type IssuedKey struct {
@@ -557,6 +594,33 @@ type RequestRecord struct {
 
 // RequestRecordState defines model for RequestRecord.State.
 type RequestRecordState string
+
+// RouteStatus defines model for RouteStatus.
+type RouteStatus struct {
+	Model      string              `json:"model"`
+	Provider   RouteStatusProvider `json:"provider"`
+	RetryAfter int                 `json:"retry_after"`
+	State      RouteStatusState    `json:"state"`
+}
+
+// RouteStatusProvider defines model for RouteStatus.Provider.
+type RouteStatusProvider string
+
+// RouteStatusState defines model for RouteStatus.State.
+type RouteStatusState string
+
+// Runtime defines model for Runtime.
+type Runtime struct {
+	// HeldAmount All periods combined in the project currency, smallest ledger unit; not a refundable amount.
+	HeldAmount string `json:"held_amount"`
+
+	// Instance Process-local HTTP counters; null if monitoring is unavailable. Restart resets counters. Not cluster totals.
+	Instance             *InstanceMetrics `json:"instance"`
+	Models               []RouteStatus    `json:"models"`
+	ObservedAt           time.Time        `json:"observed_at"`
+	OpenHolds            int64            `json:"open_holds"`
+	UnfinishedExecutions int64            `json:"unfinished_executions"`
+}
 
 // SetModels defines model for SetModels.
 type SetModels struct {

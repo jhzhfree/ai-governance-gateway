@@ -230,3 +230,7 @@ func TestTUIRequestLedgerNavigation(t *testing.T) {
 		t.Fatal("ledger back did not restore dashboard")
 	}
 }
+
+func (fakeAPI) Runtime(context.Context, string, string) (types.Runtime, error) {
+	return types.Runtime{HeldAmount: "0", Models: []types.RouteStatus{{Model: "aliyun/test", Provider: "aliyun", State: "open", RetryAfter: 30}}}, nil
+}

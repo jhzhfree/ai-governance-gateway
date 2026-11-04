@@ -1,5 +1,6 @@
 import type { components } from './generated/api';
 
+export type Runtime = components['schemas']['Runtime'];
 export type ProjectLimits = components['schemas']['ProjectLimits'];
 export type Inspection = components['schemas']['Inspection'];
 

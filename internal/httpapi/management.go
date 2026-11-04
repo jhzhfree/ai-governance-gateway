@@ -14,12 +14,14 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/admission"
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
+	"github.com/jhzhfree/ai-governance-gateway/internal/observe"
 )
 
 type principalKey struct{}
 type Handler struct {
-	Store *control.Store
-	Auth  identity.Authenticator
+	Monitor *observe.Registry
+	Store   *control.Store
+	Auth    identity.Authenticator
 }
 type SessionAuthenticator interface {
 	AuthenticateRequest(*http.Request) (identity.Principal, error)
@@ -29,7 +31,10 @@ func New(store *control.Store, auth identity.Authenticator) http.Handler {
 	return NewWithSession(store, auth, nil)
 }
 func NewWithSession(store *control.Store, auth identity.Authenticator, session SessionAuthenticator) http.Handler {
-	h := &Handler{Store: store, Auth: auth}
+	return NewWithRuntime(store, auth, session, nil)
+}
+func NewWithRuntime(store *control.Store, auth identity.Authenticator, session SessionAuthenticator, monitor *observe.Registry) http.Handler {
+	h := &Handler{Store: store, Auth: auth, Monitor: monitor}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/models", func(w http.ResponseWriter, r *http.Request) {
 		send(w, 200, map[string]any{"data": store.Models(), "next_cursor": ""})
@@ -46,6 +51,7 @@ func NewWithSession(store *control.Store, auth identity.Authenticator, session S
 	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/keys", h.keys)
 	mux.HandleFunc("DELETE /api/v1/organizations/{org}/projects/{project}/keys/{key}", h.revokeKey)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/usage", h.usage)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/runtime", h.runtime)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/limits", h.limits)
 	mux.HandleFunc("PUT /api/v1/organizations/{org}/projects/{project}/limits", h.setLimits)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/inspection", h.inspect)

@@ -49,6 +49,7 @@ var managedTables = map[int][]string{
 	3: {"browser_login_flows", "browser_sessions"},
 	7: {"inference_attempts"},
 	8: {"project_limits", "admission_events", "admission_leases"},
+	9: {"supplier_circuits"},
 }
 
 func plan() ([]migration, error) {

@@ -97,3 +97,5 @@ go run ./cmd/gateway --mock-only
 组织创建可显式选择 currency=MOCK 或 CNY_MICRO，部署目录须支持该单位，组织创建后不可通过 API 换币种。模型和项目密钥支持最多 32 个不重复的目录别名；模型授权要求与组织币种一致。真实模式、定价/usage 及区域限制见[大陆接入说明](mainland-providers.md)。
 
 调用记录可空 attempt 对象与独立 outcome 筛选已接入，保持原组织/项目授权；不增加全局 attempt 查询。见[执行结果与故障语义](execution-metadata.md)。
+
+项目级 `GET /runtime` 返回已授权模型的共享熔断、全周期未结占额和可空的当前实例 HTTP 观测；查询不触发供应商探测。详见[运行手册](supplier-resilience.md)。

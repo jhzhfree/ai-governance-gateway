@@ -1407,6 +1407,15 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Present when supplier circuit blocks dispatch; positive seconds, no capacity guarantee.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
             }
           },
           "200": {
@@ -2389,6 +2398,108 @@
           }
         ]
       }
+    },
+    "/api/v1/organizations/{org}/projects/{project}/runtime": {
+      "get": {
+        "operationId": "getProjectRuntime",
+        "description": "Readable with project access; returns logical defaults without creating policy rows.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Runtime"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Read authorized model circuits, durable unresolved totals and instance-local HTTP counters"
+      },
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        {
+          "name": "project",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      ]
     }
   },
   "components": {
@@ -3712,6 +3823,158 @@
         },
         "additionalProperties": false,
         "description": "Read-only repeatable-read diagnostic snapshot. Organization totals only for org owner/admin. Aged records are review candidates, not proof of abandoned provider work. No refunds, replay or balance correction."
+      },
+      "RouteStatus": {
+        "type": "object",
+        "required": [
+          "model",
+          "provider",
+          "state",
+          "retry_after"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "mock",
+              "aliyun",
+              "volcengine",
+              "zhipu"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "not_applicable",
+              "unobserved",
+              "closed",
+              "open",
+              "half_open"
+            ]
+          },
+          "retry_after": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "HTTPCounters": {
+        "type": "object",
+        "required": [
+          "requests",
+          "rejected",
+          "server_errors",
+          "duration_ms",
+          "buckets"
+        ],
+        "properties": {
+          "requests": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "rejected": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "server_errors": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "buckets": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "minItems": 6,
+            "maxItems": 6,
+            "description": "Cumulative latency counts <=100,500,1000,5000,30000,120000 ms. HTTP semantics; SSE errors may retain HTTP 200."
+          }
+        }
+      },
+      "InstanceMetrics": {
+        "type": "object",
+        "required": [
+          "instance_id",
+          "started_at",
+          "tracked",
+          "counters"
+        ],
+        "properties": {
+          "instance_id": {
+            "type": "string"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "tracked": {
+            "type": "boolean",
+            "description": "False if this scope has no completed observation or the 4096-scope instance limit was reached."
+          },
+          "counters": {
+            "$ref": "#/components/schemas/HTTPCounters"
+          }
+        }
+      },
+      "Runtime": {
+        "type": "object",
+        "required": [
+          "observed_at",
+          "models",
+          "open_holds",
+          "held_amount",
+          "unfinished_executions",
+          "instance"
+        ],
+        "properties": {
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RouteStatus"
+            }
+          },
+          "open_holds": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "held_amount": {
+            "type": "string",
+            "pattern": "^[0-9]+$",
+            "description": "All periods combined in the project currency, smallest ledger unit; not a refundable amount."
+          },
+          "unfinished_executions": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "instance": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InstanceMetrics"
+              }
+            ],
+            "nullable": true,
+            "description": "Process-local HTTP counters; null if monitoring is unavailable. Restart resets counters. Not cluster totals."
+          }
+        }
       }
     }
   }

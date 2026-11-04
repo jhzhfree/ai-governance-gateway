@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
+	"github.com/jhzhfree/ai-governance-gateway/internal/circuit"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 )
@@ -48,11 +49,28 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 		problem(w, 403, "currency_mismatch", id)
 		return
 	}
+	w, measured := h.measure(w, scope)
+	defer measured()
 	r, release, ok := h.admit(w, r, id, scope)
 	if !ok {
 		return
 	}
 	defer release()
+	ticket, allowed := h.protect(w, r, id, route.PriceVersion())
+	if !allowed {
+		return
+	}
+	outcome := circuit.Neutral
+	defer func() {
+		if r.Context().Err() == context.Canceled {
+			outcome = circuit.Neutral
+		}
+		finish, stop := context.WithTimeout(context.Background(), 3*time.Second)
+		defer stop()
+		if ticket.Complete(finish, outcome) != nil {
+			h.report(id, "circuit_update_failed")
+		}
+	}()
 	created, err := h.Ledger.Reserve(r.Context(), budget.Quote{Scope: scope, RequestID: id, PriceVersion: route.PriceVersion(), Amount: amount})
 	if err != nil || !created {
 		if errors.Is(err, budget.ErrExceeded) {
@@ -97,6 +115,7 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 		}
 		cancel()
 	}()
+	outcome = circuit.Failure
 	response, err := route.Open(ctx, req)
 	if err != nil {
 		reply(502, "upstream_unavailable")
@@ -105,6 +124,9 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 	defer response.Body.Close()
 	trace.status(response.StatusCode)
 	if response.StatusCode != 200 {
+		if response.StatusCode != 408 && response.StatusCode != 429 && response.StatusCode < 500 {
+			outcome = circuit.Neutral
+		}
 		reply(502, "upstream_rejected")
 		return
 	}
@@ -139,6 +161,7 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 			return
 		}
 		trace.usage(*value.Usage.PromptTokens, *value.Usage.CompletionTokens)
+		outcome = circuit.Success
 		if settle(actual) != nil {
 			reply(503, "settlement_failed")
 			return
@@ -153,10 +176,10 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 		_ = json.NewEncoder(w).Encode(value)
 		return
 	}
-	streamProvider(w, response.Body, req, id, route, settle, h.report, trace, ctx)
+	outcome = streamProvider(w, response.Body, req, id, route, settle, h.report, trace, ctx)
 }
 
-func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id string, route *provider.Route, settle func(int64) error, report func(string, string), trace *attemptTrace, ctx context.Context) {
+func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id string, route *provider.Route, settle func(int64) error, report func(string, string), trace *attemptTrace, ctx context.Context) circuit.Outcome {
 	started, finished := false, false
 	var actual *int64
 	write := func(data string) error {
@@ -196,7 +219,7 @@ func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id strin
 		size += len(line)
 		if size > 64<<10 {
 			fail("upstream_stream_incomplete")
-			return
+			return circuit.Failure
 		}
 		if line != "" {
 			if strings.HasPrefix(line, "data:") {
@@ -213,27 +236,27 @@ func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id strin
 		if data == "[DONE]" {
 			if actual == nil || !finished {
 				fail("upstream_stream_incomplete")
-				return
+				return circuit.Failure
 			}
 			if settle(*actual) != nil {
 				fail("settlement_failed")
-				return
+				return circuit.Success
 			}
 			if trace.complete() != nil {
 				fail("metadata_finalize_failed")
-				return
+				return circuit.Success
 			}
 			_ = write("[DONE]")
-			return
+			return circuit.Success
 		}
 		value, err := provider.Normalize([]byte(data), req.Model, id, true)
 		if err != nil {
 			fail("upstream_stream_incomplete")
-			return
+			return circuit.Failure
 		}
 		if finished && len(value.Choices) > 0 {
 			fail("upstream_stream_incomplete")
-			return
+			return circuit.Failure
 		}
 		for _, choice := range value.Choices {
 			if choice.FinishReason != nil {
@@ -244,7 +267,7 @@ func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id strin
 			cost, err := route.ValidateUsage(value.Usage, req.MaxTokens)
 			if err != nil || actual != nil || !finished {
 				fail("upstream_usage_invalid")
-				return
+				return circuit.Failure
 			}
 			trace.usage(*value.Usage.PromptTokens, *value.Usage.CompletionTokens)
 			actual = &cost
@@ -252,8 +275,9 @@ func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id strin
 		normalized, _ := json.Marshal(value)
 		if write(string(normalized)) != nil {
 			trace.failed("downstream_write_failed")
-			return
+			return circuit.Neutral
 		}
 	}
 	fail("upstream_stream_incomplete")
+	return circuit.Failure
 }

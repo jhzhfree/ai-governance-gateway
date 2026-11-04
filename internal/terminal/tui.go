@@ -14,6 +14,7 @@ import (
 )
 
 type ReadAPI interface {
+	Runtime(context.Context, string, string) (types.Runtime, error)
 	Organizations(context.Context, string, int) (types.OrganizationPage, error)
 	Projects(context.Context, string, string, int) (types.ProjectPage, error)
 	Project(context.Context, string, string) (types.ProjectDetails, error)
@@ -30,9 +31,11 @@ const (
 	dashboardScreen
 	requestsScreen
 	requestDetailScreen
+	runtimeScreen
 )
 
 type dataMessage struct {
+	runtime       types.Runtime
 	requests      types.RequestPage
 	record        types.RequestRecord
 	generation    uint64
@@ -45,6 +48,7 @@ type dataMessage struct {
 	project       types.ProjectDetails
 }
 type Model struct {
+	runtime              *types.Runtime
 	records              []types.RequestRecord
 	record               *types.RequestRecord
 	detailID             string
@@ -92,6 +96,8 @@ func (m Model) fetch() tea.Cmd {
 		result := dataMessage{generation: m.generation, screen: m.screen}
 		ctx := m.ctx
 		switch m.screen {
+		case runtimeScreen:
+			result.runtime, result.err = m.api.Runtime(ctx, m.config.Organization, m.config.Project)
 		case organizationsScreen:
 			result.organizations, result.err = m.api.Organizations(ctx, m.cursor, 20)
 		case projectsScreen:
@@ -138,6 +144,7 @@ func (m *Model) reset() {
 	m.organizations = nil
 	m.projects = nil
 	m.keys = nil
+	m.runtime = nil
 	m.records = nil
 	m.record = nil
 	m.usage = nil
@@ -164,6 +171,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.stale = false
 		m.updated = time.Now()
 		switch m.screen {
+		case runtimeScreen:
+			m.runtime = &v.runtime
 		case organizationsScreen:
 			m.organizations = v.organizations.Data
 			m.next = v.organizations.NextCursor
@@ -204,7 +213,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if m.screen == requestDetailScreen {
 				m.screen = requestsScreen
-			} else if m.screen == requestsScreen {
+			} else if m.screen == requestsScreen || m.screen == runtimeScreen {
 				m.screen = dashboardScreen
 			} else if m.screen == dashboardScreen {
 				m.screen = projectsScreen
@@ -213,6 +222,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.reset()
 			return m.load()
+		case "s":
+			if m.screen == dashboardScreen {
+				m.screen = runtimeScreen
+				m.reset()
+				return m.load()
+			}
 		case "t":
 			if m.screen == dashboardScreen {
 				m.screen = requestsScreen
@@ -288,6 +303,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 func (m Model) itemCount() int {
+	if m.screen == runtimeScreen {
+		if m.runtime == nil {
+			return 0
+		}
+		return len(runtimeLines(*m.runtime))
+	}
 	if m.screen == organizationsScreen {
 		return len(m.organizations)
 	}
@@ -328,6 +349,11 @@ func (m Model) View() tea.View {
 	prefix = append(prefix, "")
 	var rows []string
 	switch m.screen {
+	case runtimeScreen:
+		prefix = append(prefix, "运行状态 / "+SafeText(m.config.Project))
+		if m.runtime != nil {
+			rows = runtimeLines(*m.runtime)
+		}
 	case organizationsScreen:
 		prefix = append(prefix, "选择组织")
 		for i, o := range m.organizations {
@@ -397,13 +423,13 @@ func (m Model) View() tea.View {
 	}
 	help := "↑↓选择 Enter打开 Esc返回 r刷新 n/p翻页 q退出"
 	if m.screen == dashboardScreen {
-		help = "t调用账本  " + help
+		help = "s运行状态 t调用账本  " + help
 	}
-	if m.screen == requestDetailScreen {
+	if m.screen == requestDetailScreen || m.screen == runtimeScreen {
 		help = "↑↓滚动 Esc返回 r刷新 q退出"
 	}
 	if m.width < 65 && m.screen == dashboardScreen {
-		help = "t账本 Esc返回 r刷新 q退出"
+		help = "s状态 t账本 Esc返回 r刷新 q退出"
 	}
 	if m.width < 30 {
 		help = "r刷新 q退出"

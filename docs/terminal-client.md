@@ -71,3 +71,5 @@ NO_COLOR=1 ./bin/aigw tui
 调用账本现支持 `requests list --outcome failed` 与执行详情（模型、供应商/配置区域、固定错误码、可空 token/耗时）。TUI 详情可滚动，历史未记录不显示为零。语义和落库故障限制见[执行元数据](execution-metadata.md)。
 
 项目流量策略查询和预算/执行只读核查见[操作手册](traffic-and-recovery.md)，使用 `limits show`、`recovery inspect`（支持 JSON 和分页）。TUI 暂沿用调用列表与详情排查，独立核查屏幕待后续增加。
+
+供应商共享熔断与当前实例 HTTP 观测见[运行手册](supplier-resilience.md)，使用 `runtime show`；TUI 项目页按 `s`，上下滚动、`r` 刷新、Esc 返回。

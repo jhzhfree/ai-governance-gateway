@@ -17,6 +17,7 @@ import (
 
 	"github.com/jhzhfree/ai-governance-gateway/internal/admission"
 	"github.com/jhzhfree/ai-governance-gateway/internal/browser"
+	"github.com/jhzhfree/ai-governance-gateway/internal/circuit"
 	"github.com/jhzhfree/ai-governance-gateway/internal/console"
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
 	"github.com/jhzhfree/ai-governance-gateway/internal/execution"
@@ -24,6 +25,7 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/httpapi"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
 	"github.com/jhzhfree/ai-governance-gateway/internal/mockprovider"
+	"github.com/jhzhfree/ai-governance-gateway/internal/observe"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 	"github.com/jhzhfree/ai-governance-gateway/internal/testutil"
 )
@@ -37,6 +39,7 @@ func TestConsoleBrowser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	monitor := observe.New()
 	mux := http.NewServeMux()
 	server := httptest.NewUnstartedServer(mux)
 	origin := "http://" + server.Listener.Addr().String()
@@ -54,11 +57,11 @@ func TestConsoleBrowser(t *testing.T) {
 	}
 	mux.Handle("/", assets)
 	mux.Handle("/auth/", svc.Handler())
-	mux.Handle("/api/v1/", httpapi.NewWithSession(store, api, svc))
+	mux.Handle("/api/v1/", httpapi.NewWithRuntime(store, api, svc, monitor))
 	upstream := httptest.NewServer(http.HandlerFunc(mockprovider.Handler))
 	t.Cleanup(upstream.Close)
-	mockGateway := &gateway.Handler{Admission: admission.New(pool), Attempts: execution.New(pool), Ledger: ledger, Authorize: store.ResolveKey, Client: upstream.Client(), Upstream: upstream.URL + "/v1/chat/completions"}
-	realGateway := &gateway.Handler{Admission: admission.New(pool), Attempts: execution.New(pool), Ledger: ledger, Authorize: store.ResolveKey, Providers: catalog}
+	mockGateway := &gateway.Handler{Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Ledger: ledger, Authorize: store.ResolveKey, Client: upstream.Client(), Upstream: upstream.URL + "/v1/chat/completions"}
+	realGateway := &gateway.Handler{Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Ledger: ledger, Authorize: store.ResolveKey, Providers: catalog}
 	// Mixed mode exists in this synthetic fixture only, to regress the legacy UI.
 	mux.HandleFunc("/v1/", func(w http.ResponseWriter, r *http.Request) {
 		data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 64<<10))

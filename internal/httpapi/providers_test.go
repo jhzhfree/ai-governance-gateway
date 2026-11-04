@@ -17,11 +17,13 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/api/openapi"
 	"github.com/jhzhfree/ai-governance-gateway/internal/admission"
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
+	"github.com/jhzhfree/ai-governance-gateway/internal/circuit"
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
 	"github.com/jhzhfree/ai-governance-gateway/internal/execution"
 	"github.com/jhzhfree/ai-governance-gateway/internal/gateway"
 	"github.com/jhzhfree/ai-governance-gateway/internal/httpapi"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
+	"github.com/jhzhfree/ai-governance-gateway/internal/observe"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 	"github.com/jhzhfree/ai-governance-gateway/internal/testutil"
 )
@@ -36,13 +38,14 @@ func providerSetup(t *testing.T, supplier http.Handler, wrap ...func(gateway.Led
 	if err != nil {
 		t.Fatal(err)
 	}
+	monitor := observe.New()
 	mux := http.NewServeMux()
-	mux.Handle("/api/v1/", httpapi.New(store, auth))
+	mux.Handle("/api/v1/", httpapi.NewWithRuntime(store, auth, nil, monitor))
 	var ledgerAPI gateway.Ledger = ledger
 	if len(wrap) > 0 {
 		ledgerAPI = wrap[0](ledger)
 	}
-	mux.Handle("/v1/", &gateway.Handler{Admission: admission.New(pool), Attempts: execution.New(pool), Providers: catalog, Ledger: ledgerAPI, Authorize: store.ResolveKey})
+	mux.Handle("/v1/", &gateway.Handler{Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Providers: catalog, Ledger: ledgerAPI, Authorize: store.ResolveKey})
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 	doc, err := openapi3.NewLoader().LoadFromData(openapi.Document)
