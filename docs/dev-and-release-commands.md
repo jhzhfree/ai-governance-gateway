@@ -45,7 +45,7 @@ make web-dev           # http://127.0.0.1:5173
 
 | 场景 | 命令 | 说明 |
 | --- | --- | --- |
-| 环境自检 | `make doctor` | 版本、数据库连通性 |
+| 环境自检 | `make doctor` | 版本、包源（GOPROXY / npm registry）、数据库连通性 |
 | 安装依赖 | `make deps` | `go mod download` + `npm ci` |
 | 建库 | `make db-init` | 需要 `su postgres` 权限 |
 | 迁移 | `make migrate-up` / `migrate-status` / `migrate-check` | check 用于"二进制与库结构是否一致" |
@@ -222,5 +222,7 @@ WantedBy=multi-user.target
 | 启动报 `database schema is not ready` | 未迁移或迁移版本落后 | `make migrate-up` 或部署迁移 Job |
 | `/` 返回 404 | 未设置 `AIGW_BROWSER_ORIGIN` | 设置后重启（控制台才挂载） |
 | 推理返回 400 `unsupported_mock_request` | mock 模式请求体不符合 mock 契约 | 用完整 messages/max_tokens 字段 |
-| `verify.sh` 卡在 docker run | 镜像不可拉取 | 设置 `TEST_DATABASE_URL` 用本地库 |
-| npm 安装超时 | npm 不走 socks5 | 用 `proxychains4 -q npm ...` 或 HTTP 代理 |
+| `verify.sh` 卡在 docker run | 本机未配置镜像加速器，`postgres:17.6` 拉不下来 | 设置 `TEST_DATABASE_URL` 用本地库 |
+| `go mod download` 超时 | 直连 `proxy.golang.org` 不可达 | `go env -w GOPROXY=https://goproxy.cn,direct` |
+| `npm ci` 超时或 404 | 直连 `registry.npmjs.org` 不可达 | `npm config set registry https://registry.npmmirror.com` |
+| `apt-get install` 卡住 | 源指向 `archive.ubuntu.com` | 源换成 `mirrors.aliyun.com`，见环境安装文档第 2 节 |

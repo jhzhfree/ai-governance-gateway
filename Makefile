@@ -35,6 +35,8 @@ doctor: ## 检查工具链与数据库连通性
 	@echo "npm:     $$(npm --version 2>/dev/null || echo missing)"
 	@echo "psql:    $$(psql --version 2>/dev/null || echo missing)"
 	@echo "docker:  $$(docker --version 2>/dev/null || echo missing)"
+	@echo "goproxy: $$($(GO) env GOPROXY 2>/dev/null)"
+	@echo "npmreg:  $$(npm config get registry 2>/dev/null)"
 	@echo "version: $(VERSION) ($(COMMIT))"
 	@PGPASSWORD=$${PGPASSWORD:-aigw_dev} psql "$(DEV_DATABASE_URL)" -tAc 'select current_database(), version()' || echo "dev database unreachable"
 
