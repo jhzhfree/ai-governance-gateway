@@ -22,6 +22,7 @@ import { SecretDialog } from '../keys/SecretDialog';
 import { KeyPanel } from '../keys/KeyPanel';
 import { RequestPanel } from '../requests/RequestPanel';
 import { ModelAccessPanel, currencyLabel } from '../models/ModelAccessPanel';
+import { CostReportPanel } from '../operations/CostReportPanel';
 import { OperationsPanel } from '../operations/OperationsPanel';
 import { ContentAuditPanel } from '../content/ContentAuditPanel';
 import { LocalAccountsPanel } from '../local/LocalAccountsPanel';
@@ -85,6 +86,7 @@ export function Console({ session }: { session: Session }) {
         'providers',
         'budget',
         'keywords',
+        'reports',
       ] as const
     ).find((value) => value === params.get('view')) ?? 'overview';
   const viewLabel = {
@@ -99,6 +101,7 @@ export function Console({ session }: { session: Session }) {
     providers: '供应商配置',
     budget: '预算管理',
     keywords: '关键字匹配',
+    reports: '成本报表',
   }[view];
   const audit = usePage<Audit>(
     identity,
@@ -247,6 +250,7 @@ export function Console({ session }: { session: Session }) {
             ['local', '♙', '本地账号'],
             ['budget', '▥', '预算管理'],
             ['keywords', '⌕', '关键字匹配'],
+            ['reports', '▤', '成本报表'],
           ]
             .filter(
               ([id]) =>
@@ -452,7 +456,8 @@ export function Console({ session }: { session: Session }) {
                 !projects.isPending &&
                 view !== 'audit' &&
                 view !== 'members' &&
-                view !== 'budget' && (
+                view !== 'budget' &&
+                view !== 'reports' && (
                   <section className="panel">
                     <Empty
                       title="还没有可访问的项目"
@@ -471,10 +476,21 @@ export function Console({ session }: { session: Session }) {
                     )}
                   </section>
                 )}
-              {project.error && view !== 'audit' && view !== 'members' && view !== 'budget' && (
-                <ErrorBox error={project.error} />
-              )}
-              {view === 'budget' ? (
+              {project.error &&
+                view !== 'audit' &&
+                view !== 'members' &&
+                view !== 'budget' &&
+                view !== 'reports' && <ErrorBox error={project.error} />}
+              {view === 'reports' ? (
+                <CostReportPanel
+                  key={projectPath}
+                  identity={identity}
+                  orgPath={orgPath}
+                  projectPath={projectID ? projectPath : undefined}
+                  canManage={canManage}
+                  csrf={session.csrf_token}
+                />
+              ) : view === 'budget' ? (
                 <BudgetPanel
                   identity={identity}
                   orgPath={orgPath}

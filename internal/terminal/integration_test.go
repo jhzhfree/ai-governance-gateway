@@ -419,3 +419,55 @@ func TestContentAuditMetadataCLIStaysReadOnlyAndScoped(t *testing.T) {
 		t.Fatal("content metadata leaked across tenant")
 	}
 }
+
+func TestCostReportCLIAndTUIReadLedgerWithoutMutation(t *testing.T) {
+	f := fixture(t)
+	now := time.Now().UTC()
+	from := now.Format("2006-01-02")
+	to := now.AddDate(0, 0, 1).Format("2006-01-02")
+	scope := budget.Scope{Organization: f.org.ID, Project: f.project.ID, Period: f.org.Period, Currency: f.org.Currency}
+	if _, err := f.ledger.Reserve(context.Background(), budget.Quote{Scope: scope, RequestID: "terminal-cost", PriceVersion: "synthetic", Amount: 10}); err != nil {
+		t.Fatal(err)
+	}
+	code, out, _ := f.execute(t, f.token, "cost-report", "--org", f.org.ID, "--project", f.project.ID, "--from", from, "--to", to, "--output", "json")
+	var report types.CostReport
+	if code != 0 || json.Unmarshal([]byte(out), &report) != nil || len(report.Rows) != 1 || report.Rows[0].OpenReserved != "10" || report.Rows[0].Model != nil || report.Rows[0].SettledAmount != "0" {
+		t.Fatal("CLI report differs from ledger")
+	}
+	code, _, _ = f.execute(t, f.token, "cost-report", "--org", f.org.ID, "--organization", "--from", from, "--to", to)
+	if code != 0 {
+		t.Fatal("owner organization report denied")
+	}
+	code, _, _ = f.execute(t, f.issuer.Token(t, "outsider", nil), "cost-report", "--org", f.org.ID, "--project", f.project.ID, "--from", from, "--to", to)
+	if code == 0 {
+		t.Fatal("cross-tenant cost exposed")
+	}
+	code, _, _ = f.execute(t, f.token, "cost-report", "--from", from, "--to", from)
+	if code != 2 {
+		t.Fatal("invalid date not rejected before request")
+	}
+	client, err := NewClient(f.server.URL, f.token, true, f.server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := f.config
+	cfg.Organization = f.org.ID
+	cfg.Project = f.project.ID
+	m := NewModel(context.Background(), client, cfg, nil, true)
+	defer m.stop()
+	m = complete(t, m, m.Init())
+	next, cmd := m.Update(keyPress('c'))
+	m = complete(t, next.(Model), cmd)
+	if m.screen != costReportScreen || !strings.Contains(m.View().Content, "成本报表") || m.costReport == nil || len(m.costReport.Rows) != 1 || m.costReport.Rows[0].OpenReserved != "10" {
+		t.Fatal("TUI cost report missing")
+	}
+	next, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	m = complete(t, next.(Model), cmd)
+	if m.screen != dashboardScreen || m.costReport != nil {
+		t.Fatal("TUI retained stale scope")
+	}
+	reservation, err := f.ledger.Get(context.Background(), "terminal-cost")
+	if err != nil || reservation.State != "reserved" {
+		t.Fatal("report mutated ledger")
+	}
+}

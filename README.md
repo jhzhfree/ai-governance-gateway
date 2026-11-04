@@ -43,3 +43,5 @@ AI 治理网关：面向团队的统一模型接入、访问控制、预算限�
 供应商 API Key 现支持页面录入/替换与加密存储（迁移 0013），配置前完成独立主密钥初始化，详见[页面凭证配置](docs/provider-credentials.md)。
 
 部署级指标：见 [境内 Prometheus 监控配置](docs/monitoring.md)。`AIGW_METRICS_TOKEN` 为空时关闭 `/metrics`，启用后需要独立抓取令牌。
+
+成本统计：见 [Web/CLI/终端 UI 成本报表](docs/cost-reports.md)，分别统计已结算、估算终结与开放占额，CSV 导出留痕。

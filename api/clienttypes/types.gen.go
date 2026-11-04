@@ -627,6 +627,31 @@ type ContentReveal struct {
 	Reason string `json:"reason"`
 }
 
+// CostReport defines model for CostReport.
+type CostReport struct {
+	From       string    `json:"from"`
+	ObservedAt time.Time `json:"observed_at"`
+	Rows       []CostRow `json:"rows"`
+	To         string    `json:"to"`
+}
+
+// CostRow defines model for CostRow.
+type CostRow struct {
+	Admitted        int64   `json:"admitted"`
+	Currency        string  `json:"currency"`
+	Day             string  `json:"day"`
+	EstimatedAmount string  `json:"estimated_amount"`
+	InputTokens     string  `json:"input_tokens"`
+	Model           *string `json:"model"`
+	OpenReserved    string  `json:"open_reserved"`
+	OutputTokens    string  `json:"output_tokens"`
+	ProjectId       string  `json:"project_id"`
+	Provider        *string `json:"provider"`
+	Released        int64   `json:"released"`
+	SettledAmount   string  `json:"settled_amount"`
+	UsageKnown      int64   `json:"usage_known"`
+}
+
 // CreateKey defines model for CreateKey.
 type CreateKey struct {
 	Models []string `json:"models"`
@@ -1337,6 +1362,18 @@ type ListOrganizationBudgetChangesParams struct {
 	After  *string `form:"after,omitempty" json:"after,omitempty"`
 }
 
+// GetOrganizationCostReportParams defines parameters for GetOrganizationCostReport.
+type GetOrganizationCostReportParams struct {
+	From string `form:"from" json:"from"`
+	To   string `form:"to" json:"to"`
+}
+
+// ExportOrganizationCostReportParams defines parameters for ExportOrganizationCostReport.
+type ExportOrganizationCostReportParams struct {
+	From string `form:"from" json:"from"`
+	To   string `form:"to" json:"to"`
+}
+
 // ListOrganizationMembersParams defines parameters for ListOrganizationMembers.
 type ListOrganizationMembersParams struct {
 	After *string `form:"after,omitempty" json:"after,omitempty"`
@@ -1381,6 +1418,18 @@ type ListContentAuditorsParams struct {
 type ListContentAuditParams struct {
 	After *string `form:"after,omitempty" json:"after,omitempty"`
 	Limit *int    `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetProjectCostReportParams defines parameters for GetProjectCostReport.
+type GetProjectCostReportParams struct {
+	From string `form:"from" json:"from"`
+	To   string `form:"to" json:"to"`
+}
+
+// ExportProjectCostReportParams defines parameters for ExportProjectCostReport.
+type ExportProjectCostReportParams struct {
+	From string `form:"from" json:"from"`
+	To   string `form:"to" json:"to"`
 }
 
 // InspectProjectParams defines parameters for InspectProject.

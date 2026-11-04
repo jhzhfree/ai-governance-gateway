@@ -132,6 +132,8 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, target 
 		required = []string{"requests_per_minute", "max_concurrent", "revision", "active_requests", "recent_requests", "observed_at"}
 	case *types.Inspection:
 		required = []string{"data", "next_cursor", "limits", "accounts", "accounts_truncated", "observed_at", "cutoff"}
+	case *types.CostReport:
+		required = []string{"from", "to", "observed_at", "rows"}
 	case *types.Runtime:
 		required = []string{"observed_at", "models", "open_holds", "held_amount", "unfinished_executions", "instance"}
 	case *types.Usage:

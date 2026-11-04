@@ -14,6 +14,7 @@ import (
 )
 
 type ReadAPI interface {
+	CostReport(context.Context, string, string, string, string) (types.CostReport, error)
 	BillingRecords(context.Context, string, string, string, string, int) (types.BillingPage, error)
 	Runtime(context.Context, string, string) (types.Runtime, error)
 	Organizations(context.Context, string, int) (types.OrganizationPage, error)
@@ -33,10 +34,12 @@ const (
 	requestsScreen
 	requestDetailScreen
 	runtimeScreen
+	costReportScreen
 	billingScreen
 )
 
 type dataMessage struct {
+	costReport    types.CostReport
 	bills         types.BillingPage
 	runtime       types.Runtime
 	requests      types.RequestPage
@@ -51,6 +54,7 @@ type dataMessage struct {
 	project       types.ProjectDetails
 }
 type Model struct {
+	costReport           *types.CostReport
 	bills                []types.BillingRecord
 	runtime              *types.Runtime
 	records              []types.RequestRecord
@@ -100,6 +104,9 @@ func (m Model) fetch() tea.Cmd {
 		result := dataMessage{generation: m.generation, screen: m.screen}
 		ctx := m.ctx
 		switch m.screen {
+		case costReportScreen:
+			now := time.Now().UTC()
+			result.costReport, result.err = m.api.CostReport(ctx, m.config.Organization, m.config.Project, now.AddDate(0, 0, -6).Format("2006-01-02"), now.AddDate(0, 0, 1).Format("2006-01-02"))
 		case billingScreen:
 			result.bills, result.err = m.api.BillingRecords(ctx, m.config.Organization, m.config.Project, m.cursor, "", 20)
 		case runtimeScreen:
@@ -152,6 +159,7 @@ func (m *Model) reset() {
 	m.keys = nil
 	m.bills = nil
 	m.runtime = nil
+	m.costReport = nil
 	m.records = nil
 	m.record = nil
 	m.usage = nil
@@ -181,6 +189,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case billingScreen:
 			m.bills = v.bills.Data
 			m.next = v.bills.NextCursor
+		case costReportScreen:
+			m.costReport = &v.costReport
 		case runtimeScreen:
 			m.runtime = &v.runtime
 		case organizationsScreen:
@@ -223,7 +233,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if m.screen == requestDetailScreen {
 				m.screen = requestsScreen
-			} else if m.screen == requestsScreen || m.screen == runtimeScreen || m.screen == billingScreen {
+			} else if m.screen == requestsScreen || m.screen == runtimeScreen || m.screen == billingScreen || m.screen == costReportScreen {
 				m.screen = dashboardScreen
 			} else if m.screen == dashboardScreen {
 				m.screen = projectsScreen
@@ -239,6 +249,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				m.screen = billingScreen
+				m.reset()
+				return m.load()
+			}
+		case "c":
+			if m.screen == dashboardScreen {
+				m.screen = costReportScreen
 				m.reset()
 				return m.load()
 			}
@@ -323,6 +339,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 func (m Model) itemCount() int {
+	if m.screen == costReportScreen {
+		if m.costReport == nil {
+			return 0
+		}
+		return len(reportLines(*m.costReport))
+	}
 	if m.screen == billingScreen {
 		return len(m.bills)
 	}
@@ -376,6 +398,11 @@ func (m Model) View() tea.View {
 		prefix = append(prefix, "项目标准账单（只读，财务审核使用 Web）")
 		for _, record := range m.bills {
 			rows = append(rows, billingLine(record))
+		}
+	case costReportScreen:
+		prefix = append(prefix, "成本报表 / 最近 7 个 UTC 日期")
+		if m.costReport != nil {
+			rows = reportLines(*m.costReport)
 		}
 	case runtimeScreen:
 		prefix = append(prefix, "运行状态 / "+SafeText(m.config.Project))
@@ -451,16 +478,16 @@ func (m Model) View() tea.View {
 	}
 	help := "↑↓选择 Enter打开 Esc返回 r刷新 n/p翻页 q退出"
 	if m.screen == dashboardScreen {
-		help = "b账单 s运行状态 t调用账本  " + help
+		help = "c成本 b账单 s运行状态 t调用账本  " + help
 	}
-	if m.screen == requestDetailScreen || m.screen == runtimeScreen {
+	if m.screen == requestDetailScreen || m.screen == runtimeScreen || m.screen == costReportScreen {
 		help = "↑↓滚动 Esc返回 r刷新 q退出"
 	}
 	if m.screen == billingScreen {
 		help = "↑↓滚动 Esc返回 r刷新 n/p翻页 q退出"
 	}
 	if m.width < 65 && m.screen == dashboardScreen {
-		help = "b账单 s状态 t账本 Esc返回 r刷新 q退出"
+		help = "c成本 b账单 s状态 t账本 Esc返回 r刷新 q退出"
 	}
 	if m.width < 30 {
 		help = "r刷新 q退出"

@@ -733,3 +733,85 @@ test('budget editing, monthly periods and keyword rules govern real inference', 
   const a11y = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(a11y.violations.map((v) => v.id)).toEqual([]);
 });
+
+test('cost report reads real ledger, exports audited CSV and fits mobile', async ({
+  page,
+  baseURL,
+}) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: /使用组织账号登录/ }).click();
+  const session = (await (await page.request.get('/auth/session')).json()) as {
+    csrf_token: string;
+  };
+  const headers = { Origin: baseURL!, 'X-CSRF-Token': session.csrf_token };
+  const org = (await (
+    await page.request.post('/api/v1/organizations', {
+      headers,
+      data: { name: '成本团队', period: '2026-11', currency: 'CNY_MICRO', limit_amount: 10000 },
+    })
+  ).json()) as { id: string };
+  const orgPath = `/api/v1/organizations/${org.id}`;
+  const project = (await (
+    await page.request.post(`${orgPath}/projects`, {
+      headers,
+      data: { name: '成本项目', limit_amount: 5000 },
+    })
+  ).json()) as { id: string };
+  const path = `${orgPath}/projects/${project.id}`;
+  expect(
+    (
+      await page.request.put(`${path}/models`, { headers, data: { models: ['aliyun/fixture'] } })
+    ).status(),
+  ).toBe(204);
+  const key = (await (
+    await page.request.post(`${path}/keys`, {
+      headers,
+      data: { name: '成本调用', models: ['aliyun/fixture'], ttl_seconds: 3600 },
+    })
+  ).json()) as { secret: string };
+  expect(
+    (
+      await page.request.post('/v1/chat/completions', {
+        headers: { Authorization: `Bearer ${key.secret}` },
+        data: {
+          model: 'aliyun/fixture',
+          max_tokens: 8,
+          messages: [{ role: 'user', content: 'synthetic report fixture' }],
+        },
+      })
+    ).status(),
+  ).toBe(200);
+  await page.goto(`/?view=reports&org=${org.id}&project=${project.id}`);
+  const table = page.getByRole('region', { name: '成本明细表', exact: true });
+  await expect(
+    table.getByRole('cell', { name: 'aliyun/fixture / aliyun', exact: true }),
+  ).toBeVisible();
+  await expect(table.getByRole('cell', { name: 'CNY_MICRO', exact: true })).toBeVisible();
+  const now = new Date();
+  const from = now.toISOString().slice(0, 10);
+  now.setUTCDate(now.getUTCDate() + 1);
+  const to = now.toISOString().slice(0, 10);
+  expect(
+    (await page.request.post(`${path}/cost-report/export?from=${from}&to=${to}`)).status(),
+  ).toBe(403);
+  const downloading = page.waitForEvent('download');
+  await page.getByRole('button', { name: '导出成本 CSV', exact: true }).click();
+  const download = await downloading;
+  expect(download.suggestedFilename()).toBe('aigw-cost-report.csv');
+  const stream = await download.createReadStream();
+  let csv = '';
+  for await (const chunk of stream) csv += String(chunk);
+  expect(csv).toContain('day_utc,project_id,model,provider,currency');
+  expect(csv).toContain('aliyun/fixture,aliyun,CNY_MICRO');
+  const audit = (await (await page.request.get(`${orgPath}/audit`)).json()) as {
+    data: { action: string }[];
+  };
+  expect(audit.data.some((item) => item.action === 'cost_report.exported')).toBe(true);
+  await page.getByLabel('汇总整个组织', { exact: true }).check();
+  await page.getByRole('button', { name: '查询成本报表', exact: true }).click();
+  await expect(page.getByText(/观察时间：.*整个组织/)).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const a11y = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(a11y.violations.map((item) => item.id)).toEqual([]);
+});

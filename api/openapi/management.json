@@ -6838,6 +6838,494 @@
           }
         }
       ]
+    },
+    "/api/v1/organizations/{org}/cost-report": {
+      "get": {
+        "operationId": "getOrganizationCostReport",
+        "description": "Consistent ledger metadata grouped by UTC admission date/project/model/provider/currency. from inclusive, to exclusive, 1..90 days. Maximum 1000 groups; overflow rejected, never truncated. Null attribution means no recorded attempt. Amounts and known-usage token totals are decimal strings. Organization scope requires owner/admin; project scope requires project access. Late settlements change historical reports. Export commits an audit event before CSV delivery; it is not an official supplier invoice.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Snapshot cost report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostReport"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "x-go-type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "x-go-type": "string"
+            }
+          }
+        ]
+      },
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      ]
+    },
+    "/api/v1/organizations/{org}/cost-report/export": {
+      "post": {
+        "operationId": "exportOrganizationCostReport",
+        "description": "Consistent ledger metadata grouped by UTC admission date/project/model/provider/currency. from inclusive, to exclusive, 1..90 days. Maximum 1000 groups; overflow rejected, never truncated. Null attribution means no recorded attempt. Amounts and known-usage token totals are decimal strings. Organization scope requires owner/admin; project scope requires project access. Late settlements change historical reports. Export commits an audit event before CSV delivery; it is not an official supplier invoice.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Audited metadata CSV; spreadsheet formula escaping applied.",
+            "headers": {
+              "X-AIGW-Observed-At": {
+                "schema": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            },
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "x-go-type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "x-go-type": "string"
+            }
+          }
+        ]
+      },
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      ]
+    },
+    "/api/v1/organizations/{org}/projects/{project}/cost-report": {
+      "get": {
+        "operationId": "getProjectCostReport",
+        "description": "Consistent ledger metadata grouped by UTC admission date/project/model/provider/currency. from inclusive, to exclusive, 1..90 days. Maximum 1000 groups; overflow rejected, never truncated. Null attribution means no recorded attempt. Amounts and known-usage token totals are decimal strings. Organization scope requires owner/admin; project scope requires project access. Late settlements change historical reports. Export commits an audit event before CSV delivery; it is not an official supplier invoice.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Snapshot cost report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostReport"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "x-go-type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "x-go-type": "string"
+            }
+          }
+        ]
+      },
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        {
+          "name": "project",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      ]
+    },
+    "/api/v1/organizations/{org}/projects/{project}/cost-report/export": {
+      "post": {
+        "operationId": "exportProjectCostReport",
+        "description": "Consistent ledger metadata grouped by UTC admission date/project/model/provider/currency. from inclusive, to exclusive, 1..90 days. Maximum 1000 groups; overflow rejected, never truncated. Null attribution means no recorded attempt. Amounts and known-usage token totals are decimal strings. Organization scope requires owner/admin; project scope requires project access. Late settlements change historical reports. Export commits an audit event before CSV delivery; it is not an official supplier invoice.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Audited metadata CSV; spreadsheet formula escaping applied.",
+            "headers": {
+              "X-AIGW-Observed-At": {
+                "schema": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            },
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "x-go-type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "x-go-type": "string"
+            }
+          }
+        ]
+      },
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        {
+          "name": "project",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      ]
     }
   },
   "components": {
@@ -10000,6 +10488,112 @@
           },
           "next_cursor": {
             "type": "string"
+          }
+        }
+      },
+      "CostRow": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "day",
+          "project_id",
+          "currency",
+          "settled_amount",
+          "estimated_amount",
+          "open_reserved",
+          "input_tokens",
+          "output_tokens",
+          "model",
+          "provider",
+          "admitted",
+          "released",
+          "usage_known"
+        ],
+        "properties": {
+          "day": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "settled_amount": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "estimated_amount": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "open_reserved": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "input_tokens": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "output_tokens": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true
+          },
+          "admitted": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "released": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "usage_known": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "CostReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "from",
+          "to",
+          "observed_at",
+          "rows"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date",
+            "x-go-type": "string"
+          },
+          "to": {
+            "type": "string",
+            "format": "date",
+            "x-go-type": "string"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "rows": {
+            "type": "array",
+            "maxItems": 1000,
+            "items": {
+              "$ref": "#/components/schemas/CostRow"
+            }
           }
         }
       }

@@ -1234,3 +1234,30 @@ fieldset.model-selection {
 .context-actions .t-button.t-is-disabled .t-button__text {
   color: #62717c;
 }
+
+.cost-report-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 16px;
+  margin: 20px 0;
+}
+.cost-report-filters label {
+  display: grid;
+  gap: 8px;
+}
+.cost-report-filters input[type='date'] {
+  min-height: 36px;
+  max-width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #a8b6c0;
+  border-radius: 6px;
+  color: #243746;
+  background: #fff;
+  font: inherit;
+}
+@media (max-width: 760px) {
+  .cost-report-filters > label {
+    width: 100%;
+  }
+}

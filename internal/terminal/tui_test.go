@@ -238,3 +238,7 @@ func (fakeAPI) Runtime(context.Context, string, string) (types.Runtime, error) {
 func (fakeAPI) BillingRecords(context.Context, string, string, string, string, int) (types.BillingPage, error) {
 	return types.BillingPage{Data: []types.BillingRecord{{RecordId: "bill-test", Provider: "aliyun", Currency: "CNY_MICRO", Amount: "10", Decision: "pending"}}}, nil
 }
+
+func (fakeAPI) CostReport(context.Context, string, string, string, string) (types.CostReport, error) {
+	return types.CostReport{}, nil
+}

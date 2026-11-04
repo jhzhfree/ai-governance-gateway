@@ -9,6 +9,7 @@ export type MemberRecord = components['schemas']['MemberRecord'];
 export type BillingRecord = components['schemas']['BillingRecord'];
 export type BillingPage = components['schemas']['BillingPage'];
 export type ImportReceipt = components['schemas']['ImportReceipt'];
+export type CostReport = components['schemas']['CostReport'];
 export type Runtime = components['schemas']['Runtime'];
 export type ProjectLimits = components['schemas']['ProjectLimits'];
 export type Inspection = components['schemas']['Inspection'];

@@ -93,6 +93,7 @@ func NewCommand(options Options) *cobra.Command {
 	a.addModels()
 	a.addOperations()
 	a.addRuntime()
+	a.addCostReports()
 	a.addBilling()
 	a.addContentAudit()
 	a.addContext()
