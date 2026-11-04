@@ -170,14 +170,14 @@ dlv version   # 1.27.2
 | 前端 | `npm --prefix web run build` | 3935 模块，dist 生成 |
 | 后端门禁 | `TEST_DATABASE_URL=... bash scripts/verify.sh` | 全量 PASS（含 race、CLI/TUI、审计） |
 | 迁移 | `bin/migrate up` / `status` | `current_version=11`、`pending=[]`、`ready=true` |
-| 运行 | `bin/gateway --mock-only` | `authenticated gateway listening on 127.0.0.1:8080` |
+| 运行 | `make dev-oidc` + `make run` | `authenticated gateway listening on 127.0.0.1:8080`（离线，无代理） |
 | 探针 | `GET /health/live`、`/health/ready` | 204 / 204 |
 | 打包 | `make package` | amd64 30 MiB、arm64 28 MiB，arm64 静态链接 |
 
 ## 5. 三个容易再次踩到的问题
 
 1. **网关必须在 `AIGW_BROWSER_ORIGIN` 设置后才会托管 Web 控制台**；否则 `/` 返回 404。
-2. **`AIGW_OIDC_ISSUER` 必须是 HTTPS**（启动即做 discovery）。开发时可用任意可达的 HTTPS issuer 让进程起来；真实登录仍需企业 IdP。
+2. **`AIGW_OIDC_ISSUER` 必须是 HTTPS，且启动即做 discovery**。离线开发不要指向公网 IdP（会报 `OIDC discovery failed`），用 `make dev-oidc`（`cmd/dev-oidc`，仅回环、自动批准、RS256，`.aigw/dev-oidc/` 下自签 CA）；`make run` 会自动注入 `SSL_CERT_FILE`。真实登录仍接企业 IdP。
 3. **`--mock-only` 只接受 loopback 的 `/v1/chat/completions` 地址**，必须同时运行 `bin/mock-provider`。
 
 ## 附录 A：只有代理才能上网时

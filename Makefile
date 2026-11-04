@@ -14,17 +14,22 @@ BINARIES := gateway migrate aigw content-audit mock-provider
 DEV_DATABASE_URL ?= postgres://aigw:aigw_dev@127.0.0.1:5432/aigw_dev?sslmode=disable
 TEST_DATABASE_URL ?= postgres://aigw:aigw_dev@127.0.0.1:5432/aigw_test?sslmode=disable
 DEV_LISTEN ?= 127.0.0.1:8080
-DEV_OIDC_ISSUER ?= https://accounts.google.com
+DEV_OIDC_PORT ?= 9443
+DEV_OIDC_DIR ?= .aigw/dev-oidc
+DEV_OIDC_CA := $(DEV_OIDC_DIR)/ca.pem
+DEV_OIDC_ISSUER ?= https://127.0.0.1:$(DEV_OIDC_PORT)
 DEV_OIDC_AUDIENCE ?= aigw-dev
 DEV_UPSTREAM_URL ?= http://127.0.0.1:8091/v1/chat/completions
+DEV_BROWSER_ORIGIN ?=
+DEV_OIDC_CLIENT_ID ?= aigw-dev-console
 
 # Managed sandboxes sometimes export a bundled LD_LIBRARY_PATH that shadows
 # system libstdc++; drop it when launching long-running binaries or tests.
 RUN := env -u LD_LIBRARY_PATH
 
-.PHONY: help doctor deps build build-go build-web run run-mock web-dev smoke \
-	migrate-up migrate-status migrate-check db-init test verify fmt vet lint clean \
-	package package-linux-amd64 package-linux-arm64 debug
+.PHONY: help doctor deps build build-go build-web run run-mock dev-oidc dev-token \
+	web-dev smoke migrate-up migrate-status migrate-check db-init test verify fmt vet \
+	lint clean package package-linux-amd64 package-linux-arm64 debug
 
 help: ## 列出可用命令
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -53,12 +58,25 @@ build-go: ## 仅构建 Go 二进制到 bin/
 build-web: ## 仅构建前端到 web/dist
 	$(NPM) --prefix web run build
 
-run: ## 前台启动网关（mock 上游，需先 make run-mock 与 make migrate-up）
-	$(RUN) AIGW_DATABASE_URL='$(DEV_DATABASE_URL)' \
+run: ## 前台启动网关（需先 make dev-oidc、make run-mock、make migrate-up）；DEV_BROWSER_ORIGIN 启用控制台
+	@ca=""; [ -f "$(DEV_OIDC_CA)" ] && ca="SSL_CERT_FILE=$(CURDIR)/$(DEV_OIDC_CA)"; \
+	web=""; flags=""; \
+	if [ -n "$(DEV_BROWSER_ORIGIN)" ]; then \
+		web="AIGW_BROWSER_ORIGIN=$(DEV_BROWSER_ORIGIN) AIGW_OIDC_CLIENT_ID=$(DEV_OIDC_CLIENT_ID)"; \
+		flags="--allow-loopback-browser-http"; \
+	fi; \
+	env -u LD_LIBRARY_PATH $$ca $$web \
+		AIGW_DATABASE_URL='$(DEV_DATABASE_URL)' \
 		AIGW_OIDC_ISSUER='$(DEV_OIDC_ISSUER)' \
 		AIGW_OIDC_AUDIENCE='$(DEV_OIDC_AUDIENCE)' \
 		AIGW_UPSTREAM_URL='$(DEV_UPSTREAM_URL)' \
-		$(BIN)/gateway --mock-only --listen $(DEV_LISTEN) --web-dir web/dist
+		$(BIN)/gateway --mock-only --listen $(DEV_LISTEN) --web-dir web/dist $$flags
+
+dev-oidc: ## 前台启动本地开发 IdP（https://127.0.0.1:9443，仅回环、自动批准）
+	$(RUN) $(GO) run ./cmd/dev-oidc --listen 127.0.0.1:$(DEV_OIDC_PORT) --cert-dir $(DEV_OIDC_DIR) --audience $(DEV_OIDC_AUDIENCE)
+
+dev-token: ## 打印一个开发用 Bearer token（配合 dev-oidc）
+	@$(RUN) $(GO) run ./cmd/dev-oidc --print-token --listen 127.0.0.1:$(DEV_OIDC_PORT) --cert-dir $(DEV_OIDC_DIR) --audience $(DEV_OIDC_AUDIENCE)
 
 run-mock: ## 前台启动模拟供应商（127.0.0.1:8091）
 	$(RUN) $(BIN)/mock-provider
@@ -105,7 +123,9 @@ lint: ## 前端类型检查、ESLint 与 Prettier
 	$(NPM) --prefix web run check
 
 debug: ## 用 Delve 调试网关（需 dlv，参数同 make run）
-	$(RUN) AIGW_DATABASE_URL='$(DEV_DATABASE_URL)' \
+	@ca=""; [ -f "$(DEV_OIDC_CA)" ] && ca="SSL_CERT_FILE=$(CURDIR)/$(DEV_OIDC_CA)"; \
+	env -u LD_LIBRARY_PATH $$ca \
+		AIGW_DATABASE_URL='$(DEV_DATABASE_URL)' \
 		AIGW_OIDC_ISSUER='$(DEV_OIDC_ISSUER)' \
 		AIGW_OIDC_AUDIENCE='$(DEV_OIDC_AUDIENCE)' \
 		AIGW_UPSTREAM_URL='$(DEV_UPSTREAM_URL)' \

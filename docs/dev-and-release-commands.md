@@ -20,25 +20,37 @@ make db-init           # 幂等创建角色与 aigw_dev / aigw_test
 make migrate-up        # 迁移到最新（当前 0011）
 make build             # 前端 dist + 5 个二进制到 bin/
 
-make run-mock          # 终端 A：模拟供应商 127.0.0.1:8091
-make run               # 终端 B：网关 127.0.0.1:8080（mock-only）
-make smoke             # 终端 C：探针应 204/204，未授权推理应 4xx
+make dev-oidc          # 终端 A：本地开发 IdP https://127.0.0.1:9443（仅回环）
+make run-mock          # 终端 B：模拟供应商 127.0.0.1:8091
+make run               # 终端 C：网关 127.0.0.1:8080（mock-only）
+make smoke             # 终端 D：探针应 204/204，未授权推理应 4xx
 ```
+
+**为什么要 `make dev-oidc`：** 网关启动即对 `AIGW_OIDC_ISSUER` 做 discovery 并校验 HTTPS，离线机器上没有可达的 IdP 就会报 `OIDC discovery failed`。`cmd/dev-oidc` 是本机回环 IdP（自签 CA、RS256、PKCE、设备码，自动批准），只用于开发，不进入发布包。首次运行会在 `.aigw/dev-oidc/` 生成 `ca.pem`/`server.pem`/`server.key`（0600，已 gitignore）；`make run` 检测到该 CA 会自动注入 `SSL_CERT_FILE`，无需改系统信任库。
 
 `make run` 的等价原生命令（便于改参数）：
 
 ```bash
+SSL_CERT_FILE="$PWD/.aigw/dev-oidc/ca.pem" \
 AIGW_DATABASE_URL='postgres://aigw:aigw_dev@127.0.0.1:5432/aigw_dev?sslmode=disable' \
-AIGW_OIDC_ISSUER='https://accounts.google.com' \
+AIGW_OIDC_ISSUER='https://127.0.0.1:9443' \
 AIGW_OIDC_AUDIENCE='aigw-dev' \
 AIGW_UPSTREAM_URL='http://127.0.0.1:8091/v1/chat/completions' \
 ./bin/gateway --mock-only --listen 127.0.0.1:8080 --web-dir web/dist
 ```
 
-浏览器开发（Vite 热更新，`/api` 与 `/auth` 已代理到 8080）：
+浏览器开发（Vite 热更新，`/api` 与 `/auth` 代理到 8080，且保留 `Host` 头——网关会用 `AIGW_BROWSER_ORIGIN` 校验 Host）：
 
 ```bash
-make web-dev           # http://127.0.0.1:5173
+DEV_BROWSER_ORIGIN=http://127.0.0.1:5173 make run   # 自动附带 --allow-loopback-browser-http
+make web-dev                                        # http://127.0.0.1:5173
+```
+
+取一个开发 token（供 curl / CLI 调用管理 API）：
+
+```bash
+make dev-token                 # 输出 RS256 Bearer token（aud=aigw-dev, scope=aigw:manage）
+curl -H "Authorization: Bearer $(make -s dev-token)" http://127.0.0.1:8080/api/v1/organizations
 ```
 
 ## 2. 命令总表
@@ -48,6 +60,8 @@ make web-dev           # http://127.0.0.1:5173
 | 环境自检 | `make doctor` | 版本、包源（GOPROXY / npm registry）、数据库连通性 |
 | 安装依赖 | `make deps` | `go mod download` + `npm ci` |
 | 建库 | `make db-init` | 需要 `su postgres` 权限 |
+| 开发 IdP | `make dev-oidc` | 本地 OIDC（9443，回环，自动批准，勿用于生产） |
+| 开发 token | `make dev-token` | 打印 aud=`aigw-dev` 的 Bearer token |
 | 迁移 | `make migrate-up` / `migrate-status` / `migrate-check` | check 用于"二进制与库结构是否一致" |
 | 全量构建 | `make build` | 前端 + Go |
 | 仅 Go | `make build-go` | 输出 `bin/{gateway,migrate,aigw,content-audit,mock-provider}` |
@@ -222,6 +236,8 @@ WantedBy=multi-user.target
 | 启动报 `database schema is not ready` | 未迁移或迁移版本落后 | `make migrate-up` 或部署迁移 Job |
 | `/` 返回 404 | 未设置 `AIGW_BROWSER_ORIGIN` | 设置后重启（控制台才挂载） |
 | 推理返回 400 `unsupported_mock_request` | mock 模式请求体不符合 mock 契约 | 用完整 messages/max_tokens 字段 |
+| 启动报 `OIDC discovery failed` | issuer 不可达（离线机器常见） | 先 `make dev-oidc`；或 `DEV_OIDC_ISSUER=<可达 HTTPS IdP>` |
+| `/auth/login` 返回 403 `origin_mismatch` | 请求 Host 与 `AIGW_BROWSER_ORIGIN` 不一致 | 走 5173（Vite 保留 Host），或直接以同端口访问 |
 | `verify.sh` 卡在 docker run | 本机未配置镜像加速器，`postgres:17.6` 拉不下来 | 设置 `TEST_DATABASE_URL` 用本地库 |
 | `go mod download` 超时 | 直连 `proxy.golang.org` 不可达 | `go env -w GOPROXY=https://goproxy.cn,direct` |
 | `npm ci` 超时或 404 | 直连 `registry.npmjs.org` 不可达 | `npm config set registry https://registry.npmmirror.com` |
