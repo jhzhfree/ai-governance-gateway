@@ -38,6 +38,12 @@ func NewWithSession(store *control.Store, auth identity.Authenticator, session S
 func NewWithRuntime(store *control.Store, auth identity.Authenticator, session SessionAuthenticator, monitor *observe.Registry) http.Handler {
 	h := &Handler{Store: store, Auth: auth, Monitor: monitor}
 	mux := http.NewServeMux()
+	for _, base := range []string{"/api/v1/organizations/{org}", "/api/v1/organizations/{org}/projects/{project}"} {
+		mux.HandleFunc("GET "+base+"/budget/alerts/policy", h.alertPolicy)
+		mux.HandleFunc("PUT "+base+"/budget/alerts/policy", h.setAlertPolicy)
+		mux.HandleFunc("GET "+base+"/budget/alerts", h.budgetAlerts)
+		mux.HandleFunc("POST "+base+"/budget/alerts/{alert}/acknowledge", h.acknowledgeBudgetAlert)
+	}
 	mux.HandleFunc("GET /api/v1/organizations/{org}/cost-report", h.costReport)
 	mux.HandleFunc("POST /api/v1/organizations/{org}/cost-report/export", h.costReport)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/cost-report", h.costReport)

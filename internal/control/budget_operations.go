@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jhzhfree/ai-governance-gateway/internal/budgetalert"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
 )
 
@@ -91,6 +92,9 @@ func (s *Store) SetBudget(ctx context.Context, p identity.Principal, org, projec
 			return err
 		}
 		if _, err = tx.Exec(ctx, `INSERT INTO budget_limit_changes(organization_id,project_id,period_id,currency,revision,previous_limit,new_limit,reason,actor_issuer,actor_subject) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, org, project, period, account.Currency, revision+1, account.Limit, limit, reason, p.Issuer, p.Subject); err != nil {
+			return err
+		}
+		if err := budgetalert.Evaluate(ctx, tx, org, project, period, account.Currency); err != nil {
 			return err
 		}
 		return audit(ctx, tx, org, p, "budget.limit_changed", project)

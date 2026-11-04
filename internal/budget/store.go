@@ -10,6 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jhzhfree/ai-governance-gateway/internal/budgetalert"
 )
 
 var (
@@ -104,7 +105,17 @@ func lockAccounts(ctx context.Context, tx pgx.Tx, scope Scope) error {
 
 func event(ctx context.Context, tx pgx.Tx, id, state string) error {
 	_, err := tx.Exec(ctx, `INSERT INTO budget_outbox(request_id,event_type) VALUES($1,$2)`, id, state)
-	return err
+	if err != nil {
+		return err
+	}
+	if state == "dispatched" || state == "uncertain" {
+		return nil
+	}
+	var org, project, period, currency string
+	if err := tx.QueryRow(ctx, `SELECT organization_id,project_id,period_id,currency FROM budget_reservations WHERE request_id=$1`, id).Scan(&org, &project, &period, &currency); err != nil {
+		return err
+	}
+	return budgetalert.Evaluate(ctx, tx, org, project, period, currency)
 }
 
 // Reserve atomically holds the same amount against the organization and project.

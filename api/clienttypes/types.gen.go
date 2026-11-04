@@ -22,6 +22,17 @@ const (
 	AccountCheckScopeProject      AccountCheckScope = "project"
 )
 
+// Defines values for AlertPolicyThresholds.
+const (
+	AlertPolicyThresholdsN100 AlertPolicyThresholds = 100
+	AlertPolicyThresholdsN50  AlertPolicyThresholds = 50
+	AlertPolicyThresholdsN60  AlertPolicyThresholds = 60
+	AlertPolicyThresholdsN70  AlertPolicyThresholds = 70
+	AlertPolicyThresholdsN80  AlertPolicyThresholds = 80
+	AlertPolicyThresholdsN90  AlertPolicyThresholds = 90
+	AlertPolicyThresholdsN95  AlertPolicyThresholds = 95
+)
+
 // Defines values for AuthConfigurationMode.
 const (
 	AuthConfigurationModeLocal AuthConfigurationMode = "local"
@@ -327,6 +338,17 @@ const (
 	Unobserved    RouteStatusState = "unobserved"
 )
 
+// Defines values for SetAlertPolicyThresholds.
+const (
+	SetAlertPolicyThresholdsN100 SetAlertPolicyThresholds = 100
+	SetAlertPolicyThresholdsN50  SetAlertPolicyThresholds = 50
+	SetAlertPolicyThresholdsN60  SetAlertPolicyThresholds = 60
+	SetAlertPolicyThresholdsN70  SetAlertPolicyThresholds = 70
+	SetAlertPolicyThresholdsN80  SetAlertPolicyThresholds = 80
+	SetAlertPolicyThresholdsN90  SetAlertPolicyThresholds = 90
+	SetAlertPolicyThresholdsN95  SetAlertPolicyThresholds = 95
+)
+
 // Defines values for StatementImportProvider.
 const (
 	Aliyun     StatementImportProvider = "aliyun"
@@ -391,6 +413,29 @@ type AccountCheck struct {
 
 // AccountCheckScope defines model for AccountCheck.Scope.
 type AccountCheckScope string
+
+// AcknowledgeBudgetAlert defines model for AcknowledgeBudgetAlert.
+type AcknowledgeBudgetAlert struct {
+	Reason string `json:"reason"`
+}
+
+// AlertActor defines model for AlertActor.
+type AlertActor struct {
+	Issuer  string `json:"issuer"`
+	Subject string `json:"subject"`
+}
+
+// AlertPolicy defines model for AlertPolicy.
+type AlertPolicy struct {
+	Enabled  bool  `json:"enabled"`
+	Revision int64 `json:"revision"`
+
+	// Thresholds Strictly ascending percentages of spent + held. Alerts once per scope/period/currency/threshold.
+	Thresholds []AlertPolicyThresholds `json:"thresholds"`
+}
+
+// AlertPolicyThresholds defines model for AlertPolicy.Thresholds.
+type AlertPolicyThresholds int
 
 // Audit defines model for Audit.
 type Audit struct {
@@ -517,6 +562,28 @@ type BudgetAccount struct {
 	Period   string `json:"period"`
 	Revision int64  `json:"revision"`
 	Spent    int64  `json:"spent"`
+}
+
+// BudgetAlert defines model for BudgetAlert.
+type BudgetAlert struct {
+	AcknowledgedAt *time.Time  `json:"acknowledged_at"`
+	Actor          *AlertActor `json:"actor"`
+	CreatedAt      time.Time   `json:"created_at"`
+	Currency       string      `json:"currency"`
+	Held           string      `json:"held"`
+	Id             int64       `json:"id"`
+	Limit          string      `json:"limit"`
+	Period         string      `json:"period"`
+	PolicyRevision int64       `json:"policy_revision"`
+	Reason         *string     `json:"reason"`
+	Spent          string      `json:"spent"`
+	Threshold      int         `json:"threshold"`
+}
+
+// BudgetAlertPage defines model for BudgetAlertPage.
+type BudgetAlertPage struct {
+	Data       []BudgetAlert `json:"data"`
+	NextCursor string        `json:"next_cursor"`
 }
 
 // BudgetChange defines model for BudgetChange.
@@ -1256,6 +1323,19 @@ type Runtime struct {
 	UnfinishedExecutions int64            `json:"unfinished_executions"`
 }
 
+// SetAlertPolicy defines model for SetAlertPolicy.
+type SetAlertPolicy struct {
+	Enabled          bool   `json:"enabled"`
+	ExpectedRevision int64  `json:"expected_revision"`
+	Reason           string `json:"reason"`
+
+	// Thresholds Strictly ascending percentages of spent + held. Alerts once per scope/period/currency/threshold.
+	Thresholds []SetAlertPolicyThresholds `json:"thresholds"`
+}
+
+// SetAlertPolicyThresholds defines model for SetAlertPolicy.Thresholds.
+type SetAlertPolicyThresholds int
+
 // SetModels defines model for SetModels.
 type SetModels struct {
 	Models []string `json:"models"`
@@ -1356,6 +1436,12 @@ type ListOrganizationAuditParams struct {
 	After *string `form:"after,omitempty" json:"after,omitempty"`
 }
 
+// GetOrganizationBudgetAlertsParams defines parameters for GetOrganizationBudgetAlerts.
+type GetOrganizationBudgetAlertsParams struct {
+	// After Descending keyset, 50 alerts per page.
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+}
+
 // ListOrganizationBudgetChangesParams defines parameters for ListOrganizationBudgetChanges.
 type ListOrganizationBudgetChangesParams struct {
 	Period string  `form:"period" json:"period"`
@@ -1395,6 +1481,12 @@ type ListBillingRecordsParams struct {
 
 // ListBillingRecordsParamsDecision defines parameters for ListBillingRecords.
 type ListBillingRecordsParamsDecision string
+
+// GetProjectBudgetAlertsParams defines parameters for GetProjectBudgetAlerts.
+type GetProjectBudgetAlertsParams struct {
+	// After Descending keyset, 50 alerts per page.
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+}
 
 // ListProjectBudgetChangesParams defines parameters for ListProjectBudgetChanges.
 type ListProjectBudgetChangesParams struct {
@@ -1501,6 +1593,12 @@ type CreateOrganizationJSONRequestBody = CreateOrganization
 // SetOrganizationBudgetJSONRequestBody defines body for SetOrganizationBudget for application/json ContentType.
 type SetOrganizationBudgetJSONRequestBody = UpdateBudget
 
+// PutOrganizationAlertPolicyJSONRequestBody defines body for PutOrganizationAlertPolicy for application/json ContentType.
+type PutOrganizationAlertPolicyJSONRequestBody = SetAlertPolicy
+
+// PostOrganizationAcknowledgeBudgetAlertJSONRequestBody defines body for PostOrganizationAcknowledgeBudgetAlert for application/json ContentType.
+type PostOrganizationAcknowledgeBudgetAlertJSONRequestBody = AcknowledgeBudgetAlert
+
 // SetBudgetCycleJSONRequestBody defines body for SetBudgetCycle for application/json ContentType.
 type SetBudgetCycleJSONRequestBody = UpdateBudgetCycle
 
@@ -1521,6 +1619,12 @@ type ReviewStatementRecordJSONRequestBody = BillingReview
 
 // SetProjectBudgetJSONRequestBody defines body for SetProjectBudget for application/json ContentType.
 type SetProjectBudgetJSONRequestBody = UpdateBudget
+
+// PutProjectAlertPolicyJSONRequestBody defines body for PutProjectAlertPolicy for application/json ContentType.
+type PutProjectAlertPolicyJSONRequestBody = SetAlertPolicy
+
+// PostProjectAcknowledgeBudgetAlertJSONRequestBody defines body for PostProjectAcknowledgeBudgetAlert for application/json ContentType.
+type PostProjectAcknowledgeBudgetAlertJSONRequestBody = AcknowledgeBudgetAlert
 
 // GrantContentAuditorJSONRequestBody defines body for GrantContentAuditor for application/json ContentType.
 type GrantContentAuditorJSONRequestBody = ContentAuditor

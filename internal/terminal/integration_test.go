@@ -471,3 +471,49 @@ func TestCostReportCLIAndTUIReadLedgerWithoutMutation(t *testing.T) {
 		t.Fatal("report mutated ledger")
 	}
 }
+
+func TestBudgetAlertsCLIAndTUIStayScopedAndReadOnly(t *testing.T) {
+	f := fixture(t)
+	ctx := context.Background()
+	actor := identity.Principal{Issuer: f.issuer.URL, Subject: "alice"}
+	if err := f.store.SetAlertPolicy(ctx, actor, f.org.ID, f.project.ID, control.AlertPolicy{Enabled: true, Thresholds: []int{80}}, "terminal fixture"); err != nil {
+		t.Fatal(err)
+	}
+	scope := budget.Scope{Organization: f.org.ID, Project: f.project.ID, Period: f.org.Period, Currency: f.org.Currency}
+	if _, err := f.ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "terminal-alert", PriceVersion: "synthetic", Amount: 40}); err != nil {
+		t.Fatal(err)
+	}
+	code, out, _ := f.execute(t, f.token, "alerts", "--org", f.org.ID, "--project", f.project.ID, "--output", "json")
+	var page types.BudgetAlertPage
+	if code != 0 || json.Unmarshal([]byte(out), &page) != nil || len(page.Data) != 1 || page.Data[0].Held != "40" || page.Data[0].AcknowledgedAt != nil {
+		t.Fatal("CLI did not read scoped alert")
+	}
+	code, _, _ = f.execute(t, f.issuer.Token(t, "outsider", nil), "alerts", "--org", f.org.ID, "--project", f.project.ID)
+	if code == 0 {
+		t.Fatal("CLI exposed alert across tenants")
+	}
+	client, err := NewClient(f.server.URL, f.token, true, f.server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := f.config
+	cfg.Organization = f.org.ID
+	cfg.Project = f.project.ID
+	m := NewModel(ctx, client, cfg, nil, true)
+	defer m.stop()
+	m = complete(t, m, m.Init())
+	next, cmd := m.Update(keyPress('a'))
+	m = complete(t, next.(Model), cmd)
+	if m.screen != budgetAlertsScreen || len(m.alerts) != 1 || m.alerts[0].Threshold != 80 || !strings.Contains(m.View().Content, "预算告警") {
+		t.Fatal("TUI alerts not loaded")
+	}
+	next, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	m = complete(t, next.(Model), cmd)
+	if m.screen != dashboardScreen || m.alerts != nil {
+		t.Fatal("TUI alert state not cleared")
+	}
+	r, err := f.ledger.Get(ctx, "terminal-alert")
+	if err != nil || r.State != "reserved" {
+		t.Fatal("read-only CLI changed budget")
+	}
+}

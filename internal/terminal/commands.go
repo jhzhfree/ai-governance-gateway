@@ -94,6 +94,7 @@ func NewCommand(options Options) *cobra.Command {
 	a.addOperations()
 	a.addRuntime()
 	a.addCostReports()
+	a.addBudgetAlerts()
 	a.addBilling()
 	a.addContentAudit()
 	a.addContext()

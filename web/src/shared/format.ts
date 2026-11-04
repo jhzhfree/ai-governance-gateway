@@ -6,6 +6,9 @@ export const roleNames: Record<string, string> = {
 };
 
 export const actionNames: Record<string, string> = {
+  'budget_alert.policy_changed': '调整预算告警策略',
+  'budget_alert.acknowledged': '确认预算告警',
+  'cost_report.exported': '导出成本报表',
   'budget.limit_changed': '调整预算上限',
   'budget.cycle_changed': '调整预算轮转',
   'budget.period_rotated': '切换预算周期',

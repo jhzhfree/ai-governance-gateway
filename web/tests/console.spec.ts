@@ -815,3 +815,93 @@ test('cost report reads real ledger, exports audited CSV and fits mobile', async
   const a11y = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(a11y.violations.map((item) => item.id)).toEqual([]);
 });
+
+test('budget notifications persist short holds and acknowledgment never changes money', async ({
+  page,
+  baseURL,
+}) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: /使用组织账号登录/ }).click();
+  const session = (await (await page.request.get('/auth/session')).json()) as {
+    csrf_token: string;
+  };
+  const headers = { Origin: baseURL!, 'X-CSRF-Token': session.csrf_token };
+  const org = (await (
+    await page.request.post('/api/v1/organizations', {
+      headers,
+      data: { name: '告警团队', period: '2026-11', currency: 'CNY_MICRO', limit_amount: 10000 },
+    })
+  ).json()) as { id: string };
+  const orgPath = `/api/v1/organizations/${org.id}`;
+  const project = (await (
+    await page.request.post(`${orgPath}/projects`, {
+      headers,
+      data: { name: '告警项目', limit_amount: 400 },
+    })
+  ).json()) as { id: string };
+  const path = `${orgPath}/projects/${project.id}`;
+  expect(
+    (
+      await page.request.put(`${path}/models`, { headers, data: { models: ['aliyun/fixture'] } })
+    ).status(),
+  ).toBe(204);
+  const key = (await (
+    await page.request.post(`${path}/keys`, {
+      headers,
+      data: { name: '告警验收', models: ['aliyun/fixture'], ttl_seconds: 3600 },
+    })
+  ).json()) as { secret: string };
+  await page.goto(`/?view=alerts&org=${org.id}&project=${project.id}`);
+  await page.getByLabel('启用项目预算告警', { exact: true }).check();
+  const section = page
+    .getByRole('heading', { name: '项目预算告警', exact: true })
+    .locator('xpath=ancestor::section[1]');
+  await section.getByLabel('50%', { exact: true }).check();
+  await page.getByLabel('项目预算告警调整原因', { exact: true }).fill('合成调用阈值验收');
+  await page.getByRole('button', { name: '保存项目预算告警策略', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: '预算告警策略已更新' })).toBeVisible();
+  expect(
+    (
+      await page.request.post('/v1/chat/completions', {
+        headers: { Authorization: `Bearer ${key.secret}` },
+        data: {
+          model: 'aliyun/fixture',
+          max_tokens: 8,
+          messages: [{ role: 'user', content: 'synthetic alert fixture' }],
+        },
+      })
+    ).status(),
+  ).toBe(200);
+  await page.getByRole('button', { name: '刷新项目预算告警', exact: true }).click();
+  const table = page.getByRole('region', { name: '项目预算告警记录表', exact: true });
+  await expect(table.getByRole('cell', { name: '50%', exact: true })).toBeVisible();
+  await expect(table.getByText('待确认', { exact: true })).toBeVisible();
+  const alertPage = (await (await page.request.get(`${path}/budget/alerts`)).json()) as {
+    data: { id: number; held: string }[];
+  };
+  expect(alertPage.data.length).toBe(1);
+  expect(BigInt(alertPage.data[0].held) > 0n).toBe(true);
+  expect(
+    (
+      await page.request.post(`${path}/budget/alerts/${alertPage.data[0].id}/acknowledge`, {
+        data: { reason: 'missing csrf' },
+      })
+    ).status(),
+  ).toBe(403);
+  const before = await (await page.request.get(`${path}/usage`)).json();
+  await table.getByRole('button', { name: /^处理项目预算告警 / }).click();
+  await page.getByLabel('项目预算告警处理说明', { exact: true }).fill('已核查占额已结算，继续观察');
+  await page.getByRole('button', { name: '确认处理项目预算告警', exact: true }).click();
+  await expect(table.getByText('已确认', { exact: true })).toBeVisible();
+  expect(await (await page.request.get(`${path}/usage`)).json()).toEqual(before);
+  await page.reload();
+  await expect(
+    page
+      .getByRole('region', { name: '项目预算告警记录表', exact: true })
+      .getByText('已确认', { exact: true }),
+  ).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const a11y = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(a11y.violations.map((issue) => issue.id)).toEqual([]);
+});

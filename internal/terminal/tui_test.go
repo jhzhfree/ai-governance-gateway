@@ -242,3 +242,7 @@ func (fakeAPI) BillingRecords(context.Context, string, string, string, string, i
 func (fakeAPI) CostReport(context.Context, string, string, string, string) (types.CostReport, error) {
 	return types.CostReport{}, nil
 }
+
+func (fakeAPI) BudgetAlerts(context.Context, string, string, string) (types.BudgetAlertPage, error) {
+	return types.BudgetAlertPage{}, nil
+}

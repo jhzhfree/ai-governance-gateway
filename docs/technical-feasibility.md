@@ -402,7 +402,7 @@ ADR 0011 已用于[模型发现与成员管理](adr/0011-model-discovery-and-mem
 | --- | --- | --- |
 | [0012](adr/0012-encrypted-content-audit.md) | 内容审计存储与加密（同步 MVP 已实现） | 加密、分权、保留；spool/KMS/外部锚定仍待完成 |
 | [0013](adr/0013-managed-real-provider-configuration.md) | 真实供应商数据库管理（已实现） | 全局权限、原子发布、运行时路由 |
-| 0020（建议） | 开源基座与兼容策略 | 借鉴边界、许可证、升级路径 |
+| 0023（建议） | 开源基座与兼容策略 | 借鉴边界、许可证、升级路径 |
 | [0014](adr/0014-encrypted-provider-credentials.md) | 页面供应商凭证（已实现） | 写入授权、加密、轮换、恢复 |
 | [0017](adr/0017-offline-local-identity.md) | 正式离线身份（已实现） | 初始化、密码、会话、恢复 |
 | 0022（建议） | 盒子交付与离线授权 | 分区、OTA、回滚、许可证绑定 |
@@ -410,6 +410,7 @@ ADR 0011 已用于[模型发现与成员管理](adr/0011-model-discovery-and-mem
 | [0016](adr/0016-project-keyword-governance.md) | 项目关键字（已实现） | 确定性规则、流式边界、无正文事件 |
 | [0018](adr/0018-protected-prometheus-metrics.md) | 受保护 Prometheus（已实现） | 境内抓取、固定标签、无原文 |
 | [0019](adr/0019-ledger-cost-reports.md) | 账本成本报表（实现/验收见交付跟踪） | 状态分列、精度、权限与导出审计 |
+| [0020](adr/0020-transactional-budget-notifications.md) | 预算站内告警（实现/验收见交付跟踪） | 原子写入、去重、确认与审计 |
 | 0021（建议） | 多 attempt 与路由 | 预留口径、计费归属、首字节边界 |
 
 ### 6.4 实现状态核对（2026-11-04，内容审计增量）

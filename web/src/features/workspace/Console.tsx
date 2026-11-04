@@ -26,6 +26,7 @@ import { CostReportPanel } from '../operations/CostReportPanel';
 import { OperationsPanel } from '../operations/OperationsPanel';
 import { ContentAuditPanel } from '../content/ContentAuditPanel';
 import { LocalAccountsPanel } from '../local/LocalAccountsPanel';
+import { BudgetAlertsPanel } from '../governance/BudgetAlertsPanel';
 import { BudgetPanel } from '../governance/BudgetPanel';
 import { KeywordPanel } from '../governance/KeywordPanel';
 import { ProviderPanel } from '../providers/ProviderPanel';
@@ -87,6 +88,7 @@ export function Console({ session }: { session: Session }) {
         'budget',
         'keywords',
         'reports',
+        'alerts',
       ] as const
     ).find((value) => value === params.get('view')) ?? 'overview';
   const viewLabel = {
@@ -102,6 +104,7 @@ export function Console({ session }: { session: Session }) {
     budget: '预算管理',
     keywords: '关键字匹配',
     reports: '成本报表',
+    alerts: '预算告警',
   }[view];
   const audit = usePage<Audit>(
     identity,
@@ -251,6 +254,7 @@ export function Console({ session }: { session: Session }) {
             ['budget', '▥', '预算管理'],
             ['keywords', '⌕', '关键字匹配'],
             ['reports', '▤', '成本报表'],
+            ['alerts', '⚑', '预算告警'],
           ]
             .filter(
               ([id]) =>
@@ -457,7 +461,8 @@ export function Console({ session }: { session: Session }) {
                 view !== 'audit' &&
                 view !== 'members' &&
                 view !== 'budget' &&
-                view !== 'reports' && (
+                view !== 'reports' &&
+                view !== 'alerts' && (
                   <section className="panel">
                     <Empty
                       title="还没有可访问的项目"
@@ -481,7 +486,15 @@ export function Console({ session }: { session: Session }) {
                 view !== 'members' &&
                 view !== 'budget' &&
                 view !== 'reports' && <ErrorBox error={project.error} />}
-              {view === 'reports' ? (
+              {view === 'alerts' ? (
+                <BudgetAlertsPanel
+                  identity={identity}
+                  orgPath={orgPath}
+                  projectPath={projectID ? projectPath : undefined}
+                  canManage={canManage}
+                  csrf={session.csrf_token}
+                />
+              ) : view === 'reports' ? (
                 <CostReportPanel
                   key={projectPath}
                   identity={identity}

@@ -44,6 +44,7 @@ type migration struct {
 const legacyBaselineVersion = 3
 
 var managedTables = map[int][]string{
+	16: {"budget_alert_policies", "budget_alerts", "budget_alert_policy_versions"},
 	15: {"local_users", "local_access_tokens", "local_auth_throttle", "local_security_events"},
 	14: {"budget_limit_changes", "budget_cycles", "budget_period_changes", "keyword_policies", "keyword_matches", "keyword_policy_versions"},
 	13: {"provider_credentials", "provider_credential_events"},
