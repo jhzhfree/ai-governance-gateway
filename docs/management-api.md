@@ -101,3 +101,5 @@ go run ./cmd/gateway --mock-only
 项目级 `GET /runtime` 返回已授权模型的共享熔断、全周期未结占额和可空的当前实例 HTTP 观测；查询不触发供应商探测。详见[运行手册](supplier-resilience.md)。
 
 标准账单导入、项目差异查询和独立管理员审核位于项目 `/billing/imports`、`/billing/records`、`/billing/records/{record}/review`；权限、原子财务与幂等边界见[对账手册](billing-reconciliation.md)。
+
+组织/项目 members 支持受权 GET 分页；PUT 增加可选 expected_role，DELETE 项目 members 撤销显式项目授权。另提供推理密钥 GET /v1/models。权限、向后兼容及项目密钥独立生命周期见[操作手册](model-discovery-and-members.md)。

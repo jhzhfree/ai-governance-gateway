@@ -126,7 +126,7 @@ func run(ctx context.Context, c config) error {
 	} else {
 		mux.Handle("/api/v1/", httpapi.NewWithRuntime(store, auth, nil, monitor))
 	}
-	mux.Handle("/v1/", &gateway.Handler{Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Providers: providers, Ledger: ledger, Authorize: store.ResolveKey, Client: client, Upstream: c.upstream, Report: func(id, code string) { log.Printf("request_id=%s code=%s", id, code) }})
+	mux.Handle("/v1/", &gateway.Handler{ListModels: store.KeyModels, Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Providers: providers, Ledger: ledger, Authorize: store.ResolveKey, Client: client, Upstream: c.upstream, Report: func(id, code string) { log.Printf("request_id=%s code=%s", id, code) }})
 	mux.HandleFunc("GET /health/live", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) })
 	dbReady := readiness(pool)
 	mux.HandleFunc("GET /health/ready", func(w http.ResponseWriter, r *http.Request) {

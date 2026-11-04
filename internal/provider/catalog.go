@@ -243,3 +243,11 @@ func (c *Catalog) Ready() bool {
 
 func (r *Route) Provider() string { return r.profile.ID }
 func (r *Route) Region() string   { return r.profile.Region }
+
+// InferenceModel is the credential-safe OpenAI model directory projection.
+type InferenceModel struct {
+	ID      string `json:"id"`
+	Object  string `json:"object"`
+	Created int64  `json:"created"`
+	OwnedBy string `json:"owned_by"`
+}

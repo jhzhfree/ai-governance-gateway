@@ -30,15 +30,16 @@ type Ledger interface {
 }
 
 type Handler struct {
-	Circuits  circuit.Gate
-	Monitor   *observe.Registry
-	Admission admission.Gate
-	Attempts  execution.Recorder
-	Providers *provider.Catalog
-	Ledger    Ledger
-	Authorize func(context.Context, string, string) (budget.Scope, error)
-	Client    *http.Client
-	Upstream  string // trusted fixture URL, not a client-supplied URL
+	ListModels func(context.Context, string) ([]provider.InferenceModel, error)
+	Circuits   circuit.Gate
+	Monitor    *observe.Registry
+	Admission  admission.Gate
+	Attempts   execution.Recorder
+	Providers  *provider.Catalog
+	Ledger     Ledger
+	Authorize  func(context.Context, string, string) (budget.Scope, error)
+	Client     *http.Client
+	Upstream   string // trusted fixture URL, not a client-supplied URL
 	// Report receives operational failures without prompts, tokens or raw upstream errors.
 	Report func(requestID, code string)
 }
@@ -62,6 +63,10 @@ func (h *Handler) report(id, code string) {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	id := rand.Text()
 	w.Header().Set("X-Request-ID", id)
+	if r.URL.Path == "/v1/models" {
+		h.models(w, r, id)
+		return
+	}
 	if r.URL.Path != "/v1/chat/completions" {
 		problem(w, 404, "not_found", id)
 		return

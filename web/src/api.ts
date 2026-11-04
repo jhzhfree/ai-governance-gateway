@@ -1,5 +1,6 @@
 import type { components } from './generated/api';
 
+export type MemberRecord = components['schemas']['MemberRecord'];
 export type BillingRecord = components['schemas']['BillingRecord'];
 export type BillingPage = components['schemas']['BillingPage'];
 export type ImportReceipt = components['schemas']['ImportReceipt'];

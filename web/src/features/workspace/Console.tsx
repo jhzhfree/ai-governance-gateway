@@ -23,6 +23,7 @@ import { KeyPanel } from '../keys/KeyPanel';
 import { RequestPanel } from '../requests/RequestPanel';
 import { ModelAccessPanel, currencyLabel } from '../models/ModelAccessPanel';
 import { OperationsPanel } from '../operations/OperationsPanel';
+import { MemberPanel } from '../members/MemberPanel';
 import { AuditPanel } from '../audit/AuditPanel';
 
 export function Console({ session }: { session: Session }) {
@@ -66,15 +67,17 @@ export function Console({ session }: { session: Session }) {
     Boolean(orgID && projectID),
   );
   const view =
-    params.get('view') === 'operations'
-      ? 'operations'
-      : params.get('view') === 'requests'
-        ? 'requests'
-        : params.get('view') === 'audit'
-          ? 'audit'
-          : params.get('view') === 'keys'
-            ? 'keys'
-            : 'overview';
+    params.get('view') === 'members'
+      ? 'members'
+      : params.get('view') === 'operations'
+        ? 'operations'
+        : params.get('view') === 'requests'
+          ? 'requests'
+          : params.get('view') === 'audit'
+            ? 'audit'
+            : params.get('view') === 'keys'
+              ? 'keys'
+              : 'overview';
   const audit = usePage<Audit>(
     identity,
     'audit',
@@ -216,18 +219,21 @@ export function Console({ session }: { session: Session }) {
             ['audit', '≡', '审计记录'],
             ['requests', '↗', '调用账本'],
             ['operations', '⚙', '流量与核查'],
-          ].map(([id, icon, label]) => (
-            <button
-              key={id}
-              className={view === id ? 'nav-item active' : 'nav-item'}
-              aria-current={view === id ? 'page' : undefined}
-              onClick={() => nav(id)}
-            >
-              <span aria-hidden="true">{icon}</span>
-              {label}
-              {view === id && <i />}
-            </button>
-          ))}
+            ['members', '♧', '成员管理'],
+          ]
+            .filter(([id]) => id !== 'members' || canManage)
+            .map(([id, icon, label]) => (
+              <button
+                key={id}
+                className={view === id ? 'nav-item active' : 'nav-item'}
+                aria-current={view === id ? 'page' : undefined}
+                onClick={() => nav(id)}
+              >
+                <span aria-hidden="true">{icon}</span>
+                {label}
+                {view === id && <i />}
+              </button>
+            ))}
         </nav>
         <div className="sidebar-bottom">
           <span className="status-dot" />{' '}
@@ -239,15 +245,17 @@ export function Console({ session }: { session: Session }) {
         <header className="topbar">
           <span className="breadcrumb">
             控制台 <span>/</span>{' '}
-            {view === 'operations'
-              ? '流量与核查'
-              : view === 'requests'
-                ? '调用账本'
-                : view === 'audit'
-                  ? '审计记录'
-                  : view === 'keys'
-                    ? '访问密钥'
-                    : '项目概览'}
+            {view === 'members'
+              ? '成员管理'
+              : view === 'operations'
+                ? '流量与核查'
+                : view === 'requests'
+                  ? '调用账本'
+                  : view === 'audit'
+                    ? '审计记录'
+                    : view === 'keys'
+                      ? '访问密钥'
+                      : '项目概览'}
           </span>
           <div className="account">
             <span className="avatar" aria-hidden="true">
@@ -277,15 +285,17 @@ export function Console({ session }: { session: Session }) {
             <div>
               <div className="eyebrow">WORKSPACE / GOVERNANCE</div>
               <h1>
-                {view === 'operations'
-                  ? '流量与核查'
-                  : view === 'requests'
-                    ? '调用账本'
-                    : view === 'audit'
-                      ? '审计记录'
-                      : view === 'keys'
-                        ? '访问密钥'
-                        : '项目概览'}
+                {view === 'members'
+                  ? '成员管理'
+                  : view === 'operations'
+                    ? '流量与核查'
+                    : view === 'requests'
+                      ? '调用账本'
+                      : view === 'audit'
+                        ? '审计记录'
+                        : view === 'keys'
+                          ? '访问密钥'
+                          : '项目概览'}
                 <span className="heading-dot">.</span>
               </h1>
               <p>
@@ -420,7 +430,7 @@ export function Console({ session }: { session: Session }) {
                   }}
                 />
               )}
-              {!projectID && !projects.isPending && view !== 'audit' && (
+              {!projectID && !projects.isPending && view !== 'audit' && view !== 'members' && (
                 <section className="panel">
                   <Empty
                     title="还没有可访问的项目"
@@ -439,8 +449,20 @@ export function Console({ session }: { session: Session }) {
                   )}
                 </section>
               )}
-              {project.error && view !== 'audit' && <ErrorBox error={project.error} />}
-              {view === 'audit' ? (
+              {project.error && view !== 'audit' && view !== 'members' && (
+                <ErrorBox error={project.error} />
+              )}
+              {view === 'members' ? (
+                <MemberPanel
+                  key={orgPath + '/' + projectID}
+                  identity={identity}
+                  orgPath={orgPath}
+                  projectPath={projectID ? projectPath : undefined}
+                  canRead={canManage}
+                  isOwner={organization?.role === 'owner'}
+                  csrf={session.csrf_token}
+                />
+              ) : view === 'audit' ? (
                 <AuditPanel
                   items={audit.data?.pages.flatMap((p) => p.data) ?? []}
                   error={audit.error}

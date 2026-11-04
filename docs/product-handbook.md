@@ -3,9 +3,9 @@
 | 项目 | 内容 |
 | --- | --- |
 | 产品名 | 序衡（AI GOVERNANCE）；技术名 `ai-governance-gateway` |
-| 代码基线 | `main` @ `9b8cf9d`（2026-11-04，feat: add evidence-backed billing reconciliation and coverage review）；初稿基于 `92047a2`，已按 0010 迁移与账单对账补齐 |
+| 代码基线 | 初稿分析基线为 `main` @ `9b8cf9d`；已同步 2026-11-04 模型发现/成员管理增量（ADR 0011），数据库仍为 0010 |
 | 文档性质 | 面向研发、运维、产品与发布的全局说明；不是营销材料，也不替代各专题文档 |
-| 分析方式 | 静态阅读源码 + 迁移 + 测试脚本 + 现有文档。分析环境无 Go/Node/Docker，未重新执行 `scripts/verify.sh`；文中测试数字均标注来源为仓库记录 |
+| 分析方式 | 初稿为静态阅读，原分析环境未运行测试；模型发现/成员管理增量已通过 113 个 Go 顶层测试、Web 构建及 8 个 Chromium 场景，详见专题验证记录 |
 | 维护规则 | 架构边界、发布门禁变化必须更新本文；专题细节仍以 `docs/` 下对应文档和 ADR 为准 |
 
 > 阅读顺序建议：第 0、1 节建立产品认知 → 第 2、3 节理解实现 → 第 4 节作为编码约束 → 第 5、6 节决定能否发布 → 第 7、8 节安排下一步工作。
@@ -21,6 +21,8 @@
 | 能力 | 状态 | 说明 |
 | --- | --- | --- |
 | OpenAI 兼容推理入口（`/v1/chat/completions`） | ⚠️ 已实现 | 文本 JSON / SSE；仅单 choice；不支持 tools、多模态、n>1 |
+| 项目密钥模型目录（`GET /v1/models`） | ✅ 已实现 | 密钥/项目/当前可用配置交集，不派发、不占额 |
+| Web 成员管理 | ✅ 已实现基础闭环 | 成员列表、角色比较赋权、项目授权移除；不删除组织成员或转移 owner |
 | 项目密钥 + 模型白名单 + 实时撤销 | ✅ 已实现 | `aigw_pk_` 前缀，库内仅存 SHA-256 摘要，创建时一次性展示 |
 | 预算硬限额（预留→结算） | ✅ 已实现 | PostgreSQL 事务 + `request_id` 幂等；金额整数最小单位 |
 | 项目限流与并发租约 | ✅ 已实现 | 60 秒滑动窗口 + 并发租约，默认 60 rpm / 4 并发 |
@@ -122,8 +124,8 @@ internal/database/   内嵌迁移、结构核对、旧库接管
 internal/observe/    进程内 HTTP 计数（非持久化、非导出）
 internal/console/    仅托管构建后的 `index.html` 与 `/assets/*`
 api/openapi/         管理契约（单一事实源）
-web/src/features/    按业务组织的页面（workspace/keys/models/requests/operations/audit）
-docs/adr/            10 份架构决策记录（含账单对账 ADR 0010）
+web/src/features/    按业务组织的页面（workspace/keys/models/requests/operations/audit/billing/members）
+docs/adr/            11 份架构决策记录（含模型发现/成员管理 ADR 0011）
 ```
 
 ### 2.3 部署单元与进程
@@ -438,9 +440,9 @@ CI（`.github/workflows/verify.yml`）：ubuntu + Go 1.27.3 + Node（`.node-vers
 | --- | --- | --- | --- |
 | 模型目录 | `GET /models` | ✅ | 无数据库价格发布，仅启动时配置 |
 | 组织 | `GET/POST /organizations` | ✅ | 无 Owner 转移、无成员删除、无组织删除 |
-| 组织成员 | `PUT /organizations/{org}/members` | ✅ | 仅 owner 可改，不能改 owner 本人 |
+| 组织成员 | `GET/PUT /organizations/{org}/members` | ✅ | owner/admin 可读，仅 owner 可改；Web 提交 expected_role，owner 受保护 |
 | 项目 | `GET/POST /organizations/{org}/projects`、`GET .../{project}` | ✅ | 无项目删除、无预算修改 API |
-| 项目成员 | `PUT .../members` | ✅ | 无成员列表独立端点（随项目详情返回） |
+| 项目成员 | `GET/PUT/DELETE .../members` | ✅ | 组织 owner/admin 管理显式角色，列表区分继承/显式/有效权限；移除不自动撤销项目密钥 |
 | 模型授权 | `PUT .../models` | ✅ | 空数组即禁用；改后仅影响新请求 |
 | 密钥 | `POST/GET .../keys`、`DELETE .../keys/{key}` | ✅ | 无轮换编排、无过期提醒 |
 | 用量 | `GET .../usage` | ✅ | 仅当前配置周期，无历史周期聚合 |
@@ -466,7 +468,7 @@ CI（`.github/workflows/verify.yml`）：ubuntu + Go 1.27.3 + Node（`.node-vers
 | usage 结算与保守失败 | ✅ | 缺失/非法/超额一律 uncertain |
 | 客户端取消 | ✅ | 取消上游，预算转 uncertain |
 | 请求体/消息/响应/事件上限 | ✅ | 64 KiB / 64 条 / 16 KiB / 1 MiB / 64 KiB / 16 MiB |
-| `GET /v1/models` | ❌ | 未实现（管理面有目录） |
+| `GET /v1/models` | ✅ | 使用项目密钥，返回授权交集；与管理目录分离，created=0 表示未发布创建时间 |
 | tools / 多模态 / n>1 / 自定义参数 | ❌ | 显式拒绝，符合首期取舍 |
 | 重试 / 跨供应商回退 | ❌ | 设计上禁止 |
 | 首 token 延迟（TTFT） | ❌ | 未采集 |
@@ -608,10 +610,11 @@ npm --prefix web run build
 
 **P1（可灰度但需排期）**
 
-- [ ] 成员/项目管理 UI 与删除/转移 API
+- [x] 基础 Web 成员列表、角色比较赋权与项目授权移除
+- [ ] 组织成员/项目生命周期与删除/转移 API
 - [ ] 预算修改与跨周期轮转
 - [ ] 终态差额、贷项与退款调整流程（现只支持 `dispatched/uncertain` 结算与 `settled` 同额确认）
-- [ ] `GET /v1/models` 兼容端点
+- [x] `GET /v1/models` 兼容端点（项目密钥授权交集）
 - [ ] 全链路 TTFT 与供应商追踪 ID
 - [ ] outbox 消费者（用量聚合/审计导出）
 - [ ] 依赖与镜像的 CI 扫描
@@ -676,7 +679,7 @@ npm --prefix web run build
 2. outbox 消费者：用量聚合、审计导出、账单导入。
 3. 多实例部署验证（熔断/限流/预算的跨实例行为）。
 4. 价格发布与版本管理（数据库化，替代重启配置）。
-5. `GET /v1/models`、TTFT、供应商追踪 ID、账本导出。
+5. TTFT、供应商追踪 ID、账本导出；`GET /v1/models` 已完成。
 
 ### 批次 D：平台化（按需）
 
@@ -835,3 +838,7 @@ go build -o ./bin/aigw ./cmd/aigw
 | --- | --- |
 | 2026-11-04 | 对齐 `9b8cf9d`：补充 0010 账单对账（导入/双人审核/结算边界）、19 张表、23 个端点、真实账单验收门禁与对账风险 |
 | 2026-11-04 | 基于 `92047a2` 首次建立全局产品说明：架构、实现原理、编码规范、功能矩阵、部署与发布门禁、扩展指南、风险登记 |
+
+## 后续增量记录
+
+2026-11-04：已补齐 [GET /v1/models 与 Web 成员管理](model-discovery-and-members.md)。目录没有推理副作用；成员变更审计失败回滚，组织 owner 受保护。组织成员删除、所有权转移及项目密钥生命周期联动仍未提供。当前覆盖和验证证据以[功能覆盖报告](functional-coverage.md)为准，生产门禁未因此解除。

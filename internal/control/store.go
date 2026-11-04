@@ -181,28 +181,9 @@ func (s *Store) ListOrganizations(ctx context.Context, p identity.Principal, aft
 	return items, rows.Err()
 }
 func (s *Store) PutOrganizationMember(ctx context.Context, p identity.Principal, org string, m Member) error {
-	if !validPrincipal(m.Principal) || (m.Role != "admin" && m.Role != "developer" && m.Role != "viewer") {
-		return ErrInvalid
-	}
-	return transaction(ctx, s.pool, func(tx pgx.Tx) error {
-		role, err := orgRole(ctx, tx, p, org)
-		if err != nil {
-			return err
-		}
-		if role != "owner" {
-			return identity.ErrForbidden
-		}
-		// Owner creation/transfer/removal is deliberately outside this API.
-		r, err := tx.Exec(ctx, `INSERT INTO organization_members VALUES($1,$2,$3,$4) ON CONFLICT(organization_id,issuer,subject) DO UPDATE SET role=excluded.role WHERE organization_members.role<>'owner'`, org, m.Issuer, m.Subject, m.Role)
-		if err != nil {
-			return err
-		}
-		if r.RowsAffected() != 1 {
-			return identity.ErrForbidden
-		}
-		return audit(ctx, tx, org, p, "organization.member_changed", m.Issuer+"#"+m.Subject)
-	})
+	return s.ChangeMember(ctx, p, org, "", m, nil)
 }
+
 func (s *Store) CreateProject(ctx context.Context, p identity.Principal, org, name string, limit int64) (project Project, err error) {
 	if !validName(name) || limit < 0 || limit > MaxAPIAmount {
 		return project, ErrInvalid
@@ -277,26 +258,9 @@ func (s *Store) GetProject(ctx context.Context, p identity.Principal, org, proje
 	return
 }
 func (s *Store) PutProjectMember(ctx context.Context, p identity.Principal, org, project string, m Member) error {
-	if !validPrincipal(m.Principal) || (m.Role != "admin" && m.Role != "developer" && m.Role != "viewer") {
-		return ErrInvalid
-	}
-	return transaction(ctx, s.pool, func(tx pgx.Tx) error {
-		if err := orgAdmin(ctx, tx, p, org); err != nil {
-			return err
-		}
-		var exists bool
-		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM projects WHERE organization_id=$1 AND id=$2) AND EXISTS(SELECT 1 FROM organization_members WHERE organization_id=$1 AND issuer=$3 AND subject=$4)`, org, project, m.Issuer, m.Subject).Scan(&exists); err != nil {
-			return err
-		}
-		if !exists {
-			return ErrNotFound
-		}
-		if _, err := tx.Exec(ctx, `INSERT INTO project_members VALUES($1,$2,$3,$4,$5) ON CONFLICT(organization_id,project_id,issuer,subject) DO UPDATE SET role=excluded.role`, org, project, m.Issuer, m.Subject, m.Role); err != nil {
-			return err
-		}
-		return audit(ctx, tx, org, p, "project.member_changed", project)
-	})
+	return s.ChangeMember(ctx, p, org, project, m, nil)
 }
+
 func (s *Store) SetModels(ctx context.Context, p identity.Principal, org, project string, models []string) error {
 	if !s.validModels(models, true) {
 		return ErrInvalid

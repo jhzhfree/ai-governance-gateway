@@ -54,7 +54,7 @@ func setup(t *testing.T) fixture {
 	t.Cleanup(upstream.Close)
 	mux := http.NewServeMux()
 	mux.Handle("/api/v1/", httpapi.New(store, auth))
-	mux.Handle("/v1/", &gateway.Handler{Admission: admission.New(pool), Attempts: execution.New(pool), Ledger: ledger, Authorize: store.ResolveKey, Client: upstream.Client(), Upstream: upstream.URL + "/v1/chat/completions"})
+	mux.Handle("/v1/", &gateway.Handler{ListModels: store.KeyModels, Admission: admission.New(pool), Attempts: execution.New(pool), Ledger: ledger, Authorize: store.ResolveKey, Client: upstream.Client(), Upstream: upstream.URL + "/v1/chat/completions"})
 	s := httptest.NewServer(mux)
 	t.Cleanup(s.Close)
 	doc, err := openapi3.NewLoader().LoadFromData(openapi.Document)
@@ -101,10 +101,10 @@ func (f fixture) request(token, method, path string, body any, want int) []byte 
 	if resp.StatusCode != want {
 		f.t.Fatalf("%s %s: got %d want %d", method, path, resp.StatusCode, want)
 	}
-	if strings.HasPrefix(path, "/api/") && resp.Header.Get("Cache-Control") != "no-store" {
+	if (strings.HasPrefix(path, "/api/") || (method == "GET" && path == "/v1/models")) && resp.Header.Get("Cache-Control") != "no-store" {
 		f.t.Error("management response may be cached")
 	}
-	if strings.HasPrefix(path, "/api/") {
+	if strings.HasPrefix(path, "/api/") || (method == "GET" && path == "/v1/models") {
 		route, params, err := f.contract.FindRoute(r)
 		if err != nil {
 			f.t.Fatal("operation missing from OpenAPI")

@@ -30,7 +30,11 @@ export interface paths {
             };
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List members and effective roles for organization administrators
+         * @description Readable with project access; returns logical defaults without creating policy rows.
+         */
+        get: operations["listOrganizationMembers"];
         /** @description Owner only. Creates or changes non-owner membership. Owner transfer/removal is not supported. */
         put: operations["putOrganizationMember"];
         post?: never;
@@ -88,11 +92,19 @@ export interface paths {
             };
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List members and effective roles for organization administrators
+         * @description Readable with project access; returns logical defaults without creating policy rows.
+         */
+        get: operations["listProjectMembers"];
         /** @description Organization owner/admin only; target must already be an organization member. */
         put: operations["putProjectMember"];
         post?: never;
-        delete?: never;
+        /**
+         * Remove explicit project grant; inherited role and existing project keys remain
+         * @description Organization owner/admin only; target must already be an organization member.
+         */
+        delete: operations["removeProjectMember"];
         options?: never;
         head?: never;
         patch?: never;
@@ -469,6 +481,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List ready models allowed by this active project key; no inference or reservation
+         * @description Explicit MOCK SSE-only mode, or reviewed mainland provider text mode (JSON or SSE). Only plain text system/user/assistant messages and max_tokens are supported. Provider currency must match project; usage and finish marker must be validated before durable settlement.
+         */
+        get: operations["listInferenceModels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -531,6 +563,11 @@ export interface components {
             subject: string;
             /** @enum {string} */
             role: "admin" | "developer" | "viewer";
+            /**
+             * @description Optional role comparison; empty requires absence. Web always supplies it.
+             * @enum {string}
+             */
+            expected_role?: "" | "owner" | "admin" | "developer" | "viewer";
         };
         SetModels: {
             models: string[];
@@ -894,6 +931,43 @@ export interface components {
             data: components["schemas"]["BillingRecord"][];
             next_cursor: string;
         };
+        MemberRecord: {
+            issuer: string;
+            subject: string;
+            /** @enum {string} */
+            role: "owner" | "admin" | "developer" | "viewer";
+            /** @enum {string|null} */
+            project_role: "admin" | "developer" | "viewer" | null;
+            /** @enum {string} */
+            effective_role: "owner" | "admin" | "developer" | "viewer" | "none";
+        };
+        MemberPage: {
+            data: components["schemas"]["MemberRecord"][];
+            next_cursor: string;
+        };
+        RemoveProjectMember: {
+            issuer: string;
+            subject: string;
+            /** @enum {string} */
+            expected_role: "admin" | "developer" | "viewer";
+        };
+        InferenceModel: {
+            id: string;
+            /** @enum {string} */
+            object: "model";
+            /**
+             * Format: int64
+             * @description 0 means creation time is not published by the gateway.
+             */
+            created: number;
+            /** @enum {string} */
+            owned_by: "mock" | "aliyun" | "volcengine" | "zhipu";
+        };
+        InferenceModelList: {
+            /** @enum {string} */
+            object: "list";
+            data: components["schemas"]["InferenceModel"][];
+        };
     };
     responses: never;
     parameters: never;
@@ -1040,6 +1114,76 @@ export interface operations {
             };
         };
     };
+    listOrganizationMembers: {
+        parameters: {
+            query?: {
+                after?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                org: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberPage"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     putOrganizationMember: {
         parameters: {
             query?: never;
@@ -1091,6 +1235,15 @@ export interface operations {
             };
             /** @description Unknown or inaccessible resource */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Configuration changed; fetch the latest revision before retrying. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1318,6 +1471,77 @@ export interface operations {
             };
         };
     };
+    listProjectMembers: {
+        parameters: {
+            query?: {
+                after?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberPage"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     putProjectMember: {
         parameters: {
             query?: never;
@@ -1370,6 +1594,94 @@ export interface operations {
             };
             /** @description Unknown or inaccessible resource */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Configuration changed; fetch the latest revision before retrying. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    removeProjectMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RemoveProjectMember"];
+            };
+        };
+        responses: {
+            /** @description Success, no body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Configuration changed; fetch the latest revision before retrying. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2830,6 +3142,55 @@ export interface operations {
             /** @description Service unavailable */
             503: {
                 headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listInferenceModels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OpenAI compatible model list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InferenceModelList"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Only GET is supported */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    /** @description Present when supplier circuit blocks dispatch; positive seconds, no capacity guarantee. */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {

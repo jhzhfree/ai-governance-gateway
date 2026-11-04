@@ -60,10 +60,14 @@ func TestConsoleBrowser(t *testing.T) {
 	mux.Handle("/api/v1/", httpapi.NewWithRuntime(store, api, svc, monitor))
 	upstream := httptest.NewServer(http.HandlerFunc(mockprovider.Handler))
 	t.Cleanup(upstream.Close)
-	mockGateway := &gateway.Handler{Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Ledger: ledger, Authorize: store.ResolveKey, Client: upstream.Client(), Upstream: upstream.URL + "/v1/chat/completions"}
-	realGateway := &gateway.Handler{Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Ledger: ledger, Authorize: store.ResolveKey, Providers: catalog}
+	mockGateway := &gateway.Handler{ListModels: store.KeyModels, Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Ledger: ledger, Authorize: store.ResolveKey, Client: upstream.Client(), Upstream: upstream.URL + "/v1/chat/completions"}
+	realGateway := &gateway.Handler{ListModels: store.KeyModels, Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Ledger: ledger, Authorize: store.ResolveKey, Providers: catalog}
 	// Mixed mode exists in this synthetic fixture only, to regress the legacy UI.
 	mux.HandleFunc("/v1/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/models" {
+			realGateway.ServeHTTP(w, r)
+			return
+		}
 		data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 64<<10))
 		if err != nil {
 			w.WriteHeader(400)

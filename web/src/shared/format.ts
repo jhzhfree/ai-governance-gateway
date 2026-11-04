@@ -9,6 +9,7 @@ export const actionNames: Record<string, string> = {
   'organization.created': '创建组织',
   'organization.member_changed': '调整组织成员',
   'project.created': '创建项目',
+  'project.member_removed': '移除项目授权',
   'project.member_changed': '调整项目成员',
   'billing.imported': '导入账单',
   'billing.approved': '通过账单审核',

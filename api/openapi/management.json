@@ -281,6 +281,16 @@
           },
           "204": {
             "description": "Success, no body"
+          },
+          "409": {
+            "description": "Configuration changed; fetch the latest revision before retrying.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -293,6 +303,104 @@
             }
           }
         }
+      },
+      "get": {
+        "operationId": "listOrganizationMembers",
+        "description": "Readable with project access; returns logical defaults without creating policy rows.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberPage"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List members and effective roles for organization administrators",
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ]
       }
     },
     "/api/v1/organizations/{org}/projects": {
@@ -693,6 +801,16 @@
           },
           "204": {
             "description": "Success, no body"
+          },
+          "409": {
+            "description": "Configuration changed; fetch the latest revision before retrying.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -705,6 +823,199 @@
             }
           }
         }
+      },
+      "get": {
+        "operationId": "listProjectMembers",
+        "description": "Readable with project access; returns logical defaults without creating policy rows.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberPage"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List members and effective roles for organization administrators",
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "removeProjectMember",
+        "description": "Organization owner/admin only; target must already be an organization member.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          },
+          {
+            "browserSessionDev": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Success, no body"
+          },
+          "409": {
+            "description": "Configuration changed; fetch the latest revision before retrying.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveProjectMember"
+              }
+            }
+          }
+        },
+        "summary": "Remove explicit project grant; inherited role and existing project keys remain"
       }
     },
     "/api/v1/organizations/{org}/projects/{project}/models": {
@@ -2898,6 +3209,69 @@
         "parameters": [],
         "summary": "Two-person evidence review with atomic ledger and audit"
       }
+    },
+    "/v1/models": {
+      "get": {
+        "operationId": "listInferenceModels",
+        "description": "Explicit MOCK SSE-only mode, or reviewed mainland provider text mode (JSON or SSE). Only plain text system/user/assistant messages and max_tokens are supported. Provider currency must match project; usage and finish marker must be validated before durable settlement.",
+        "security": [
+          {
+            "projectKey": []
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Present when supplier circuit blocks dispatch; positive seconds, no capacity guarantee.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OpenAI compatible model list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InferenceModelList"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Only GET is supported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List ready models allowed by this active project key; no inference or reservation"
+      }
     }
   },
   "components": {
@@ -3175,6 +3549,17 @@
               "developer",
               "viewer"
             ]
+          },
+          "expected_role": {
+            "type": "string",
+            "enum": [
+              "",
+              "owner",
+              "admin",
+              "developer",
+              "viewer"
+            ],
+            "description": "Optional role comparison; empty requires absence. Web always supplies it."
           }
         },
         "required": [
@@ -4660,6 +5045,163 @@
         "required": [
           "data",
           "next_cursor"
+        ]
+      },
+      "MemberRecord": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "issuer": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "subject": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "developer",
+              "viewer"
+            ]
+          },
+          "project_role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "developer",
+              "viewer"
+            ],
+            "nullable": true
+          },
+          "effective_role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "developer",
+              "viewer",
+              "none"
+            ]
+          }
+        },
+        "required": [
+          "issuer",
+          "subject",
+          "role",
+          "project_role",
+          "effective_role"
+        ]
+      },
+      "MemberPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemberRecord"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "next_cursor"
+        ]
+      },
+      "RemoveProjectMember": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "issuer": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "subject": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "expected_role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "developer",
+              "viewer"
+            ]
+          }
+        },
+        "required": [
+          "issuer",
+          "subject",
+          "expected_role"
+        ]
+      },
+      "InferenceModel": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "model"
+            ]
+          },
+          "created": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "0 means creation time is not published by the gateway."
+          },
+          "owned_by": {
+            "type": "string",
+            "enum": [
+              "mock",
+              "aliyun",
+              "volcengine",
+              "zhipu"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "created",
+          "owned_by"
+        ]
+      },
+      "InferenceModelList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "list"
+            ]
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InferenceModel"
+            }
+          }
+        },
+        "required": [
+          "object",
+          "data"
         ]
       }
     }

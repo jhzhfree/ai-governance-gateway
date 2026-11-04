@@ -383,3 +383,57 @@ test('normalized bill import, duplicate detection and rejection preserve budget'
     '0',
   );
 });
+
+test('project-key model discovery and web member grants stay scoped', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: /使用组织账号登录/ }).click();
+  await page.getByRole('button', { name: /新建组织/ }).click();
+  await page.getByLabel('组织名称', { exact: true }).fill('成员协作团队');
+  await page.getByLabel('预算单位', { exact: true }).selectOption('MOCK');
+  await page.getByRole('button', { name: '确认创建', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: '组织已创建' })).toBeVisible();
+  await page.getByRole('button', { name: /新建项目/ }).click();
+  await page.getByLabel('项目名称', { exact: true }).fill('成员协作项目');
+  await page.getByRole('button', { name: '确认创建', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '成员协作项目' })).toBeVisible();
+  await page.getByRole('button', { name: /创建密钥/ }).click();
+  await page.getByLabel('密钥名称', { exact: true }).fill('模型发现密钥');
+  await page.getByRole('button', { name: '确认创建', exact: true }).click();
+  const key = await page.getByLabel('新密钥', { exact: true }).inputValue();
+  await page.getByRole('button', { name: '我已保存，关闭', exact: true }).click();
+  const response = await page.request.get('/v1/models', {
+    headers: { Authorization: `Bearer ${key}` },
+  });
+  expect(response.status()).toBe(200);
+  const models = (await response.json()) as {
+    object: string;
+    data: { id: string; object: string }[];
+  };
+  expect(models.object).toBe('list');
+  expect(models.data.map((model) => model.id)).toEqual(['mock-text']);
+  await page.getByRole('button', { name: '成员管理', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '成员与授权' })).toBeVisible();
+  await page.getByLabel('成员身份subject', { exact: true }).fill('browser-developer');
+  await page.getByLabel('分配角色', { exact: true }).selectOption('developer');
+  await page.getByRole('button', { name: '保存成员权限', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: '成员权限已保存' })).toBeVisible();
+  await page.getByLabel('成员范围', { exact: true }).selectOption('project');
+  const table = page.getByRole('region', { name: '成员权限表' });
+  const row = table.getByRole('row').filter({ hasText: 'browser-developer' });
+  await expect(row.getByRole('cell', { name: '未授权', exact: true })).toBeVisible();
+  await row.getByRole('button', { name: '配置权限 browser-developer', exact: true }).click();
+  await page.getByLabel('分配角色', { exact: true }).selectOption('viewer');
+  await page.getByRole('button', { name: '保存成员权限', exact: true }).click();
+  await expect(row.getByRole('cell', { name: '只读成员', exact: true })).toHaveCount(2);
+  await row.getByRole('button', { name: '移除授权 browser-developer', exact: true }).click();
+  await page.getByRole('button', { name: '确认移除项目授权', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: '项目单独授权已移除' })).toBeVisible();
+  await expect(row.getByRole('cell', { name: '未授权', exact: true })).toBeVisible();
+  await page.reload();
+  await page.getByLabel('成员范围', { exact: true }).selectOption('project');
+  await expect(row.getByRole('cell', { name: '未授权', exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const a11y = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(a11y.violations.map((v) => v.id)).toEqual([]);
+});

@@ -92,3 +92,5 @@ AIGW_VERIFY_WEB=1 bash scripts/verify.sh
 流量与核查页增加供应商运行状态：按授权模型显示共享熔断、等待提示和全周期未结占额；当前实例 HTTP 计数/延迟分布单独展示，并注明重启清零及 SSE 状态限制。详见[运行手册](supplier-resilience.md)。
 
 CNY_MICRO 项目的流量与核查页新增账单工作台：标准 CSV、差异/重复候选、导入人不可自批、审核决定及原因；未结与终态调整边界见[对账手册](billing-reconciliation.md)。成员管理仍通过 API 设置，不将该工作台视为完整财务系统。
+
+新增“成员管理”：组织 owner/admin 可读，owner 编辑组织成员；组织 owner/admin 管理项目显式授权，页面展示组织继承与实际生效角色，移除需确认。不创建企业 IdP 账号，不自动撤销项目密钥。见[操作手册](model-discovery-and-members.md)。

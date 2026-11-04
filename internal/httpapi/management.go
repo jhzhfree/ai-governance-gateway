@@ -40,12 +40,15 @@ func NewWithRuntime(store *control.Store, auth identity.Authenticator, session S
 		send(w, 200, map[string]any{"data": store.Models(), "next_cursor": ""})
 	})
 	mux.HandleFunc("GET /api/v1/organizations", h.organizations)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/members", h.members)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/members", h.members)
+	mux.HandleFunc("DELETE /api/v1/organizations/{org}/projects/{project}/members", h.removeProjectMember)
 	mux.HandleFunc("POST /api/v1/organizations", h.createOrganization)
-	mux.HandleFunc("PUT /api/v1/organizations/{org}/members", h.orgMember)
+	mux.HandleFunc("PUT /api/v1/organizations/{org}/members", h.changeMember)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/projects", h.projects)
 	mux.HandleFunc("POST /api/v1/organizations/{org}/projects", h.createProject)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}", h.project)
-	mux.HandleFunc("PUT /api/v1/organizations/{org}/projects/{project}/members", h.projectMember)
+	mux.HandleFunc("PUT /api/v1/organizations/{org}/projects/{project}/members", h.changeMember)
 	mux.HandleFunc("PUT /api/v1/organizations/{org}/projects/{project}/models", h.models)
 	mux.HandleFunc("POST /api/v1/organizations/{org}/projects/{project}/keys", h.createKey)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/keys", h.keys)
@@ -108,7 +111,7 @@ func failure(w http.ResponseWriter, r *http.Request, err error) {
 		status, code = 403, "forbidden"
 	case errors.Is(err, control.ErrNotFound):
 		status, code = 404, "not_found"
-	case errors.Is(err, admission.ErrConflict) || errors.Is(err, control.ErrBillingConflict):
+	case errors.Is(err, admission.ErrConflict) || errors.Is(err, control.ErrBillingConflict) || errors.Is(err, control.ErrMemberConflict):
 		status, code = 409, "conflict"
 	case errors.Is(err, control.ErrInvalid) || errors.Is(err, admission.ErrInvalid):
 		status, code = 400, "invalid_request"
@@ -193,17 +196,6 @@ func (h *Handler) createOrganization(w http.ResponseWriter, r *http.Request) {
 	}
 	send(w, 201, o)
 }
-func (h *Handler) orgMember(w http.ResponseWriter, r *http.Request) {
-	var m control.Member
-	if !decode(w, r, &m) {
-		return
-	}
-	if err := h.Store.PutOrganizationMember(r.Context(), principal(r), r.PathValue("org"), m); err != nil {
-		failure(w, r, err)
-		return
-	}
-	w.WriteHeader(204)
-}
 func (h *Handler) projects(w http.ResponseWriter, r *http.Request) {
 	a, l, ok := page(w, r)
 	if !ok {
@@ -243,17 +235,6 @@ func (h *Handler) createProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	send(w, 201, p)
-}
-func (h *Handler) projectMember(w http.ResponseWriter, r *http.Request) {
-	var m control.Member
-	if !decode(w, r, &m) {
-		return
-	}
-	if err := h.Store.PutProjectMember(r.Context(), principal(r), r.PathValue("org"), r.PathValue("project"), m); err != nil {
-		failure(w, r, err)
-		return
-	}
-	w.WriteHeader(204)
 }
 func (h *Handler) models(w http.ResponseWriter, r *http.Request) {
 	var in struct {

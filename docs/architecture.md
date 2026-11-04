@@ -105,3 +105,5 @@ Web 服务端状态由 TanStack Query 管理；筛选、分页放 URL；局部�
 供应商路由使用 PostgreSQL 共享熔断与单探测租约，以 generation 隔离过期请求结果。项目运行状态区分共享数据库数据与有界实例 HTTP 观测；无重试或自动回退。见 [ADR 0009](adr/0009-shared-supplier-circuits.md)。
 
 标准账单导入与两人财务审核见 [ADR 0010](adr/0010-evidence-backed-billing-reconciliation.md)，财务/审核/审计共享事务。当前整体实现和设计目标的差异见[功能覆盖核查](functional-coverage.md)。
+
+项目密钥的 OpenAI 模型目录和 Web 成员管理见 [ADR 0011](adr/0011-model-discovery-and-membership-ui.md)：目录求密钥/项目/配置交集；成员写入采用角色比较和原子审计，区分继承权限、项目授权与独立项目密钥。

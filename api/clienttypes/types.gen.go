@@ -92,6 +92,24 @@ const (
 	ExecutionAttemptRegionLocal      ExecutionAttemptRegion = "local"
 )
 
+// Defines values for InferenceModelObject.
+const (
+	Model InferenceModelObject = "model"
+)
+
+// Defines values for InferenceModelOwnedBy.
+const (
+	InferenceModelOwnedByAliyun     InferenceModelOwnedBy = "aliyun"
+	InferenceModelOwnedByMock       InferenceModelOwnedBy = "mock"
+	InferenceModelOwnedByVolcengine InferenceModelOwnedBy = "volcengine"
+	InferenceModelOwnedByZhipu      InferenceModelOwnedBy = "zhipu"
+)
+
+// Defines values for InferenceModelListObject.
+const (
+	List InferenceModelListObject = "list"
+)
+
 // Defines values for InferenceRequestMessagesRole.
 const (
 	InferenceRequestMessagesRoleAssistant InferenceRequestMessagesRole = "assistant"
@@ -128,11 +146,44 @@ const (
 	OpenHold            InspectionItemReasons = "open_hold"
 )
 
+// Defines values for MemberExpectedRole.
+const (
+	MemberExpectedRoleAdmin     MemberExpectedRole = "admin"
+	MemberExpectedRoleDeveloper MemberExpectedRole = "developer"
+	MemberExpectedRoleEmpty     MemberExpectedRole = ""
+	MemberExpectedRoleOwner     MemberExpectedRole = "owner"
+	MemberExpectedRoleViewer    MemberExpectedRole = "viewer"
+)
+
 // Defines values for MemberRole.
 const (
 	MemberRoleAdmin     MemberRole = "admin"
 	MemberRoleDeveloper MemberRole = "developer"
 	MemberRoleViewer    MemberRole = "viewer"
+)
+
+// Defines values for MemberRecordEffectiveRole.
+const (
+	MemberRecordEffectiveRoleAdmin     MemberRecordEffectiveRole = "admin"
+	MemberRecordEffectiveRoleDeveloper MemberRecordEffectiveRole = "developer"
+	MemberRecordEffectiveRoleNone      MemberRecordEffectiveRole = "none"
+	MemberRecordEffectiveRoleOwner     MemberRecordEffectiveRole = "owner"
+	MemberRecordEffectiveRoleViewer    MemberRecordEffectiveRole = "viewer"
+)
+
+// Defines values for MemberRecordProjectRole.
+const (
+	MemberRecordProjectRoleAdmin     MemberRecordProjectRole = "admin"
+	MemberRecordProjectRoleDeveloper MemberRecordProjectRole = "developer"
+	MemberRecordProjectRoleViewer    MemberRecordProjectRole = "viewer"
+)
+
+// Defines values for MemberRecordRole.
+const (
+	MemberRecordRoleAdmin     MemberRecordRole = "admin"
+	MemberRecordRoleDeveloper MemberRecordRole = "developer"
+	MemberRecordRoleOwner     MemberRecordRole = "owner"
+	MemberRecordRoleViewer    MemberRecordRole = "viewer"
 )
 
 // Defines values for ModelInfoCurrency.
@@ -184,6 +235,13 @@ const (
 	ProjectDetailsRoleViewer    ProjectDetailsRole = "viewer"
 )
 
+// Defines values for RemoveProjectMemberExpectedRole.
+const (
+	Admin     RemoveProjectMemberExpectedRole = "admin"
+	Developer RemoveProjectMemberExpectedRole = "developer"
+	Viewer    RemoveProjectMemberExpectedRole = "viewer"
+)
+
 // Defines values for RequestRecordState.
 const (
 	RequestRecordStateDispatched     RequestRecordState = "dispatched"
@@ -213,9 +271,9 @@ const (
 
 // Defines values for StatementImportProvider.
 const (
-	Aliyun     StatementImportProvider = "aliyun"
-	Volcengine StatementImportProvider = "volcengine"
-	Zhipu      StatementImportProvider = "zhipu"
+	StatementImportProviderAliyun     StatementImportProvider = "aliyun"
+	StatementImportProviderVolcengine StatementImportProvider = "volcengine"
+	StatementImportProviderZhipu      StatementImportProvider = "zhipu"
 )
 
 // Defines values for UsageCurrency.
@@ -462,6 +520,30 @@ type ImportReceipt struct {
 	Id        string `json:"id"`
 }
 
+// InferenceModel defines model for InferenceModel.
+type InferenceModel struct {
+	// Created 0 means creation time is not published by the gateway.
+	Created int64                 `json:"created"`
+	Id      string                `json:"id"`
+	Object  InferenceModelObject  `json:"object"`
+	OwnedBy InferenceModelOwnedBy `json:"owned_by"`
+}
+
+// InferenceModelObject defines model for InferenceModel.Object.
+type InferenceModelObject string
+
+// InferenceModelOwnedBy defines model for InferenceModel.OwnedBy.
+type InferenceModelOwnedBy string
+
+// InferenceModelList defines model for InferenceModelList.
+type InferenceModelList struct {
+	Data   []InferenceModel         `json:"data"`
+	Object InferenceModelListObject `json:"object"`
+}
+
+// InferenceModelListObject defines model for InferenceModelList.Object.
+type InferenceModelListObject string
+
 // InferenceRequest defines model for InferenceRequest.
 type InferenceRequest struct {
 	MaxTokens int64 `json:"max_tokens"`
@@ -590,13 +672,42 @@ type KeyPage struct {
 
 // Member defines model for Member.
 type Member struct {
-	Issuer  string     `json:"issuer"`
-	Role    MemberRole `json:"role"`
-	Subject string     `json:"subject"`
+	// ExpectedRole Optional role comparison; empty requires absence. Web always supplies it.
+	ExpectedRole *MemberExpectedRole `json:"expected_role,omitempty"`
+	Issuer       string              `json:"issuer"`
+	Role         MemberRole          `json:"role"`
+	Subject      string              `json:"subject"`
 }
+
+// MemberExpectedRole Optional role comparison; empty requires absence. Web always supplies it.
+type MemberExpectedRole string
 
 // MemberRole defines model for Member.Role.
 type MemberRole string
+
+// MemberPage defines model for MemberPage.
+type MemberPage struct {
+	Data       []MemberRecord `json:"data"`
+	NextCursor string         `json:"next_cursor"`
+}
+
+// MemberRecord defines model for MemberRecord.
+type MemberRecord struct {
+	EffectiveRole MemberRecordEffectiveRole `json:"effective_role"`
+	Issuer        string                    `json:"issuer"`
+	ProjectRole   *MemberRecordProjectRole  `json:"project_role"`
+	Role          MemberRecordRole          `json:"role"`
+	Subject       string                    `json:"subject"`
+}
+
+// MemberRecordEffectiveRole defines model for MemberRecord.EffectiveRole.
+type MemberRecordEffectiveRole string
+
+// MemberRecordProjectRole defines model for MemberRecord.ProjectRole.
+type MemberRecordProjectRole string
+
+// MemberRecordRole defines model for MemberRecord.Role.
+type MemberRecordRole string
 
 // ModelInfo defines model for ModelInfo.
 type ModelInfo struct {
@@ -695,6 +806,16 @@ type ProjectPage struct {
 	// NextCursor Pass as after; empty means end. Ordering is by ID, not creation time.
 	NextCursor string `json:"next_cursor"`
 }
+
+// RemoveProjectMember defines model for RemoveProjectMember.
+type RemoveProjectMember struct {
+	ExpectedRole RemoveProjectMemberExpectedRole `json:"expected_role"`
+	Issuer       string                          `json:"issuer"`
+	Subject      string                          `json:"subject"`
+}
+
+// RemoveProjectMemberExpectedRole defines model for RemoveProjectMember.ExpectedRole.
+type RemoveProjectMemberExpectedRole string
 
 // RequestPage defines model for RequestPage.
 type RequestPage struct {
@@ -795,6 +916,12 @@ type ListOrganizationAuditParams struct {
 	After *string `form:"after,omitempty" json:"after,omitempty"`
 }
 
+// ListOrganizationMembersParams defines parameters for ListOrganizationMembers.
+type ListOrganizationMembersParams struct {
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+	Limit *int    `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ListProjectsParams defines parameters for ListProjects.
 type ListProjectsParams struct {
 	Limit *int    `form:"limit,omitempty" json:"limit,omitempty"`
@@ -822,6 +949,12 @@ type InspectProjectParams struct {
 type ListProjectKeysParams struct {
 	Limit *int    `form:"limit,omitempty" json:"limit,omitempty"`
 	After *string `form:"after,omitempty" json:"after,omitempty"`
+}
+
+// ListProjectMembersParams defines parameters for ListProjectMembers.
+type ListProjectMembersParams struct {
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+	Limit *int    `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // ListRequestsParams defines parameters for ListRequests.
@@ -868,6 +1001,9 @@ type CreateProjectKeyJSONRequestBody = CreateKey
 
 // SetProjectLimitsJSONRequestBody defines body for SetProjectLimits for application/json ContentType.
 type SetProjectLimitsJSONRequestBody = UpdateProjectLimits
+
+// RemoveProjectMemberJSONRequestBody defines body for RemoveProjectMember for application/json ContentType.
+type RemoveProjectMemberJSONRequestBody = RemoveProjectMember
 
 // PutProjectMemberJSONRequestBody defines body for PutProjectMember for application/json ContentType.
 type PutProjectMemberJSONRequestBody = Member
