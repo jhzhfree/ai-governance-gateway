@@ -405,6 +405,31 @@ ADR 0011 已用于[模型发现与成员管理](adr/0011-model-discovery-and-mem
 | 0014 | 盒子交付与离线授权 | 分区、OTA、回滚、许可证绑定 |
 | 0015 | 多 attempt 与路由 | 预留口径、计费归属、首字节边界 |
 
+### 6.4 实现状态核对（2026-11-04，基线 `360c923`）
+
+对照本文各章清单逐项核对源码（grep + 迁移目录 + 路由清单）后的状态如下；证据均为文件路径，非运行时验证。
+
+**本基线新增完成（评估时的 P1 缺口，两项闭环）**
+
+| 项 | 现状 | 证据 |
+| --- | --- | --- |
+| 推理密钥 `GET /v1/models` | ✅ 已实现，与管理目录分离 | `internal/gateway/models.go`、`internal/gateway/handler.go` |
+| Web 成员管理 | ✅ 部分：列表/比较赋权/项目授权移除；仍缺邀请、组织成员删除、所有权转移 | `internal/control/members.go`、`web/src/features/members/MemberPanel.tsx` |
+
+**1.0 范围仍未实现（进度 0，估算不变）**
+
+| 项 | 核对结果 |
+| --- | --- |
+| 内容审计 MVP | ❌ 无 `audit_payloads`/`audit_deks`/`audit_access_log`；迁移仍止于 0010；无加密与哈希链 |
+| 本地管理员/离线身份 | ❌ `internal/identity` 仅 OIDC，无本地账号 |
+| 预算调整 API + 周期轮转 | ❌ 管理面路由无 budget 写入口；`period` 仅为账户主键 |
+| 部署件/OTA/许可证 | ❌ 无 Dockerfile/compose/k8s，无许可证代码 |
+| 指标导出 | ❌ 仅实例级内存计数，无 Prometheus/OTel |
+
+**2.0 范围全部未动（符合预期）**：多 attempt（无 `attempt_no`）、路由回退、插件/guardrail hook、审计分层、管理审计防篡改均无代码。
+
+**对计划的影响**：1.0 增量估算维持 33–49 人周，内容审计 10–14 人周仍是大头；10.2 的 Go/No-Go 门禁尚无一项有证据；M-B（审计闭环 + 本地登录 + 预算调整）进度为 0。下一步优先级：内容审计 PoC → 本地管理员 → 预算调整/轮转。
+
 ---
 
 ## 7. 接口与数据增量（供研发估算）
