@@ -19,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
+	"github.com/jhzhfree/ai-governance-gateway/internal/localauth"
 	"golang.org/x/oauth2"
 )
 
@@ -28,6 +29,8 @@ type Config struct {
 	HTTPClient                     *http.Client
 }
 type Service struct {
+	local                    *localauth.Service
+	issuer                   string
 	pool                     *pgxpool.Pool
 	api                      *identity.OIDC
 	id                       *oidc.IDTokenVerifier
@@ -58,7 +61,7 @@ func New(ctx context.Context, pool *pgxpool.Pool, api *identity.OIDC, issuer str
 	if !secure {
 		name = "aigw_session_dev"
 	}
-	return &Service{pool: pool, api: api, id: provider.Verifier(&oidc.Config{ClientID: c.ClientID, SupportedSigningAlgs: []string{"RS256"}}), oauth: oauth2.Config{ClientID: c.ClientID, ClientSecret: c.ClientSecret, Endpoint: provider.Endpoint(), RedirectURL: c.Origin + "/auth/callback", Scopes: []string{oidc.ScopeOpenID, "profile", "aigw:manage"}}, origin: c.Origin, host: u.Host, cookieName: name, secure: secure, client: client}, nil
+	return &Service{issuer: issuer, pool: pool, api: api, id: provider.Verifier(&oidc.Config{ClientID: c.ClientID, SupportedSigningAlgs: []string{"RS256"}}), oauth: oauth2.Config{ClientID: c.ClientID, ClientSecret: c.ClientSecret, Endpoint: provider.Endpoint(), RedirectURL: c.Origin + "/auth/callback", Scopes: []string{oidc.ScopeOpenID, "profile", "aigw:manage"}}, origin: c.Origin, host: u.Host, cookieName: name, secure: secure, client: client}, nil
 }
 func digest(v string) []byte { h := sha256.Sum256([]byte(v)); return h[:] }
 func csrf(v string) string {
@@ -79,7 +82,17 @@ func fail(w http.ResponseWriter, status int, code string) {
 }
 func (s *Service) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /auth/login", s.login)
+	mux.HandleFunc("GET /auth/login", func(w http.ResponseWriter, r *http.Request) {
+		if s.local != nil {
+			http.Redirect(w, r, "/", http.StatusSeeOther)
+			return
+		}
+		s.login(w, r)
+	})
+	mux.HandleFunc("GET /auth/config", s.authConfiguration)
+	if s.local != nil {
+		s.localRoutes(mux)
+	}
 	mux.HandleFunc("GET /auth/callback", s.callback)
 	mux.HandleFunc("GET /auth/session", s.session)
 	mux.HandleFunc("POST /auth/logout", s.logout)
@@ -90,7 +103,11 @@ func (s *Service) Handler() http.Handler {
 		w.Header().Set("X-Request-ID", rand.Text())
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		if r.Host != s.host {
-			fail(w, 403, "origin_mismatch")
+			if s.local != nil {
+				s.localFailure(w, identity.ErrForbidden)
+			} else {
+				fail(w, 403, "origin_mismatch")
+			}
 			return
 		}
 		mux.ServeHTTP(w, r)
@@ -210,6 +227,12 @@ func (s *Service) lookup(r *http.Request) (identity.Principal, string, time.Time
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = identity.ErrUnauthenticated
 	}
+	if err == nil && p.Issuer != s.issuer {
+		err = identity.ErrUnauthenticated
+	}
+	if err == nil && s.local != nil {
+		_, err = s.local.User(r.Context(), p)
+	}
 	return p, c.Value, expires, err
 }
 
@@ -221,6 +244,15 @@ func (s *Service) AuthenticateRequest(r *http.Request) (identity.Principal, erro
 	p, secret, _, err := s.lookup(r)
 	if err != nil {
 		return identity.Principal{}, err
+	}
+	if s.local != nil {
+		user, e := s.local.User(r.Context(), p)
+		if e != nil {
+			return identity.Principal{}, e
+		}
+		if user.MustChangePassword && r.URL.Path != "/auth/local/password" && r.URL.Path != "/auth/logout" {
+			return identity.Principal{}, identity.ErrForbidden
+		}
 	}
 	if r.Method != "GET" && r.Method != "HEAD" && r.Method != "OPTIONS" {
 		if r.Header.Get("Origin") != s.origin || subtle.ConstantTimeCompare([]byte(r.Header.Get("X-CSRF-Token")), []byte(csrf(secret))) != 1 {
@@ -239,7 +271,19 @@ func (s *Service) session(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	reply(w, 200, map[string]any{"user": p, "csrf_token": csrf(secret), "expires_at": expires})
+	value := map[string]any{"user": p, "csrf_token": csrf(secret), "expires_at": expires, "auth_mode": "oidc"}
+	if s.local != nil {
+		user, e := s.local.User(r.Context(), p)
+		if e != nil {
+			s.localFailure(w, e)
+			return
+		}
+		value["auth_mode"] = "local"
+		value["must_change_password"] = user.MustChangePassword
+		value["local_administrator"] = user.Administrator
+		value["display_name"] = user.Username
+	}
+	reply(w, 200, value)
 }
 func (s *Service) logout(w http.ResponseWriter, r *http.Request) {
 	if _, err := s.AuthenticateRequest(r); err != nil {

@@ -39,9 +39,11 @@ export class ApiError extends Error {
             ? '资源不存在，或你没有访问权限。'
             : status === 409
               ? '记录已变更或当前状态不允许此操作，请刷新核对。'
-              : status === 400
-                ? '请检查填写内容后重试。'
-                : '服务暂时不可用，请稍后重试。',
+              : status === 429
+                ? '请求过于频繁，请稍后重试。'
+                : status === 400
+                  ? '请检查填写内容后重试。'
+                  : '服务暂时不可用，请稍后重试。',
     );
   }
 }
@@ -77,3 +79,7 @@ export type BudgetCycle = components['schemas']['BudgetCycle'];
 export type KeywordPolicy = components['schemas']['KeywordPolicy'];
 export type KeywordMatch = components['schemas']['KeywordMatch'];
 export type KeywordRule = components['schemas']['KeywordRule'];
+
+export type LocalUser = components['schemas']['LocalUser'];
+
+export type LocalSecurityEvent = components['schemas']['LocalSecurityEvent'];

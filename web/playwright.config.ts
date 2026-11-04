@@ -6,6 +6,7 @@ if (!process.env.AIGW_E2E_BASE_URL)
   );
 export default defineConfig({
   testDir: './tests',
+  testMatch: process.env.AIGW_E2E_AUTH_MODE === 'local' ? '**/local.spec.ts' : '**/console.spec.ts',
   fullyParallel: false,
   workers: 1,
   retries: 0,

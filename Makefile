@@ -9,7 +9,7 @@ DIST := dist
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BUILD_DATE := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
-BINARIES := gateway migrate aigw content-audit
+BINARIES := gateway migrate aigw content-audit local-admin
 
 DEV_DATABASE_URL ?= postgres://aigw:aigw_dev@127.0.0.1:5432/aigw_dev?sslmode=disable
 TEST_DATABASE_URL ?= postgres://aigw:aigw_dev@127.0.0.1:5432/aigw_test?sslmode=disable
@@ -151,7 +151,7 @@ _package:
 	@test -n "$(GOARCH)" || { echo "GOARCH required"; exit 1; }
 	@name=aigw-$(VERSION)-linux-$(GOARCH); \
 	rm -rf $(DIST)/$$name; mkdir -p $(DIST)/$$name/bin $(DIST)/$$name/web; \
-	for c in gateway migrate aigw content-audit; do \
+	for c in gateway migrate aigw content-audit local-admin; do \
 		CGO_ENABLED=0 GOOS=linux GOARCH=$(GOARCH) $(GO) build -mod=readonly -trimpath -o $(DIST)/$$name/bin/$$c ./cmd/$$c; \
 	done; \
 	cp -r web/dist $(DIST)/$$name/web/dist; \

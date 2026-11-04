@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -174,7 +175,8 @@ func (a *app) emit(value any, headers []string, rows [][]string, cursor string) 
 	return nil
 }
 func (a *app) addAuthentication() {
-	var issuer, clientID, audience, store string
+	var issuer, clientID, audience, store, username string
+	var localLogin, passwordStdin bool
 	var timeout time.Duration
 	login := &cobra.Command{Use: "login", Short: "使用 OIDC Device Flow 登录（公共客户端）", Args: noArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 		if a.options.Getenv("AIGW_TOKEN") != "" {
@@ -224,10 +226,43 @@ func (a *app) addAuthentication() {
 		}
 		ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
 		defer cancel()
-		credential, err := DeviceLogin(ctx, cfg, a.options.HTTPClient, func(c Challenge) error {
-			_, err := fmt.Fprintf(a.options.Err, "请在浏览器打开 %s\n输入验证码：%s\n等待授权，按 Ctrl+C 可取消。\n", c.VerificationURI, c.UserCode)
-			return err
-		})
+		var credential Credential
+		if localLogin {
+			if issuer != "" || clientID != "" || audience != "" || username == "" {
+				return input("本地登录请指定 --username，不与 OIDC 参数混用")
+			}
+			cfg.Issuer = cfg.Server + "/auth/local"
+			cfg.ClientID = "aigw-local"
+			cfg.Audience = "aigw-management"
+			var secret []byte
+			if passwordStdin {
+				line, e := bufio.NewReader(io.LimitReader(a.options.In, 258)).ReadString('\n')
+				if e != nil && e != io.EOF {
+					return e
+				}
+				secret = []byte(strings.TrimSuffix(strings.TrimSuffix(line, "\n"), "\r"))
+			} else {
+				file, ok := a.options.In.(*os.File)
+				if !ok || !term.IsTerminal(int(file.Fd())) {
+					return input("无交互终端时请显式使用 --password-stdin")
+				}
+				fmt.Fprint(a.options.Err, "本地账号密码：")
+				secret, err = term.ReadPassword(int(file.Fd()))
+				fmt.Fprintln(a.options.Err)
+				if err != nil {
+					return err
+				}
+			}
+			credential, err = LocalLogin(ctx, cfg, username, string(secret), a.options.HTTPClient)
+			for i := range secret {
+				secret[i] = 0
+			}
+		} else {
+			credential, err = DeviceLogin(ctx, cfg, a.options.HTTPClient, func(c Challenge) error {
+				_, err := fmt.Fprintf(a.options.Err, "请在浏览器打开 %s\n输入验证码：%s\n等待授权，按 Ctrl+C 可取消。\n", c.VerificationURI, c.UserCode)
+				return err
+			})
+		}
 		if err != nil {
 			return err
 		}
@@ -252,18 +287,31 @@ func (a *app) addAuthentication() {
 		status := map[string]any{"configured": true, "server": cfg.Server, "user": credential.User, "expires_at": credential.ExpiresAt, "source": cfg.CredentialStore}
 		return a.emit(status, []string{"状态", "用户", "服务", "有效期至"}, [][]string{{"已登录", credential.User.Subject, cfg.Server, credential.ExpiresAt.Format(time.RFC3339)}}, "")
 	}}
+	login.Flags().BoolVar(&localLogin, "local", false, "使用显式本地账号登录，无需外部 IdP")
+	login.Flags().BoolVar(&passwordStdin, "password-stdin", false, "从受控标准输入读取密码，不使用密码参数")
+	login.Flags().StringVar(&username, "username", "", "本地账号用户名")
 	login.Flags().StringVar(&issuer, "issuer", "", "OIDC issuer（允许 realm 路径）")
 	login.Flags().StringVar(&clientID, "client-id", "", "公共终端客户端 ID")
 	login.Flags().StringVar(&audience, "audience", "", "管理 API audience（默认 aigw-management）")
 	login.Flags().StringVar(&store, "credential-store", "keyring", "凭证存储：keyring 或显式 file")
 	login.Flags().DurationVar(&timeout, "timeout", 5*time.Minute, "设备授权等待上限")
 	a.root.AddCommand(login)
-	a.root.AddCommand(&cobra.Command{Use: "logout", Short: "删除本地已保存凭证，不撤销 IdP 或环境令牌", Args: noArgs, RunE: func(_ *cobra.Command, _ []string) error {
+	a.root.AddCommand(&cobra.Command{Use: "logout", Short: "删除已保存凭证；本地账号同时尝试撤销服务端令牌", Args: noArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 		cfg, exists, err := a.state.Load()
 		if err != nil {
 			return err
 		}
 		if exists {
+			if cfg.ClientID == "aigw-local" {
+				if credential, e := a.state.Credential(cfg); e == nil {
+					ctx, cancel := context.WithTimeout(cmd.Context(), 10*time.Second)
+					err := RevokeLocalCredential(ctx, cfg, credential.AccessToken, a.options.HTTPClient)
+					cancel()
+					if err != nil {
+						fmt.Fprintln(a.options.Err, "服务端令牌撤销未确认；请管理员撤销会话或等待令牌到期。")
+					}
+				}
+			}
 			if err := a.state.DeleteCredential(cfg); err != nil {
 				return err
 			}

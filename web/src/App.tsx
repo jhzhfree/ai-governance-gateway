@@ -4,6 +4,7 @@ import { api, ApiError, type Session } from './api';
 import { Mark, ErrorBox } from './shared/Feedback';
 import { useSearchParams } from 'react-router-dom';
 import { AuditorWorkspace } from './features/content/AuditorWorkspace';
+import { LoginOptions, LocalPasswordForm } from './features/local/LocalLogin';
 import { Console } from './features/workspace/Console';
 
 export function App() {
@@ -66,13 +67,17 @@ export function App() {
             与团队预算。
           </h1>
           <p>把项目、访问密钥和用量放在一起，让每次调用都有清晰的权限和记录。</p>
-          <a className="login-button" href="/auth/login">
-            使用组织账号登录 <span aria-hidden="true">↗</span>
-          </a>
-          <div className="login-note">通过组织身份服务安全登录</div>
+          <LoginOptions />
         </main>
         <footer>序衡 · AI 治理网关</footer>
       </div>
+    );
+  if (session.data.must_change_password)
+    return (
+      <main className="main-content">
+        <h1>本地账号安全初始化</h1>
+        <LocalPasswordForm forced />
+      </main>
     );
   if (params.get('audit_only') === '1' && params.get('org') && params.get('project'))
     return (

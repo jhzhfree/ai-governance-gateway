@@ -25,6 +25,7 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/httpapi"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
 	"github.com/jhzhfree/ai-governance-gateway/internal/keyword"
+	"github.com/jhzhfree/ai-governance-gateway/internal/localauth"
 	"github.com/jhzhfree/ai-governance-gateway/internal/mockprovider"
 	"github.com/jhzhfree/ai-governance-gateway/internal/observe"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
@@ -110,4 +111,54 @@ type combinedFixtureCatalog struct{ real provider.Routing }
 
 func (c combinedFixtureCatalog) Models() []provider.ModelInfo {
 	return append([]provider.ModelInfo{provider.MockInfo()}, c.real.Models()...)
+}
+
+func TestLocalConsoleBrowser(t *testing.T) {
+	pool, ledger, _ := testutil.Database(t)
+	mux := http.NewServeMux()
+	server := httptest.NewUnstartedServer(mux)
+	origin := "http://" + server.Listener.Addr().String()
+	local, err := localauth.New(pool, origin, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	admin, err := local.Initialize(context.Background(), "admin", "synthetic-initial-local-passphrase")
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog := testutil.MainlandManager(t, pool, local.Principal(admin), testutil.SupplierFixture(t))
+	if err := catalog.Publish(context.Background(), local.Principal(admin), 0, testutil.MainlandConfig()); err != nil {
+		t.Fatal(err)
+	}
+	store := control.NewWithCatalog(pool, catalog).WithProviderManager(catalog).WithLocalIdentity(local)
+	content := testutil.ContentAudit(t, pool)
+	store.WithContentAudit(content)
+	sessions, err := browser.NewLocal(pool, local, origin, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	webDir, err := filepath.Abs("../../web")
+	if err != nil {
+		t.Fatal(err)
+	}
+	assets, err := console.New(filepath.Join(webDir, "dist"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux.Handle("/", assets)
+	mux.Handle("/auth/", sessions.Handler())
+	mux.Handle("/api/v1/", httpapi.NewWithSession(store, local, sessions))
+	mux.Handle("/v1/", &gateway.Handler{Content: content, Keywords: keyword.New(pool), Providers: catalog, Ledger: ledger, Admission: admission.New(pool), Circuits: circuit.New(pool), Attempts: execution.New(pool), Authorize: store.ResolveKey, ListModels: store.KeyModels})
+	server.Start()
+	t.Cleanup(server.Close)
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "npm", "run", "test:e2e")
+	cmd.Dir = webDir
+	cmd.Env = append(os.Environ(), "AIGW_E2E_BASE_URL="+origin, "AIGW_E2E_AUTH_MODE=local")
+	output, err := cmd.CombinedOutput()
+	t.Log(string(output))
+	if err != nil {
+		t.Fatal("local console browser tests failed")
+	}
 }

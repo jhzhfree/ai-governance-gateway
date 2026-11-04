@@ -15,6 +15,7 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
 	"github.com/jhzhfree/ai-governance-gateway/internal/contentaudit"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
+	"github.com/jhzhfree/ai-governance-gateway/internal/localauth"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 )
 
@@ -28,10 +29,11 @@ var (
 const MaxAPIAmount int64 = 9007199254740991
 
 type Store struct {
-	providers *provider.Manager
-	content   *contentaudit.Service
-	pool      *pgxpool.Pool
-	catalog   ModelCatalog
+	localIdentity *localauth.Service
+	providers     *provider.Manager
+	content       *contentaudit.Service
+	pool          *pgxpool.Pool
+	catalog       ModelCatalog
 }
 
 func New(p *pgxpool.Pool) *Store { return &Store{pool: p} }
@@ -313,6 +315,12 @@ func (s *Store) CreateKey(ctx context.Context, p identity.Principal, org, projec
 	issued.Secret = secret
 	issued.Key = Key{ID: rand.Text(), Name: name, Prefix: secret[:16], Models: models, CanRevoke: true}
 	err = transaction(ctx, s.pool, func(tx pgx.Tx) error {
+		if s.localIdentity != nil && p.Issuer == s.localIdentity.Issuer() {
+			if err := s.localIdentity.AuthorizeActor(ctx, tx, p); err != nil {
+				return err
+			}
+		}
+
 		role, err := projectRole(ctx, tx, p, org, project)
 		if err != nil {
 			return err
@@ -458,3 +466,5 @@ func (s *Store) ResolveKey(ctx context.Context, secret, model string) (scope bud
 	}
 	return budget.Scope{}, identity.ErrForbidden
 }
+
+func (s *Store) WithLocalIdentity(local *localauth.Service) *Store { s.localIdentity = local; return s }

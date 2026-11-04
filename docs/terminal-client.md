@@ -79,3 +79,7 @@ NO_COLOR=1 ./bin/aigw tui
 ## 内容审计增量
 
 新增 aigw content-audit list --org <ID> --project <ID> --output json，仅返回分页元数据。正文不进入终端；数据库侧 cmd/content-audit purge/verify 为独立维护命令。 详见[内容审计手册](content-audit.md)。
+
+## 正式本地身份增量（0015）
+
+显式 local 模式支持离线管理员初始化、首次强制改密、账号管理/停用、短期管理令牌、会话与项目密钥撤销；默认 OIDC 保持兼容。参见[本地身份与恢复](local-identity.md)。JH-SAC/DAS 设备准入仍待实际接口契约，不与本地登录混同。

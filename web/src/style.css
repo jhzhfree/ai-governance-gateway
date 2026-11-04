@@ -1222,3 +1222,15 @@ fieldset.model-selection {
     padding: 16px;
   }
 }
+
+.local-login-form {
+  max-width: 360px;
+  margin-top: 28px;
+}
+.local-login-form h2 {
+  font-size: 18px;
+}
+
+.context-actions .t-button.t-is-disabled .t-button__text {
+  color: #62717c;
+}

@@ -24,6 +24,7 @@ import { RequestPanel } from '../requests/RequestPanel';
 import { ModelAccessPanel, currencyLabel } from '../models/ModelAccessPanel';
 import { OperationsPanel } from '../operations/OperationsPanel';
 import { ContentAuditPanel } from '../content/ContentAuditPanel';
+import { LocalAccountsPanel } from '../local/LocalAccountsPanel';
 import { BudgetPanel } from '../governance/BudgetPanel';
 import { KeywordPanel } from '../governance/KeywordPanel';
 import { ProviderPanel } from '../providers/ProviderPanel';
@@ -73,6 +74,7 @@ export function Console({ session }: { session: Session }) {
   const view =
     (
       [
+        'local',
         'overview',
         'keys',
         'audit',
@@ -86,6 +88,7 @@ export function Console({ session }: { session: Session }) {
       ] as const
     ).find((value) => value === params.get('view')) ?? 'overview';
   const viewLabel = {
+    local: '本地账号',
     overview: '项目概览',
     keys: '访问密钥',
     audit: '审计记录',
@@ -241,10 +244,15 @@ export function Console({ session }: { session: Session }) {
             ['members', '♧', '成员管理'],
             ['content', '▤', '内容审计'],
             ['providers', '⇄', '供应商配置'],
+            ['local', '♙', '本地账号'],
             ['budget', '▥', '预算管理'],
             ['keywords', '⌕', '关键字匹配'],
           ]
-            .filter(([id]) => !['members', 'content', 'keywords'].includes(id) || canManage)
+            .filter(
+              ([id]) =>
+                (id !== 'local' || session.auth_mode === 'local') &&
+                (!['members', 'content', 'keywords'].includes(id) || canManage),
+            )
             .map(([id, icon, label]) => (
               <button
                 key={id}
@@ -275,9 +283,9 @@ export function Console({ session }: { session: Session }) {
           </span>
           <div className="account">
             <span className="avatar" aria-hidden="true">
-              {session.user.subject.slice(0, 1).toUpperCase()}
+              {(session.display_name ?? session.user.subject).slice(0, 1).toUpperCase()}
             </span>
-            <span className="account-name">{session.user.subject}</span>
+            <span className="account-name">{session.display_name ?? session.user.subject}</span>
             <Button
               variant="text"
               onClick={() => {
@@ -406,7 +414,9 @@ export function Console({ session }: { session: Session }) {
               }}
             />
           )}
-          {view === 'providers' ? (
+          {view === 'local' && session.auth_mode === 'local' ? (
+            <LocalAccountsPanel session={session} />
+          ) : view === 'providers' ? (
             <ProviderPanel identity={identity} csrf={session.csrf_token} />
           ) : organizations.isPending ? (
             <div className="loading" role="status">

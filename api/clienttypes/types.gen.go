@@ -22,6 +22,12 @@ const (
 	AccountCheckScopeProject      AccountCheckScope = "project"
 )
 
+// Defines values for AuthConfigurationMode.
+const (
+	AuthConfigurationModeLocal AuthConfigurationMode = "local"
+	AuthConfigurationModeOidc  AuthConfigurationMode = "oidc"
+)
+
 // Defines values for BillingRecordCurrency.
 const (
 	BillingRecordCurrencyCNYMICRO BillingRecordCurrency = "CNY_MICRO"
@@ -61,6 +67,12 @@ const (
 const (
 	Approve BillingReviewAction = "approve"
 	Reject  BillingReviewAction = "reject"
+)
+
+// Defines values for BrowserSessionAuthMode.
+const (
+	BrowserSessionAuthModeLocal BrowserSessionAuthMode = "local"
+	BrowserSessionAuthModeOidc  BrowserSessionAuthMode = "oidc"
 )
 
 // Defines values for ContentMetaState.
@@ -400,6 +412,14 @@ type AuditPage struct {
 	NextCursor string `json:"next_cursor"`
 }
 
+// AuthConfiguration defines model for AuthConfiguration.
+type AuthConfiguration struct {
+	Mode AuthConfigurationMode `json:"mode"`
+}
+
+// AuthConfigurationMode defines model for AuthConfiguration.Mode.
+type AuthConfigurationMode string
+
 // BillingActor defines model for BillingActor.
 type BillingActor struct {
 	Issuer  string `json:"issuer"`
@@ -474,13 +494,20 @@ type BrowserError struct {
 
 // BrowserSession defines model for BrowserSession.
 type BrowserSession struct {
-	CsrfToken string    `json:"csrf_token"`
-	ExpiresAt time.Time `json:"expires_at"`
-	User      struct {
+	AuthMode           *BrowserSessionAuthMode `json:"auth_mode,omitempty"`
+	CsrfToken          string                  `json:"csrf_token"`
+	DisplayName        *string                 `json:"display_name,omitempty"`
+	ExpiresAt          time.Time               `json:"expires_at"`
+	LocalAdministrator *bool                   `json:"local_administrator,omitempty"`
+	MustChangePassword *bool                   `json:"must_change_password,omitempty"`
+	User               struct {
 		Issuer  string `json:"issuer"`
 		Subject string `json:"subject"`
 	} `json:"user"`
 }
+
+// BrowserSessionAuthMode defines model for BrowserSession.AuthMode.
+type BrowserSessionAuthMode string
 
 // BudgetAccount defines model for BudgetAccount.
 type BudgetAccount struct {
@@ -607,6 +634,13 @@ type CreateKey struct {
 	// Name Nonblank name, at most 100 UTF-8 bytes, no surrounding whitespace.
 	Name       string `json:"name"`
 	TtlSeconds int64  `json:"ttl_seconds"`
+}
+
+// CreateLocalUser defines model for CreateLocalUser.
+type CreateLocalUser struct {
+	Administrator bool    `json:"administrator"`
+	Password      *string `json:"password,omitempty"`
+	Username      string  `json:"username"`
 }
 
 // CreateOrganization defines model for CreateOrganization.
@@ -875,6 +909,57 @@ type KeywordRuleDirection string
 // KeywordRuleKind defines model for KeywordRule.Kind.
 type KeywordRuleKind string
 
+// LocalLogin defines model for LocalLogin.
+type LocalLogin struct {
+	Password *string `json:"password,omitempty"`
+	Username string  `json:"username"`
+}
+
+// LocalPasswordChange defines model for LocalPasswordChange.
+type LocalPasswordChange struct {
+	CurrentPassword *string `json:"current_password,omitempty"`
+	NewPassword     *string `json:"new_password,omitempty"`
+}
+
+// LocalSecurityEvent defines model for LocalSecurityEvent.
+type LocalSecurityEvent struct {
+	Action    string    `json:"action"`
+	Actor     Principal `json:"actor"`
+	CreatedAt time.Time `json:"created_at"`
+	Id        int64     `json:"id"`
+	TargetId  string    `json:"target_id"`
+}
+
+// LocalSecurityEventPage defines model for LocalSecurityEventPage.
+type LocalSecurityEventPage struct {
+	Data       []LocalSecurityEvent `json:"data"`
+	NextCursor string               `json:"next_cursor"`
+}
+
+// LocalToken defines model for LocalToken.
+type LocalToken struct {
+	AccessToken string    `json:"access_token"`
+	ExpiresAt   time.Time `json:"expires_at"`
+	User        Principal `json:"user"`
+}
+
+// LocalUser defines model for LocalUser.
+type LocalUser struct {
+	Administrator      bool      `json:"administrator"`
+	CreatedAt          time.Time `json:"created_at"`
+	Enabled            bool      `json:"enabled"`
+	Id                 string    `json:"id"`
+	MustChangePassword bool      `json:"must_change_password"`
+	Revision           int64     `json:"revision"`
+	Username           string    `json:"username"`
+}
+
+// LocalUserPage defines model for LocalUserPage.
+type LocalUserPage struct {
+	Data       []LocalUser `json:"data"`
+	NextCursor string      `json:"next_cursor"`
+}
+
 // Member defines model for Member.
 type Member struct {
 	// ExpectedRole Optional role comparison; empty requires absence. Web always supplies it.
@@ -1107,6 +1192,12 @@ type RequestRecord struct {
 // RequestRecordState defines model for RequestRecord.State.
 type RequestRecordState string
 
+// ResetLocalPassword defines model for ResetLocalPassword.
+type ResetLocalPassword struct {
+	ExpectedRevision int64   `json:"expected_revision"`
+	Password         *string `json:"password,omitempty"`
+}
+
 // RotateBudgetPeriod defines model for RotateBudgetPeriod.
 type RotateBudgetPeriod struct {
 	ExpectedPeriod string `json:"expected_period"`
@@ -1200,6 +1291,13 @@ type UpdateContentPolicy struct {
 type UpdateKeywordPolicy struct {
 	ExpectedRevision int64         `json:"expected_revision"`
 	Rules            []KeywordRule `json:"rules"`
+}
+
+// UpdateLocalUser defines model for UpdateLocalUser.
+type UpdateLocalUser struct {
+	Administrator    bool  `json:"administrator"`
+	Enabled          bool  `json:"enabled"`
+	ExpectedRevision int64 `json:"expected_revision"`
 }
 
 // UpdateProjectLimits defines model for UpdateProjectLimits.
@@ -1333,6 +1431,21 @@ type CompleteBrowserLoginParams struct {
 	Code  string `form:"code" json:"code"`
 }
 
+// ListLocalSecurityEventsParams defines parameters for ListLocalSecurityEvents.
+type ListLocalSecurityEventsParams struct {
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+}
+
+// ListLocalUsersParams defines parameters for ListLocalUsers.
+type ListLocalUsersParams struct {
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+}
+
+// CreateLocalUserParams defines parameters for CreateLocalUser.
+type CreateLocalUserParams struct {
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+}
+
 // CreateOrganizationJSONRequestBody defines body for CreateOrganization for application/json ContentType.
 type CreateOrganizationJSONRequestBody = CreateOrganization
 
@@ -1392,6 +1505,24 @@ type PublishProviderConfigurationJSONRequestBody = PublishProviderConfiguration
 
 // SetProviderCredentialJSONRequestBody defines body for SetProviderCredential for application/json ContentType.
 type SetProviderCredentialJSONRequestBody = SetProviderCredential
+
+// LocalBrowserLoginJSONRequestBody defines body for LocalBrowserLogin for application/json ContentType.
+type LocalBrowserLoginJSONRequestBody = LocalLogin
+
+// ChangeLocalPasswordJSONRequestBody defines body for ChangeLocalPassword for application/json ContentType.
+type ChangeLocalPasswordJSONRequestBody = LocalPasswordChange
+
+// LocalTokenLoginJSONRequestBody defines body for LocalTokenLogin for application/json ContentType.
+type LocalTokenLoginJSONRequestBody = LocalLogin
+
+// CreateLocalUserJSONRequestBody defines body for CreateLocalUser for application/json ContentType.
+type CreateLocalUserJSONRequestBody = CreateLocalUser
+
+// UpdateLocalUserJSONRequestBody defines body for UpdateLocalUser for application/json ContentType.
+type UpdateLocalUserJSONRequestBody = UpdateLocalUser
+
+// ResetLocalUserPasswordJSONRequestBody defines body for ResetLocalUserPassword for application/json ContentType.
+type ResetLocalUserPasswordJSONRequestBody = ResetLocalPassword
 
 // StreamMockChatJSONRequestBody defines body for StreamMockChat for application/json ContentType.
 type StreamMockChatJSONRequestBody = InferenceRequest

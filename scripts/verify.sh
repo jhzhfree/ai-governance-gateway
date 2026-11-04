@@ -61,5 +61,5 @@ if [[ "${AIGW_VERIFY_WEB:-0}" == 1 ]]; then
   npm --prefix web ci --no-audit --no-fund
   npm --prefix web run api:check
   npm --prefix web run build
-  "$go_bin" test -mod=readonly -race -tags=web_e2e -run '^TestConsoleBrowser$' -count=1 -timeout=180s -v ./internal/browser
+  "$go_bin" test -mod=readonly -race -tags=web_e2e -run '^Test(ConsoleBrowser|LocalConsoleBrowser)$' -count=1 -timeout=240s -v ./internal/browser
 fi

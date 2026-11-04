@@ -31,3 +31,14 @@ func TestMainlandModeRequiresExplicitMutuallyExclusiveConfiguration(t *testing.T
 		t.Fatal("mock/real ambiguous mode accepted")
 	}
 }
+
+func TestLocalModeDoesNotRequireExternalOIDC(t *testing.T) {
+	c := config{database: "postgres://unused", listen: "127.0.0.1:8080", authMode: "local", browserOrigin: "https://gateway.example"}
+	if err := c.validate(); err != nil {
+		t.Fatal(err)
+	}
+	c.browserOrigin = ""
+	if c.validate() == nil {
+		t.Fatal("local auth needs an explicit origin")
+	}
+}

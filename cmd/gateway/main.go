@@ -30,11 +30,13 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/httpapi"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
 	"github.com/jhzhfree/ai-governance-gateway/internal/keyword"
+	"github.com/jhzhfree/ai-governance-gateway/internal/localauth"
 	"github.com/jhzhfree/ai-governance-gateway/internal/observe"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 )
 
 type config struct {
+	authMode                                      string
 	database, issuer, audience, upstream, listen  string
 	providerConfig                                string
 	initSchema, mockOnly                          bool
@@ -46,11 +48,14 @@ func (c config) validate() error {
 	if c.mockOnly && c.providerConfig != "" {
 		return errors.New("test mock mode and real provider configuration are mutually exclusive")
 	}
-	if c.database == "" || c.issuer == "" || c.audience == "" || (c.mockOnly && c.upstream == "") {
+	if c.authMode != "" && c.authMode != "oidc" && c.authMode != "local" {
+		return errors.New("auth mode must be oidc or local")
+	}
+	if c.database == "" || (c.authMode == "local" && c.browserOrigin == "") || (c.authMode != "local" && (c.issuer == "" || c.audience == "")) || (c.mockOnly && c.upstream == "") {
 		return errors.New("database, HTTPS OIDC issuer and management audience are required; mock tests additionally require a loopback upstream")
 	}
 	u, err := url.Parse(c.issuer)
-	if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+	if c.authMode != "local" && (err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "") {
 		return errors.New("OIDC issuer must be a credential-free HTTPS URL")
 	}
 	if c.mockOnly {
@@ -63,7 +68,7 @@ func (c config) validate() error {
 	if err != nil || !net.ParseIP(host).IsLoopback() {
 		return errors.New("development listener must use a loopback IP address")
 	}
-	if c.browserOrigin != "" && c.clientID == "" {
+	if c.authMode != "local" && c.browserOrigin != "" && c.clientID == "" {
 		return errors.New("AIGW_OIDC_CLIENT_ID required for browser login")
 	}
 	return nil
@@ -112,7 +117,16 @@ func run(ctx context.Context, c config) error {
 	}
 
 	client := &http.Client{Timeout: 6 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
-	auth, err := identity.NewOIDC(oidc.ClientContext(setup, client), c.issuer, c.audience)
+	var auth identity.Authenticator
+	var oidcAuth *identity.OIDC
+	var localIdentity *localauth.Service
+	if c.authMode == "local" {
+		localIdentity, err = localauth.New(pool, c.browserOrigin, c.allowLoopbackHTTP)
+		auth = localIdentity
+	} else {
+		oidcAuth, err = identity.NewOIDC(oidc.ClientContext(setup, client), c.issuer, c.audience)
+		auth = oidcAuth
+	}
 	if err != nil {
 		return err
 	}
@@ -122,11 +136,18 @@ func run(ctx context.Context, c config) error {
 	}
 	content := contentaudit.New(pool, ring)
 	store.WithContentAudit(content)
+	if localIdentity != nil {
+		store.WithLocalIdentity(localIdentity)
+	}
 	monitor := observe.New()
 	mux := http.NewServeMux()
 	var sessions *browser.Service
 	if c.browserOrigin != "" {
-		sessions, err = browser.New(setup, pool, auth, c.issuer, browser.Config{Origin: c.browserOrigin, ClientID: c.clientID, ClientSecret: c.clientSecret, AllowLoopbackHTTP: c.allowLoopbackHTTP, HTTPClient: client})
+		if localIdentity != nil {
+			sessions, err = browser.NewLocal(pool, localIdentity, c.browserOrigin, c.allowLoopbackHTTP)
+		} else {
+			sessions, err = browser.New(setup, pool, oidcAuth, c.issuer, browser.Config{Origin: c.browserOrigin, ClientID: c.clientID, ClientSecret: c.clientSecret, AllowLoopbackHTTP: c.allowLoopbackHTTP, HTTPClient: client})
+		}
 		if err != nil {
 			return err
 		}
@@ -147,6 +168,11 @@ func run(ctx context.Context, c config) error {
 			jobCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			if err := store.RotateDueBudgetPeriods(jobCtx); err != nil && ctx.Err() == nil {
 				log.Print("budget cycle maintenance unavailable")
+			}
+			if localIdentity != nil {
+				if err := localIdentity.Maintenance(jobCtx); err != nil && ctx.Err() == nil {
+					log.Print("local identity maintenance unavailable")
+				}
 			}
 			cancel()
 			select {
@@ -199,6 +225,7 @@ func main() {
 	c.browserOrigin = os.Getenv("AIGW_BROWSER_ORIGIN")
 	c.clientID = os.Getenv("AIGW_OIDC_CLIENT_ID")
 	c.clientSecret = os.Getenv("AIGW_OIDC_CLIENT_SECRET")
+	flag.StringVar(&c.authMode, "auth-mode", os.Getenv("AIGW_AUTH_MODE"), "oidc (default) or explicit local offline identity")
 	flag.StringVar(&c.listen, "listen", "127.0.0.1:8080", "development loopback listener")
 	flag.BoolVar(&c.initSchema, "migrate", false, "apply embedded database migrations before development startup")
 	flag.BoolVar(&c.initSchema, "init-schema", false, "deprecated alias for --migrate; includes legacy schema validation")
