@@ -42,11 +42,11 @@ type config struct {
 }
 
 func (c config) validate() error {
-	if c.mockOnly == (c.providerConfig != "") {
-		return errors.New("choose exactly one of --mock-only or --providers configuration")
+	if c.mockOnly && c.providerConfig != "" {
+		return errors.New("test mock mode and real provider configuration are mutually exclusive")
 	}
 	if c.database == "" || c.issuer == "" || c.audience == "" || (c.mockOnly && c.upstream == "") {
-		return errors.New("AIGW_DATABASE_URL, AIGW_OIDC_ISSUER, AIGW_OIDC_AUDIENCE and AIGW_UPSTREAM_URL are required")
+		return errors.New("database, HTTPS OIDC issuer and management audience are required; mock tests additionally require a loopback upstream")
 	}
 	u, err := url.Parse(c.issuer)
 	if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
@@ -83,7 +83,7 @@ func run(ctx context.Context, c config) error {
 	}
 	ledger := budget.New(pool)
 	store := control.New(pool)
-	var providers *provider.Catalog
+	var providers provider.Routing
 	if c.providerConfig != "" {
 		cfg, err := provider.ReadConfig(c.providerConfig)
 		if err != nil {
@@ -102,6 +102,12 @@ func run(ctx context.Context, c config) error {
 	}
 	if err := database.Check(setup, pool); err != nil {
 		return fmt.Errorf("database schema is not ready: %w", err)
+	}
+
+	if !c.mockOnly && c.providerConfig == "" {
+		manager := provider.NewManager(pool, os.Getenv, nil, identity.Principal{Issuer: os.Getenv("AIGW_PROVIDER_ADMIN_ISSUER"), Subject: os.Getenv("AIGW_PROVIDER_ADMIN_SUBJECT")})
+		providers = manager
+		store = control.NewWithCatalog(pool, manager).WithProviderManager(manager)
 	}
 
 	client := &http.Client{Timeout: 6 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
@@ -179,11 +185,15 @@ func main() {
 	flag.StringVar(&c.listen, "listen", "127.0.0.1:8080", "development loopback listener")
 	flag.BoolVar(&c.initSchema, "migrate", false, "apply embedded database migrations before development startup")
 	flag.BoolVar(&c.initSchema, "init-schema", false, "deprecated alias for --migrate; includes legacy schema validation")
-	flag.BoolVar(&c.mockOnly, "mock-only", false, "explicitly enable the mock-only development service")
+	flag.BoolVar(&c.mockOnly, "mock-only", false, "test-only mock service; additionally requires AIGW_TEST_MODE=1")
 	flag.StringVar(&c.providerConfig, "providers", "", "explicit mainland provider configuration file; mutually exclusive with --mock-only")
 	flag.StringVar(&c.webDir, "web-dir", "web/dist", "built console assets directory")
 	flag.BoolVar(&c.allowLoopbackHTTP, "allow-loopback-browser-http", false, "allow non-secure browser cookies only on an explicit loopback HTTP origin")
 	flag.Parse()
+	if c.mockOnly && os.Getenv("AIGW_TEST_MODE") != "1" {
+		log.Print("--mock-only is restricted to explicit tests (AIGW_TEST_MODE=1); normal startup uses managed real providers")
+		os.Exit(1)
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := run(ctx, c); err != nil {

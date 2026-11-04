@@ -244,6 +244,23 @@ const (
 	ProjectDetailsRoleViewer    ProjectDetailsRole = "viewer"
 )
 
+// Defines values for ProviderConfigurationVersion.
+const (
+	N1 ProviderConfigurationVersion = 1
+)
+
+// Defines values for ProviderModelConfigurationProvider.
+const (
+	ProviderModelConfigurationProviderAliyun     ProviderModelConfigurationProvider = "aliyun"
+	ProviderModelConfigurationProviderVolcengine ProviderModelConfigurationProvider = "volcengine"
+	ProviderModelConfigurationProviderZhipu      ProviderModelConfigurationProvider = "zhipu"
+)
+
+// Defines values for ProviderResidencyRegion.
+const (
+	CnMainland ProviderResidencyRegion = "cn-mainland"
+)
+
 // Defines values for RemoveProjectMemberExpectedRole.
 const (
 	Admin     RemoveProjectMemberExpectedRole = "admin"
@@ -280,9 +297,9 @@ const (
 
 // Defines values for StatementImportProvider.
 const (
-	StatementImportProviderAliyun     StatementImportProvider = "aliyun"
-	StatementImportProviderVolcengine StatementImportProvider = "volcengine"
-	StatementImportProviderZhipu      StatementImportProvider = "zhipu"
+	Aliyun     StatementImportProvider = "aliyun"
+	Volcengine StatementImportProvider = "volcengine"
+	Zhipu      StatementImportProvider = "zhipu"
 )
 
 // Defines values for UsageCurrency.
@@ -902,6 +919,59 @@ type ProjectPage struct {
 	NextCursor string `json:"next_cursor"`
 }
 
+// ProviderConfiguration defines model for ProviderConfiguration.
+type ProviderConfiguration struct {
+	DeploymentResidency ProviderResidency            `json:"deployment_residency"`
+	Models              []ProviderModelConfiguration `json:"models"`
+	Version             ProviderConfigurationVersion `json:"version"`
+}
+
+// ProviderConfigurationVersion defines model for ProviderConfiguration.Version.
+type ProviderConfigurationVersion int
+
+// ProviderConfigurationStatus defines model for ProviderConfigurationStatus.
+type ProviderConfigurationStatus struct {
+	CanManage     bool                   `json:"can_manage"`
+	Configuration *ProviderConfiguration `json:"configuration,omitempty"`
+	Managed       bool                   `json:"managed"`
+	Models        []ModelInfo            `json:"models"`
+	Ready         bool                   `json:"ready"`
+	Revision      int64                  `json:"revision"`
+	Suppliers     []SupplierStatus       `json:"suppliers"`
+}
+
+// ProviderModelConfiguration defines model for ProviderModelConfiguration.
+type ProviderModelConfiguration struct {
+	Id               string                             `json:"id"`
+	InputPerMillion  int64                              `json:"input_per_million"`
+	MaxInputTokens   int64                              `json:"max_input_tokens"`
+	MaxOutputTokens  int64                              `json:"max_output_tokens"`
+	OutputPerMillion int64                              `json:"output_per_million"`
+	PriceVersion     string                             `json:"price_version"`
+	Provider         ProviderModelConfigurationProvider `json:"provider"`
+	Residency        ProviderResidency                  `json:"residency"`
+	UpstreamModel    string                             `json:"upstream_model"`
+}
+
+// ProviderModelConfigurationProvider defines model for ProviderModelConfiguration.Provider.
+type ProviderModelConfigurationProvider string
+
+// ProviderResidency defines model for ProviderResidency.
+type ProviderResidency struct {
+	EvidenceRef string                  `json:"evidence_ref"`
+	ExpiresAt   time.Time               `json:"expires_at"`
+	Region      ProviderResidencyRegion `json:"region"`
+}
+
+// ProviderResidencyRegion defines model for ProviderResidency.Region.
+type ProviderResidencyRegion string
+
+// PublishProviderConfiguration defines model for PublishProviderConfiguration.
+type PublishProviderConfiguration struct {
+	Configuration    ProviderConfiguration `json:"configuration"`
+	ExpectedRevision int64                 `json:"expected_revision"`
+}
+
 // RemoveProjectMember defines model for RemoveProjectMember.
 type RemoveProjectMember struct {
 	ExpectedRole RemoveProjectMemberExpectedRole `json:"expected_role"`
@@ -979,6 +1049,15 @@ type StatementImport struct {
 
 // StatementImportProvider defines model for StatementImport.Provider.
 type StatementImportProvider string
+
+// SupplierStatus defines model for SupplierStatus.
+type SupplierStatus struct {
+	CredentialConfigured bool   `json:"credential_configured"`
+	Endpoint             string `json:"endpoint"`
+	Id                   string `json:"id"`
+	KeyEnvironment       string `json:"key_environment"`
+	Region               string `json:"region"`
+}
 
 // UpdateContentPolicy defines model for UpdateContentPolicy.
 type UpdateContentPolicy struct {
@@ -1141,6 +1220,9 @@ type PutProjectMemberJSONRequestBody = Member
 
 // SetProjectModelsJSONRequestBody defines body for SetProjectModels for application/json ContentType.
 type SetProjectModelsJSONRequestBody = SetModels
+
+// PublishProviderConfigurationJSONRequestBody defines body for PublishProviderConfiguration for application/json ContentType.
+type PublishProviderConfigurationJSONRequestBody = PublishProviderConfiguration
 
 // StreamMockChatJSONRequestBody defines body for StreamMockChat for application/json ContentType.
 type StreamMockChatJSONRequestBody = InferenceRequest

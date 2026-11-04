@@ -1,6 +1,8 @@
 package control
 
 import (
+	"context"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 )
@@ -41,11 +43,20 @@ func (s *Store) validModels(models []string, empty bool) bool {
 	}
 	return true
 }
-func (s *Store) modelCurrency(model string) string {
-	for _, m := range s.Models() {
+func (s *Store) modelCurrency(ctx context.Context, tx pgx.Tx, model string) string {
+	for _, m := range s.modelsIn(ctx, tx) {
 		if m.ID == model {
 			return m.Currency
 		}
 	}
 	return ""
+}
+
+func (s *Store) modelsIn(ctx context.Context, tx pgx.Tx) []provider.ModelInfo {
+	if catalog, ok := s.catalog.(interface {
+		ModelsIn(context.Context, pgx.Tx) []provider.ModelInfo
+	}); ok {
+		return catalog.ModelsIn(ctx, tx)
+	}
+	return s.Models()
 }

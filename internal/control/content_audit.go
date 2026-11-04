@@ -50,7 +50,7 @@ func (s *Store) SetContentPolicy(ctx context.Context, p identity.Principal, org,
 		if _, err := projectRole(ctx, tx, p, org, project); err != nil {
 			return err
 		}
-		if policy.Enabled && !s.billingReady() {
+		if policy.Enabled && !s.billingReady(ctx, tx) {
 			return errBillingUnavailable
 		}
 		if err := s.contentService().SetPolicy(ctx, tx, org, project, policy); err != nil {
@@ -141,7 +141,7 @@ func (s *Store) ContentRecords(ctx context.Context, p identity.Principal, org, p
 	return
 }
 func (s *Store) ReadContent(ctx context.Context, p identity.Principal, org, project, id, reason string) (v contentaudit.Detail, err error) {
-	if !s.billingReady() {
+	if !s.billingReady(ctx, nil) {
 		return v, errBillingUnavailable
 	}
 	if len(id) < 1 || len(id) > 256 || len(reason) < 1 || len(reason) > 256 || strings.TrimSpace(reason) != reason {

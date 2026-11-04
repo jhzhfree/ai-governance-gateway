@@ -32,11 +32,14 @@ import (
 
 func TestConsoleBrowser(t *testing.T) {
 	pool, ledger, _ := testutil.Database(t)
-	catalog, _ := testutil.MainlandCatalog(t, testutil.SupplierFixture(t))
-	store := control.NewWithCatalog(pool, combinedFixtureCatalog{catalog})
+	issuer := testutil.NewIssuer(t)
+	catalog := testutil.MainlandManager(t, pool, identity.Principal{Issuer: issuer.URL, Subject: "alice"}, testutil.SupplierFixture(t))
+	if err := catalog.Publish(context.Background(), identity.Principal{Issuer: issuer.URL, Subject: "alice"}, 0, testutil.MainlandConfig()); err != nil {
+		t.Fatal(err)
+	}
+	store := control.NewWithCatalog(pool, combinedFixtureCatalog{catalog}).WithProviderManager(catalog)
 	content := testutil.ContentAudit(t, pool)
 	store.WithContentAudit(content)
-	issuer := testutil.NewIssuer(t)
 	api, err := identity.NewOIDC(context.Background(), issuer.URL, "aigw-management")
 	if err != nil {
 		t.Fatal(err)
@@ -102,7 +105,7 @@ func TestConsoleBrowser(t *testing.T) {
 	}
 }
 
-type combinedFixtureCatalog struct{ real *provider.Catalog }
+type combinedFixtureCatalog struct{ real provider.Routing }
 
 func (c combinedFixtureCatalog) Models() []provider.ModelInfo {
 	return append([]provider.ModelInfo{provider.MockInfo()}, c.real.Models()...)

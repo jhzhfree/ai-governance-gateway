@@ -15,6 +15,7 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
 	"github.com/jhzhfree/ai-governance-gateway/internal/contentaudit"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
+	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 )
 
 var (
@@ -27,9 +28,10 @@ var (
 const MaxAPIAmount int64 = 9007199254740991
 
 type Store struct {
-	content *contentaudit.Service
-	pool    *pgxpool.Pool
-	catalog ModelCatalog
+	providers *provider.Manager
+	content   *contentaudit.Service
+	pool      *pgxpool.Pool
+	catalog   ModelCatalog
 }
 
 func New(p *pgxpool.Pool) *Store { return &Store{pool: p} }
@@ -276,7 +278,7 @@ func (s *Store) SetModels(ctx context.Context, p identity.Principal, org, projec
 			return err
 		}
 		for _, model := range models {
-			if s.modelCurrency(model) != currency {
+			if s.modelCurrency(ctx, tx, model) != currency {
 				return ErrInvalid
 			}
 		}

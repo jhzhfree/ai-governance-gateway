@@ -1,5 +1,8 @@
 # 开发调试与构建发布命令手册
 
+> 当前真实产品入口已更新：make run 使用数据库真实供应商；模拟链路仅限显式测试。请先阅读[真实供应商配置](provider-management.md)。下面涉及旧模拟启动的流程仅供测试参考。
+
+
 配套：`docs/dev-environment-setup.md`（环境安装）、`Makefile`（命令入口）、`docs/deployment/ubuntu-24.04.md`（生产部署细节）。
 所有命令默认在仓库根目录执行；`make help` 随时查看目标说明。
 

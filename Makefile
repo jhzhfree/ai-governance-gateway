@@ -9,7 +9,7 @@ DIST := dist
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BUILD_DATE := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
-BINARIES := gateway migrate aigw content-audit mock-provider
+BINARIES := gateway migrate aigw content-audit
 
 DEV_DATABASE_URL ?= postgres://aigw:aigw_dev@127.0.0.1:5432/aigw_dev?sslmode=disable
 TEST_DATABASE_URL ?= postgres://aigw:aigw_dev@127.0.0.1:5432/aigw_test?sslmode=disable
@@ -27,7 +27,7 @@ DEV_OIDC_CLIENT_ID ?= aigw-dev-console
 # system libstdc++; drop it when launching long-running binaries or tests.
 RUN := env -u LD_LIBRARY_PATH
 
-.PHONY: help doctor deps build build-go build-web run run-mock dev-oidc dev-token \
+.PHONY: help doctor deps build build-go build-web run test-run run-mock dev-oidc dev-token \
 	web-dev smoke migrate-up migrate-status migrate-check db-init test verify fmt vet \
 	lint clean package package-linux-amd64 package-linux-arm64 debug
 
@@ -58,7 +58,10 @@ build-go: ## 仅构建 Go 二进制到 bin/
 build-web: ## 仅构建前端到 web/dist
 	$(NPM) --prefix web run build
 
-run: ## 前台启动网关（需先 make dev-oidc、make run-mock、make migrate-up）；DEV_BROWSER_ORIGIN 启用控制台
+run: ## 启动真实网关（需配置 AIGW_DATABASE_URL/OIDC；供应商从页面发布）
+	$(RUN) $(BIN)/gateway --listen $(DEV_LISTEN) --web-dir web/dist
+
+test-run: ## 仅测试：前台启动模拟网关（需先 make dev-oidc、make run-mock、make migrate-up）；DEV_BROWSER_ORIGIN 启用控制台
 	@ca=""; [ -f "$(DEV_OIDC_CA)" ] && ca="SSL_CERT_FILE=$(CURDIR)/$(DEV_OIDC_CA)"; \
 	web=""; flags=""; \
 	if [ -n "$(DEV_BROWSER_ORIGIN)" ]; then \
@@ -69,7 +72,7 @@ run: ## 前台启动网关（需先 make dev-oidc、make run-mock、make migrate
 		AIGW_DATABASE_URL='$(DEV_DATABASE_URL)' \
 		AIGW_OIDC_ISSUER='$(DEV_OIDC_ISSUER)' \
 		AIGW_OIDC_AUDIENCE='$(DEV_OIDC_AUDIENCE)' \
-		AIGW_UPSTREAM_URL='$(DEV_UPSTREAM_URL)' \
+		AIGW_TEST_MODE=1 AIGW_UPSTREAM_URL='$(DEV_UPSTREAM_URL)' \
 		$(BIN)/gateway --mock-only --listen $(DEV_LISTEN) --web-dir web/dist $$flags
 
 dev-oidc: ## 前台启动本地开发 IdP（https://127.0.0.1:9443，仅回环、自动批准）
@@ -78,17 +81,18 @@ dev-oidc: ## 前台启动本地开发 IdP（https://127.0.0.1:9443，仅回环�
 dev-token: ## 打印一个开发用 Bearer token（配合 dev-oidc）
 	@$(RUN) $(GO) run ./cmd/dev-oidc --print-token --listen 127.0.0.1:$(DEV_OIDC_PORT) --cert-dir $(DEV_OIDC_DIR) --audience $(DEV_OIDC_AUDIENCE)
 
-run-mock: ## 前台启动模拟供应商（127.0.0.1:8091）
-	$(RUN) $(BIN)/mock-provider
+run-mock: ## 仅测试：前台启动模拟供应商（127.0.0.1:8091）
+	$(GO) build -mod=readonly -o $(BIN)/mock-provider ./cmd/mock-provider
+	AIGW_TEST_MODE=1 $(RUN) $(BIN)/mock-provider
 
 web-dev: ## 前台启动 Vite 开发服务器（127.0.0.1:5173）
 	$(NPM) --prefix web run dev
 
-smoke: ## 检查探针与推理接口的拒绝行为（mock 模式 4xx）
+smoke: ## 检查探针与推理接口的拒绝行为（真实网关未授权请求应拒绝）
 	@for p in health/live health/ready; do printf '%s -> ' $$p; curl -sS -m 5 -o /dev/null -w '%{http_code}\n' http://$(DEV_LISTEN)/$$p; done
 	@printf 'unauthorized chat -> '; curl -sS -m 5 -o /dev/null -w '%{http_code}\n' \
 		-X POST http://$(DEV_LISTEN)/v1/chat/completions -H 'Authorization: Bearer invalid' \
-		-d '{"model":"mock","messages":[{"role":"user","content":"hi"}],"max_tokens":8}' || true
+		-d '{"model":"unconfigured/model","messages":[{"role":"user","content":"hi"}],"max_tokens":8}' || true
 
 migrate-up: ## 对开发库执行迁移
 	AIGW_DATABASE_URL='$(DEV_DATABASE_URL)' $(BIN)/migrate up
@@ -130,7 +134,7 @@ debug: ## 用 Delve 调试网关（需 dlv，参数同 make run）
 		AIGW_OIDC_AUDIENCE='$(DEV_OIDC_AUDIENCE)' \
 		AIGW_UPSTREAM_URL='$(DEV_UPSTREAM_URL)' \
 		dlv debug ./cmd/gateway --headless --listen 127.0.0.1:2345 --api-version=2 \
-		-- --mock-only --listen $(DEV_LISTEN) --web-dir web/dist
+		-- --listen $(DEV_LISTEN) --web-dir web/dist
 
 package: ## 产出 linux/amd64 与 linux/arm64 发布包
 	$(MAKE) package-linux-amd64

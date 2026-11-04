@@ -15,6 +15,9 @@ import (
 )
 
 func main() {
+	if os.Getenv("AIGW_TEST_MODE") != "1" {
+		log.Fatal("mock provider is restricted to explicit tests: AIGW_TEST_MODE=1")
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	server := &http.Server{Addr: "127.0.0.1:8091", Handler: http.HandlerFunc(mockprovider.Handler), ReadHeaderTimeout: 3 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}

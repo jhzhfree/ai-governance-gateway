@@ -107,3 +107,7 @@ go run ./cmd/gateway --mock-only
 ## 内容审计增量
 
 项目内容审计新增 policy/auditors/records/reveal/access 路径，实际契约见 OpenAPI；正文使用 POST reveal 并要求独立授权和理由，先留痕再解密。 详见[内容审计手册](content-audit.md)。
+
+## 真实供应商管理增量
+
+GET/PUT /api/v1/providers 提供平台配置状态/原子发布，PUT 需要部署绑定的精确 OIDC 身份。公开状态不含秘密或内部驻留证据；Cookie 写入仍受 CSRF/Origin 约束。

@@ -512,3 +512,91 @@ test('content audit is opt in, explicitly granted and hidden after viewing', asy
   const a11y = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(a11y.violations.map((v) => v.id)).toEqual([]);
 });
+
+test('platform provider editor publishes a database route used by real inference', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: /使用组织账号登录/ }).click();
+  await page.getByRole('button', { name: '供应商配置', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '真实供应商配置' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '发布真实路由与价格' })).toBeVisible();
+  const before = (await (await page.request.get('/api/v1/providers')).json()) as {
+    revision: number;
+  };
+  await page.getByRole('button', { name: '添加模型路由', exact: true }).click();
+  await page.getByLabel('网关模型别名 4', { exact: true }).fill('aliyun/web-managed');
+  await page.getByLabel('厂商模型 4', { exact: true }).fill('fixture-model');
+  await page.getByLabel('价格版本 4', { exact: true }).fill('web-synthetic-v1');
+  await page.getByLabel('输入单价（微元/百万 token） 4', { exact: true }).fill('2000000');
+  await page.getByLabel('输出单价（微元/百万 token） 4', { exact: true }).fill('4000000');
+  await page.getByLabel('最大输入 token 4', { exact: true }).fill('128');
+  await page.getByLabel('最大输出 token 4', { exact: true }).fill('8');
+  await page.getByLabel('模型驻留证据 4', { exact: true }).fill('synthetic-browser-evidence');
+  await page
+    .getByLabel('模型证据有效期 4', { exact: true })
+    .fill(new Date(Date.now() + 3600000).toISOString().slice(0, 16));
+  await page.getByRole('button', { name: '发布供应商配置', exact: true }).click();
+  await expect
+    .poll(
+      async () =>
+        ((await (await page.request.get('/api/v1/providers')).json()) as { revision: number })
+          .revision,
+    )
+    .toBe(before.revision + 1);
+  await page.reload();
+  await expect(page.getByLabel('网关模型别名 4', { exact: true })).toHaveValue(
+    'aliyun/web-managed',
+  );
+  const session = (await (await page.request.get('/auth/session')).json()) as {
+    csrf_token: string;
+  };
+  const headers = { 'X-CSRF-Token': session.csrf_token, Origin: new URL(page.url()).origin };
+  const orgResponse = await page.request.post('/api/v1/organizations', {
+    headers,
+    data: {
+      name: '已发布供应商团队',
+      period: '2026-11',
+      currency: 'CNY_MICRO',
+      limit_amount: 10000,
+    },
+  });
+  expect(orgResponse.status()).toBe(201);
+  const org = (await orgResponse.json()) as { id: string };
+  const orgPath = `/api/v1/organizations/${org.id}`;
+  const projectResponse = await page.request.post(`${orgPath}/projects`, {
+    headers,
+    data: { name: '真实路由接入', limit_amount: 5000 },
+  });
+  expect(projectResponse.status()).toBe(201);
+  const project = (await projectResponse.json()) as { id: string };
+  const projectPath = `${orgPath}/projects/${project.id}`;
+  expect(
+    (
+      await page.request.put(`${projectPath}/models`, {
+        headers,
+        data: { models: ['aliyun/web-managed'] },
+      })
+    ).status(),
+  ).toBe(204);
+  const keyResponse = await page.request.post(`${projectPath}/keys`, {
+    headers,
+    data: { name: '页面发布路由验证', models: ['aliyun/web-managed'], ttl_seconds: 3600 },
+  });
+  expect(keyResponse.status()).toBe(201);
+  const key = (await keyResponse.json()) as { secret: string };
+  const response = await page.request.post('/v1/chat/completions', {
+    headers: { Authorization: `Bearer ${key.secret}` },
+    data: {
+      model: 'aliyun/web-managed',
+      max_tokens: 8,
+      messages: [{ role: 'user', content: 'synthetic management publication test' }],
+    },
+  });
+  expect(response.status()).toBe(200);
+  expect(((await response.json()) as { model: string }).model).toBe('aliyun/web-managed');
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const a11y = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(a11y.violations.map((v) => v.id)).toEqual([]);
+});

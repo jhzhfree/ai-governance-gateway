@@ -67,3 +67,6 @@ export async function api<T>(
   }
   return response.status === 204 ? (undefined as T) : ((await response.json()) as T);
 }
+
+export type ProviderConfiguration = components['schemas']['ProviderConfiguration'];
+export type ProviderConfigurationStatus = components['schemas']['ProviderConfigurationStatus'];

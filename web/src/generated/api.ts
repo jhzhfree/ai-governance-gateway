@@ -625,6 +625,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * getProviderConfiguration
+         * @description Platform supplier configuration; credentials are deployment-injected and never returned. Publishing requires the explicitly configured platform OIDC principal.
+         */
+        get: operations["getProviderConfiguration"];
+        /**
+         * publishProviderConfiguration
+         * @description Platform supplier configuration; credentials are deployment-injected and never returned. Publishing requires the explicitly configured platform OIDC principal.
+         */
+        put: operations["publishProviderConfiguration"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1174,6 +1198,58 @@ export interface components {
         ContentAccessPage: {
             data: components["schemas"]["ContentAccess"][];
             next_cursor: string;
+        };
+        ProviderResidency: {
+            /** @enum {string} */
+            region: "cn-mainland";
+            evidence_ref: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        ProviderModelConfiguration: {
+            id: string;
+            /** @enum {string} */
+            provider: "aliyun" | "volcengine" | "zhipu";
+            upstream_model: string;
+            price_version: string;
+            /** Format: int64 */
+            input_per_million: number;
+            /** Format: int64 */
+            output_per_million: number;
+            /** Format: int64 */
+            max_input_tokens: number;
+            /** Format: int64 */
+            max_output_tokens: number;
+            residency: components["schemas"]["ProviderResidency"];
+        };
+        ProviderConfiguration: {
+            /** @enum {integer} */
+            version: 1;
+            deployment_residency: components["schemas"]["ProviderResidency"];
+            models: components["schemas"]["ProviderModelConfiguration"][];
+        };
+        SupplierStatus: {
+            id: string;
+            region: string;
+            /** Format: uri */
+            endpoint: string;
+            key_environment: string;
+            credential_configured: boolean;
+        };
+        ProviderConfigurationStatus: {
+            managed: boolean;
+            can_manage: boolean;
+            /** Format: int64 */
+            revision: number;
+            ready: boolean;
+            suppliers: components["schemas"]["SupplierStatus"][];
+            models: components["schemas"]["ModelInfo"][];
+            configuration?: components["schemas"]["ProviderConfiguration"];
+        };
+        PublishProviderConfiguration: {
+            /** Format: int64 */
+            expected_revision: number;
+            configuration: components["schemas"]["ProviderConfiguration"];
         };
     };
     responses: never;
@@ -3910,6 +3986,149 @@ export interface operations {
                 };
             };
             /** @description Configuration changed; fetch the latest revision before retrying. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getProviderConfiguration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderConfigurationStatus"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    publishProviderConfiguration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishProviderConfiguration"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderConfigurationStatus"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Configuration revision conflict */
             409: {
                 headers: {
                     [name: string]: unknown;

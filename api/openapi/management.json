@@ -4076,6 +4076,189 @@
         "parameters": [],
         "summary": "revealContent"
       }
+    },
+    "/api/v1/providers": {
+      "get": {
+        "operationId": "getProviderConfiguration",
+        "description": "Platform supplier configuration; credentials are deployment-injected and never returned. Publishing requires the explicitly configured platform OIDC principal.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderConfigurationStatus"
+                }
+              }
+            }
+          }
+        },
+        "summary": "getProviderConfiguration"
+      },
+      "put": {
+        "operationId": "publishProviderConfiguration",
+        "description": "Platform supplier configuration; credentials are deployment-injected and never returned. Publishing requires the explicitly configured platform OIDC principal.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          },
+          {
+            "browserSessionDev": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderConfigurationStatus"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Configuration revision conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishProviderConfiguration"
+              }
+            }
+          }
+        },
+        "parameters": [],
+        "summary": "publishProviderConfiguration"
+      }
     }
   },
   "components": {
@@ -6351,6 +6534,215 @@
         "required": [
           "data",
           "next_cursor"
+        ]
+      },
+      "ProviderResidency": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "region": {
+            "type": "string",
+            "enum": [
+              "cn-mainland"
+            ]
+          },
+          "evidence_ref": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "region",
+          "evidence_ref",
+          "expires_at"
+        ]
+      },
+      "ProviderModelConfiguration": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "aliyun",
+              "volcengine",
+              "zhipu"
+            ]
+          },
+          "upstream_model": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "price_version": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "input_per_million": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "output_per_million": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "max_input_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 2000000
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 1000000
+          },
+          "residency": {
+            "$ref": "#/components/schemas/ProviderResidency"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "upstream_model",
+          "price_version",
+          "input_per_million",
+          "output_per_million",
+          "max_input_tokens",
+          "max_output_tokens",
+          "residency"
+        ]
+      },
+      "ProviderConfiguration": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          },
+          "deployment_residency": {
+            "$ref": "#/components/schemas/ProviderResidency"
+          },
+          "models": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 32,
+            "items": {
+              "$ref": "#/components/schemas/ProviderModelConfiguration"
+            }
+          }
+        },
+        "required": [
+          "version",
+          "deployment_residency",
+          "models"
+        ]
+      },
+      "SupplierStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": "string",
+            "format": "uri"
+          },
+          "key_environment": {
+            "type": "string"
+          },
+          "credential_configured": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "region",
+          "endpoint",
+          "key_environment",
+          "credential_configured"
+        ]
+      },
+      "ProviderConfigurationStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "managed": {
+            "type": "boolean"
+          },
+          "can_manage": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "suppliers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupplierStatus"
+            }
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelInfo"
+            }
+          },
+          "configuration": {
+            "$ref": "#/components/schemas/ProviderConfiguration"
+          }
+        },
+        "required": [
+          "managed",
+          "can_manage",
+          "revision",
+          "ready",
+          "suppliers",
+          "models"
+        ]
+      },
+      "PublishProviderConfiguration": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "configuration": {
+            "$ref": "#/components/schemas/ProviderConfiguration"
+          }
+        },
+        "required": [
+          "expected_revision",
+          "configuration"
         ]
       }
     }

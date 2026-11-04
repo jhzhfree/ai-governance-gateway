@@ -37,7 +37,7 @@ type Handler struct {
 	Monitor    *observe.Registry
 	Admission  admission.Gate
 	Attempts   execution.Recorder
-	Providers  *provider.Catalog
+	Providers  provider.Routing
 	Ledger     Ledger
 	Authorize  func(context.Context, string, string) (budget.Scope, error)
 	Client     *http.Client

@@ -3,7 +3,7 @@
 | 项目 | 内容 |
 | --- | --- |
 | 产品名 | 序衡（AI GOVERNANCE）；技术名 `ai-governance-gateway` |
-| 代码基线 | 初稿分析基线为 `main` @ `9b8cf9d`；已同步 2026-11-04 模型发现/成员管理增量（ADR 0011），内容审计增量见 ADR 0012，数据库为 0011 |
+| 代码基线 | 初稿分析基线为 `main` @ `9b8cf9d`；已同步 2026-11-04 模型发现/成员管理增量（ADR 0011），内容审计见 ADR 0012；供应商管理见 ADR 0013，数据库为 0012 |
 | 文档性质 | 面向研发、运维、产品与发布的全局说明；不是营销材料，也不替代各专题文档 |
 | 分析方式 | 初稿为静态阅读，原分析环境未运行测试；模型发现/成员管理增量已通过 113 个 Go 顶层测试、Web 构建及 8 个 Chromium 场景，详见专题验证记录 |
 | 维护规则 | 架构边界、发布门禁变化必须更新本文；专题细节仍以 `docs/` 下对应文档和 ADR 为准 |
@@ -125,7 +125,7 @@ internal/observe/    进程内 HTTP 计数（非持久化、非导出）
 internal/console/    仅托管构建后的 `index.html` 与 `/assets/*`
 api/openapi/         管理契约（单一事实源）
 web/src/features/    按业务组织的页面（workspace/keys/models/requests/operations/audit/billing/members）
-docs/adr/            12 份架构决策记录（含内容审计 ADR 0012）
+docs/adr/            13 份架构决策记录（含真实供应商管理 ADR 0013）
 ```
 
 ### 2.3 部署单元与进程
@@ -851,3 +851,7 @@ go build -o ./bin/aigw ./cmd/aigw
 新增 content_audit_policies/auditors/deks/records/payloads/heads/chain/access_log（各名称共用 content_audit_ 前缀），正文为分区父表并配 content_audit_payloads_default。5 个新增 OpenAPI 路径、7 个操作；维护程序与远程只读客户端分离。异步 spool、自动月分区、KMS 与外部锚定未实现，不能对外承诺崩溃零丢失或数据库超级用户不可篡改。密钥遗失必须从秘密备份恢复；DB 备份本身不能恢复密文。真实大陆存储、供应商与生产恢复门禁保持待验收。
 
 Ubuntu 单机安装、开发、systemd/Nginx、迁移授权和备份操作见[Ubuntu 24.04 详细手册](deployment/ubuntu-24.04.md)。模板须在目标主机验收，不代表生产部署已完成。
+
+## 真实供应商管理增量
+
+供应商配置现可通过 Web/API 发布到 PostgreSQL（0012），指定平台身份独立于组织角色，密钥仍部署注入。默认启动为真实数据库模式，mock 仅测试；见[启用流程](provider-management.md)。

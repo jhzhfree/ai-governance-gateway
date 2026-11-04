@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 )
 
@@ -110,4 +112,15 @@ func SupplierFixture(t testing.TB) http.Handler {
 		_ = http.NewResponseController(w).Flush()
 		_, _ = fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: {\"choices\":[],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":2,\"total_tokens\":5}}\n\ndata: [DONE]\n\n")
 	})
+}
+
+// MainlandManager redirects only synthetic test traffic; the production Manager has no URL override.
+func MainlandManager(t testing.TB, pool *pgxpool.Pool, admin identity.Principal, handler http.Handler) *provider.Manager {
+	t.Helper()
+	server := httptest.NewTLSServer(handler)
+	t.Cleanup(server.Close)
+	u, _ := url.Parse(server.URL)
+	client := server.Client()
+	client.Transport = mappedTransport{client.Transport, u}
+	return provider.NewManager(pool, func(name string) string { return "synthetic-" + name }, client, admin)
 }

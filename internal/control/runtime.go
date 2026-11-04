@@ -52,7 +52,7 @@ func (s *Store) Runtime(ctx context.Context, p identity.Principal, org, project 
 		if err != nil {
 			return err
 		}
-		for _, model := range s.Models() {
+		for _, model := range s.modelsIn(ctx, tx) {
 			if !allowed[model.ID] {
 				continue
 			}

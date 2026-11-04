@@ -1,5 +1,8 @@
 # 开发环境安装记录（Ubuntu 24.04 / 2026-11-04）
 
+> 当前真实产品入口已更新：make run 使用数据库真实供应商；模拟链路仅限显式测试。请先阅读[真实供应商配置](provider-management.md)。下面涉及旧模拟启动的流程仅供测试参考。
+
+
 本文记录本机从零安装到**完整门禁通过**的全过程，可作为其他开发机/构建机的复现手册。所有命令均实际执行，输出摘录见各步"验证"。
 
 **结论先行：安装全程不需要代理。** 本机可直连国内镜像（阿里云、清华、goproxy.cn、npmmirror），仅国际站点（go.dev、nodejs.org、registry.npmjs.org、apt.postgresql.org）不可达；把所有下载源换成国内镜像后，apt、Go、Node、PostgreSQL、npm、Go modules 均可直连完成。代理仅作为附录中的备用方案。

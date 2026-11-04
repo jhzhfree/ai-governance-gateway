@@ -1197,3 +1197,28 @@ fieldset.model-selection {
     margin-left: 16px;
   }
 }
+
+.provider-model {
+  grid-column: 1 / -1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 20px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+.provider-model legend {
+  padding: 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.provider-model > .t-button {
+  justify-self: start;
+}
+@media (max-width: 760px) {
+  .provider-model {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 16px;
+  }
+}

@@ -21,8 +21,8 @@ import (
 
 var errBillingUnavailable = errors.New("current mainland billing configuration required")
 
-func (s *Store) billingReady() bool {
-	for _, m := range s.Models() {
+func (s *Store) billingReady(ctx context.Context, tx pgx.Tx) bool {
+	for _, m := range s.modelsIn(ctx, tx) {
 		if m.Currency == "CNY_MICRO" && m.Provider != "mock" {
 			return true
 		}
@@ -100,7 +100,7 @@ func (s *Store) ImportStatement(ctx context.Context, p identity.Principal, org, 
 	hash := sha256.Sum256(canonical)
 	digest := hex.EncodeToString(hash[:])
 	err = transaction(ctx, s.pool, func(tx pgx.Tx) error {
-		if !s.billingReady() {
+		if !s.billingReady(ctx, tx) {
 			return errBillingUnavailable
 		}
 		if err := orgAdmin(ctx, tx, p, org); err != nil {
@@ -230,7 +230,7 @@ func (s *Store) BillingRecords(ctx context.Context, p identity.Principal, org, p
 		return items, "", ErrInvalid
 	}
 	err = pgx.BeginTxFunc(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
-		if !s.billingReady() {
+		if !s.billingReady(ctx, tx) {
 			return errBillingUnavailable
 		}
 		if _, err := projectRole(ctx, tx, p, org, project); err != nil {
@@ -276,7 +276,7 @@ func (s *Store) ReviewBill(ctx context.Context, p identity.Principal, org, proje
 		return v, ErrInvalid
 	}
 	err = transaction(ctx, s.pool, func(tx pgx.Tx) error {
-		if !s.billingReady() {
+		if !s.billingReady(ctx, tx) {
 			return errBillingUnavailable
 		}
 		if err := orgAdmin(ctx, tx, p, org); err != nil {

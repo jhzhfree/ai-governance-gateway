@@ -18,6 +18,10 @@ import (
 )
 
 func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, token string, req Request) {
+	if !h.Providers.Ready() {
+		problem(w, 503, "provider_configuration_unavailable", id)
+		return
+	}
 	route, ok := h.Providers.Find(req.Model)
 	if !ok || !provider.ValidateRequest(req) {
 		problem(w, 400, "unsupported_request", id)

@@ -1,5 +1,8 @@
 # Ubuntu 24.04 环境搭建、开发与部署手册
 
+> 当前真实产品入口已更新：普通 make run 使用数据库真实供应商；模拟链路仅限 make test-run / make run-mock。请先阅读[真实供应商配置](../provider-management.md)。Ubuntu 旧文件模式命令仍可用，但不能在页面编辑。
+
+
 适用代码：内容审计同步 MVP（数据库 0011、ADR 0012），Ubuntu 24.04 LTS amd64/arm64。命令默认 Bash，从仓库根目录执行；`sudo` 表示系统管理操作。本文提供可审阅的手工安装方案，不会自动修改你的机器。
 
 当前产品为开发集成版本。以下 systemd/Nginx 配置是部署模板，尚未在你的 Ubuntu 机器上验收；已有合成服务测试不等于企业 IdP、真实付费供应商、性能与生产容灾验收。配置中的 example 域名、路径、证据编号必须替换为自己的有效值。
@@ -522,3 +525,13 @@ sudo -u postgres /usr/lib/postgresql/17/bin/pg_dumpall -p 5432 --globals-only \
 - [ ] 容量、监控告警、备份/WAL 保留、RPO/RTO、安全与隐私审批有实际证据。
 
 更多专题：[工程规范](../engineering.md)、[迁移](../database-migrations.md)、[大陆供应商](../mainland-providers.md)、[限流与核查](../traffic-and-recovery.md)、[内容审计](../content-audit.md)、[整体功能覆盖](../functional-coverage.md)。
+
+## 数据库供应商管理模式补充（0012）
+
+要使用页面中的“供应商配置”，先迁移到 0012，在 gateway.env 增加指定平台人员的 AIGW_PROVIDER_ADMIN_ISSUER/AIGW_PROVIDER_ADMIN_SUBJECT，保留真实厂商密钥注入；将第 8 节服务的 ExecStart 改为：
+
+```ini
+ExecStart=/opt/aigw/current/bin/gateway --listen 127.0.0.1:8080 --web-dir /opt/aigw/current/web
+```
+
+修改 unit 后执行 daemon-reload 并按摘流流程重启。不要再传 --providers，否则保持文件兼容模式，页面只读。数据库模式首次为空时 readiness 503，但管理页面可通过本机 Nginx 打开；先完成页面配置再接入正式健康检查流量。发布配置只验证本实例凭证格式与元数据，三家账号、真实付费及大陆驻留仍需独立验收。完整流程见[供应商管理](../provider-management.md)。
