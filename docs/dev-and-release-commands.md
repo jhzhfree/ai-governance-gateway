@@ -20,33 +20,52 @@
 ```bash
 make doctor            # 检查 go/node/psql/docker 与开发库连通
 make db-init           # 幂等创建角色与 aigw_dev / aigw_test
-make migrate-up        # 迁移到最新（当前 0011）
-make build             # 前端 dist + 5 个二进制到 bin/
+make build             # 前端 dist + 全部二进制到 bin/（更新代码后必须重建）
+make migrate-up        # 迁移到最新（当前 0012）
 
+# —— 模拟链路（仅显式测试，AIGW_TEST_MODE=1）——
 make dev-oidc          # 终端 A：本地开发 IdP https://127.0.0.1:9443（仅回环）
 make run-mock          # 终端 B：模拟供应商 127.0.0.1:8091
-make run               # 终端 C：网关 127.0.0.1:8080（mock-only）
-make smoke             # 终端 D：探针应 204/204，未授权推理应 4xx
+make test-run          # 终端 C：模拟网关 8080（--mock-only）
+make smoke             # 终端 D：探针应 204/204
+
+# —— 真实链路（数据库托管供应商，生产同款）——
+make run               # 终端 C：bin/gateway --listen 127.0.0.1:8080 --web-dir web/dist
+                       # 需要先 export AIGW_DATABASE_URL / AIGW_OIDC_ISSUER / AIGW_OIDC_AUDIENCE
+                       # 未发布供应商配置时 /health/ready 为 503、/health/live 正常，属预期
 ```
+
+> **注意：** `make run` 自 0012 起是真实网关（供应商从控制台发布到数据库，见 `docs/provider-management.md`），**不再**内置 `--mock-only`；模拟链路改用 `make test-run`。`--mock-only` 现在要求 `AIGW_TEST_MODE=1`（`test-run`/`run-mock` 已自动带上）。`.env` 不会被程序自动加载，需 `set -a; source .env; set +a` 或逐个 export。
 
 **为什么要 `make dev-oidc`：** 网关启动即对 `AIGW_OIDC_ISSUER` 做 discovery 并校验 HTTPS，离线机器上没有可达的 IdP 就会报 `OIDC discovery failed`。`cmd/dev-oidc` 是本机回环 IdP（自签 CA、RS256、PKCE、设备码，自动批准），只用于开发，不进入发布包。首次运行会在 `.aigw/dev-oidc/` 生成 `ca.pem`/`server.pem`/`server.key`（0600，已 gitignore）；`make run` 检测到该 CA 会自动注入 `SSL_CERT_FILE`，无需改系统信任库。
 
-`make run` 的等价原生命令（便于改参数）：
+模拟链路等价原生命令（便于改参数）：
 
 ```bash
 SSL_CERT_FILE="$PWD/.aigw/dev-oidc/ca.pem" \
 AIGW_DATABASE_URL='postgres://aigw:aigw_dev@127.0.0.1:5432/aigw_dev?sslmode=disable' \
 AIGW_OIDC_ISSUER='https://127.0.0.1:9443' \
 AIGW_OIDC_AUDIENCE='aigw-dev' \
-AIGW_UPSTREAM_URL='http://127.0.0.1:8091/v1/chat/completions' \
+AIGW_TEST_MODE=1 AIGW_UPSTREAM_URL='http://127.0.0.1:8091/v1/chat/completions' \
 ./bin/gateway --mock-only --listen 127.0.0.1:8080 --web-dir web/dist
+```
+
+真实链路在本机起控制台（loopback HTTP origin 必须显式加标志；供应商稍后在页面发布）：
+
+```bash
+SSL_CERT_FILE="$PWD/.aigw/dev-oidc/ca.pem" \
+AIGW_DATABASE_URL='postgres://aigw:aigw_dev@127.0.0.1:5432/aigw_dev?sslmode=disable' \
+AIGW_OIDC_ISSUER='https://127.0.0.1:9443' AIGW_OIDC_AUDIENCE='aigw-dev' \
+AIGW_BROWSER_ORIGIN='http://127.0.0.1:5173' AIGW_OIDC_CLIENT_ID='aigw-dev-console' \
+AIGW_PROVIDER_ADMIN_ISSUER='https://127.0.0.1:9443' AIGW_PROVIDER_ADMIN_SUBJECT='dev-auditor' \
+./bin/gateway --listen 127.0.0.1:8080 --web-dir web/dist --allow-loopback-browser-http
 ```
 
 浏览器开发（Vite 热更新，`/api` 与 `/auth` 代理到 8080，且保留 `Host` 头——网关会用 `AIGW_BROWSER_ORIGIN` 校验 Host）：
 
 ```bash
-DEV_BROWSER_ORIGIN=http://127.0.0.1:5173 make run   # 自动附带 --allow-loopback-browser-http
-make web-dev                                        # http://127.0.0.1:5173
+DEV_BROWSER_ORIGIN=http://127.0.0.1:5173 make test-run   # 模拟链路：自动附带 --allow-loopback-browser-http
+make web-dev                                             # http://127.0.0.1:5173
 ```
 
 取一个开发 token（供 curl / CLI 调用管理 API）：
@@ -65,14 +84,16 @@ curl -H "Authorization: Bearer $(make -s dev-token)" http://127.0.0.1:8080/api/v
 | 建库 | `make db-init` | 需要 `su postgres` 权限 |
 | 开发 IdP | `make dev-oidc` | 本地 OIDC（9443，回环，自动批准，勿用于生产） |
 | 开发 token | `make dev-token` | 打印 aud=`aigw-dev` 的 Bearer token |
-| 迁移 | `make migrate-up` / `migrate-status` / `migrate-check` | check 用于"二进制与库结构是否一致" |
+| 迁移 | `make migrate-up` / `migrate-status` / `migrate-check` | check 用于"二进制与库结构是否一致"（当前 0012） |
 | 全量构建 | `make build` | 前端 + Go |
 | 仅 Go | `make build-go` | 输出 `bin/{gateway,migrate,aigw,content-audit,mock-provider}` |
 | 仅前端 | `make build-web` | 输出 `web/dist` |
 | 后端测试 | `make test` | race，使用 `TEST_DATABASE_URL` |
 | 完整门禁 | `make verify` | gofmt + API 契约 + vet + race（CI 同款） |
 | 前端检查 | `make lint` | tsc + eslint + prettier |
-| 断点调试 | `make debug` | Delve headless `127.0.0.1:2345` |
+| 模拟网关 | `make test-run` | 仅测试：`--mock-only` + `AIGW_TEST_MODE=1` |
+| 真实网关 | `make run` | 数据库托管供应商；env 自备，见第 1 节 |
+| 断点调试 | `make debug` | Delve headless `127.0.0.1:2345`（真实链路，env 同 `make run`） |
 | 打包 | `make package` | linux/amd64 + linux/arm64 tar.gz + SHA256SUMS |
 | 清理 | `make clean` | 删除 `bin/ dist/ web/dist`，不动数据库 |
 
