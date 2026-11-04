@@ -411,7 +411,8 @@ ADR 0011 已用于[模型发现与成员管理](adr/0011-model-discovery-and-mem
 | [0018](adr/0018-protected-prometheus-metrics.md) | 受保护 Prometheus（已实现） | 境内抓取、固定标签、无原文 |
 | [0019](adr/0019-ledger-cost-reports.md) | 账本成本报表（实现/验收见交付跟踪） | 状态分列、精度、权限与导出审计 |
 | [0020](adr/0020-transactional-budget-notifications.md) | 预算站内告警（实现/验收见交付跟踪） | 原子写入、去重、确认与审计 |
-| 0021（建议） | 多 attempt 与路由 | 预留口径、计费归属、首字节边界 |
+| [0021](adr/0021-durable-content-audit-checkpoints.md) | 审计持久检查点（验收见交付跟踪） | 转发前提交、租约、恢复、容量边界 |
+| 0024（建议） | 多 attempt 与路由 | 预留口径、计费归属、首字节边界 |
 
 ### 6.4 实现状态核对（2026-11-04，内容审计增量）
 

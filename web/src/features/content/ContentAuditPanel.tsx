@@ -12,6 +12,14 @@ import {
 import { usePage } from '../../shared/useResourcePage';
 import { ErrorBox, Empty } from '../../shared/Feedback';
 
+const captureStateNames: Record<ContentMeta['state'], string> = {
+  capturing: '采集中',
+  complete: '完整封存',
+  incomplete: '未完整结束',
+  canceled: '已取消',
+  expired: '已到期',
+};
+
 export function ContentAuditPanel({
   identity,
   projectPath,
@@ -348,7 +356,7 @@ export function ContentAuditPanel({
                       {row.model}
                     </td>
                     <td>
-                      {row.state} / {row.status}
+                      {captureStateNames[row.state]} / {row.status === 0 ? '未知' : row.status}
                     </td>
                     <td>
                       {row.policy_revision} / {new Date(row.expires_at).toLocaleString()}

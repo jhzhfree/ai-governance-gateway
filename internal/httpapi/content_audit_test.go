@@ -4,8 +4,11 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -235,5 +238,79 @@ func TestContentAuditCancellationRetainsPartialAndBudget(t *testing.T) {
 	var state string
 	if err := f.pool.QueryRow(context.Background(), `SELECT state FROM budget_reservations WHERE request_id=$1`, id).Scan(&state); err != nil || state != "uncertain" {
 		t.Fatal("canceled audit refunded budget")
+	}
+}
+
+func TestContentCheckpointFailureBeforeDeliveryKeepsFinancialState(t *testing.T) {
+	for _, stream := range []bool{false, true} {
+		t.Run(fmt.Sprint("stream-", stream), func(t *testing.T) {
+			f := providerSetup(t, testutil.SupplierFixture(t))
+			o, p, key := providerProject(f)
+			enableContent(f, o, p, 65536)
+			if _, err := f.pool.Exec(context.Background(), `ALTER TABLE content_audit_checkpoint_parts ADD CONSTRAINT reject_first_part CHECK(sequence<>1) NOT VALID`); err != nil {
+				t.Fatal(err)
+			}
+			data := f.request(key.Secret, "POST", "/v1/chat/completions", realPayload("aliyun/fixture", stream), 503)
+			if strings.Contains(string(data), "synthetic response") || strings.Contains(string(data), "[DONE]") {
+				t.Fatal("uncheckpointed output delivered")
+			}
+			page := parse[contentPage](t, f.request(f.token("alice"), "GET", projectPath(o, p)+"/content-audit/records", nil, 200))
+			if len(page.Data) != 1 || page.Data[0].State != "incomplete" || page.Data[0].Status != 503 {
+				t.Fatal("checkpoint failure claimed complete")
+			}
+			record := parse[control.RequestRecord](t, f.request(f.token("alice"), "GET", projectPath(o, p)+"/requests/"+page.Data[0].RequestID, nil, 200))
+			if (!stream && record.State != "settled") || (stream && record.State != "uncertain") {
+				t.Fatal("audit failure refunded or incorrectly settled finance")
+			}
+		})
+	}
+}
+func TestContentCheckpointCommitsBeforeSSEAndMidstreamFailureSuppressesDone(t *testing.T) {
+	release := make(chan struct{})
+	var once sync.Once
+	defer once.Do(func() { close(release) })
+	supplier := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"durable-first\"},\"finish_reason\":null}]}\n\n"))
+		_ = http.NewResponseController(w).Flush()
+		<-release
+		_, _ = w.Write([]byte("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"uncommitted-second\"},\"finish_reason\":\"stop\"}]}\n\ndata: {\"choices\":[],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":2,\"total_tokens\":5}}\n\ndata: [DONE]\n\n"))
+	})
+	f := providerSetup(t, supplier)
+	o, p, key := providerProject(f)
+	enableContent(f, o, p, 65536)
+	body, _ := json.Marshal(realPayload("aliyun/fixture", true))
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "POST", f.server.URL+"/v1/chat/completions", strings.NewReader(string(body)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+key.Secret)
+	response, err := f.server.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	reader := bufio.NewReader(response.Body)
+	first, err := reader.ReadString('\n')
+	if err != nil || !strings.Contains(first, "durable-first") {
+		t.Fatal("first frame missing")
+	}
+	var observed int64
+	var parts int
+	if err := f.pool.QueryRow(ctx, `SELECT observed_bytes,parts FROM content_audit_checkpoints WHERE request_id=$1`, response.Header.Get("X-Request-ID")).Scan(&observed, &parts); err != nil || observed < int64(len(first)) || parts != 1 {
+		t.Fatal("client received bytes before checkpoint commit")
+	}
+	if _, err := f.pool.Exec(ctx, `ALTER TABLE content_audit_checkpoint_parts ADD CONSTRAINT reject_second_part CHECK(sequence<>2) NOT VALID`); err != nil {
+		t.Fatal(err)
+	}
+	once.Do(func() { close(release) })
+	remaining, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal("stream did not close cleanly")
+	}
+	if response.StatusCode != 200 || strings.Contains(string(remaining), "uncommitted-second") || strings.Contains(string(remaining), "[DONE]") || !strings.Contains(string(remaining), "content_audit_unavailable") {
+		t.Fatal("failed checkpoint delivered uncommitted bytes or completion")
 	}
 }

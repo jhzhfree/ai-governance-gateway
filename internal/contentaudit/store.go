@@ -114,18 +114,26 @@ type encrypted struct {
 	truncated          bool
 }
 type Capture struct {
-	service  *Service
-	meta     Meta
-	dek      []byte
-	limit    int
-	prefix   []byte
-	observed int64
-	hash     hash.Hash
-	finished bool
+	service         *Service
+	owner           string
+	checkpointParts int
+	checkpointBytes int
+	checkpointHead  []byte
+	meta            Meta
+	dek             []byte
+	limit           int
+	prefix          []byte
+	observed        int64
+	hash            hash.Hash
+	finished        bool
 }
 
+func (*Capture) String() string   { return "[content audit capture redacted]" }
+func (*Capture) GoString() string { return "[content audit capture redacted]" }
+
+// Observe is an in-memory primitive. Production forwarding must use Checkpoint.
 func (c *Capture) Observe(data []byte) {
-	if c == nil {
+	if c == nil || c.finished {
 		return
 	}
 	c.observed += int64(len(data))
@@ -211,6 +219,9 @@ func (s *Service) dek(ctx context.Context, tx pgx.Tx, org, id string, create boo
 func (s *Service) Begin(ctx context.Context, meta Meta, request []byte) (capture *Capture, err error) {
 	var acquired bool
 	err = pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, "SET LOCAL synchronous_commit = on"); err != nil {
+			return err
+		}
 		policy, err := ReadPolicy(ctx, tx, meta.Organization, meta.Project)
 		if err != nil {
 			return err
@@ -250,7 +261,12 @@ func (s *Service) Begin(ctx context.Context, meta Meta, request []byte) (capture
 		if err := appendChain(ctx, tx, meta.Organization, meta.RequestID, "start", p.sha, p.cipher, p.nonce, aad(meta, p.direction, p.sha, p.bytes, p.truncated)); err != nil {
 			return err
 		}
-		capture = &Capture{service: s, meta: meta, dek: key, limit: policy.MaxBytes, hash: sha256.New()}
+		capture = &Capture{service: s, meta: meta, dek: key, limit: policy.MaxBytes, hash: sha256.New(), owner: rand.Text()}
+		capture.checkpointHead = make([]byte, 32)
+		proof := checkpointProof(key, meta, capture.checkpointHead, capture.hash.Sum(nil), 0, 0, 0)
+		if _, err := tx.Exec(ctx, `INSERT INTO content_audit_checkpoints(request_id,owner_id,lease_until,sha256,observed_bytes,captured_bytes,parts,head,proof) VALUES($1,$2,clock_timestamp()+interval '5 minutes',$3,0,0,0,$4,$5)`, meta.RequestID, capture.owner, capture.hash.Sum(nil), capture.checkpointHead, proof); err != nil {
+			return err
+		}
 		return nil
 	})
 	if err != nil {
@@ -283,6 +299,9 @@ func (c *Capture) Finish(ctx context.Context, status int, state string) error {
 		return err
 	}
 	return pgx.BeginFunc(ctx, c.service.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, "SET LOCAL synchronous_commit = on"); err != nil {
+			return err
+		}
 		var current string
 		var expired bool
 		if err := tx.QueryRow(ctx, `SELECT state,expires_at<=clock_timestamp() FROM content_audit_records WHERE request_id=$1 FOR UPDATE`, c.meta.RequestID).Scan(&current, &expired); err != nil {
@@ -291,10 +310,20 @@ func (c *Capture) Finish(ctx context.Context, status int, state string) error {
 		if current != "capturing" || expired {
 			return ErrConflict
 		}
+		var owner string
+		if err := tx.QueryRow(ctx, `SELECT owner_id FROM content_audit_checkpoints WHERE request_id=$1`, c.meta.RequestID).Scan(&owner); err != nil {
+			return err
+		}
+		if owner != c.owner {
+			return ErrConflict
+		}
 		if err := insertPayload(ctx, tx, c.meta, p); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `UPDATE content_audit_records SET state=$2,status=$3,finished_at=clock_timestamp() WHERE request_id=$1`, c.meta.RequestID, state, status); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM content_audit_checkpoints WHERE request_id=$1`, c.meta.RequestID); err != nil {
 			return err
 		}
 		return appendChain(ctx, tx, c.meta.Organization, c.meta.RequestID, "seal", p.sha, p.cipher, p.nonce, aad(c.meta, p.direction, p.sha, p.bytes, p.truncated), []byte(state), []byte{byte(status >> 8), byte(status)})

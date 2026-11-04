@@ -20,7 +20,7 @@ Web 正文只放组件内存，不进入查询缓存或本地存储；主动隐�
 
 SSE 正常转发片段，只在内存维护有界前缀与完整已观测流的 SHA-256；没有逐 token 数据库写入。同步封存成功后才发送 `[DONE]`；JSON 也在封存后发送。封存失败返回 JSON 503 或流内错误且不发送 DONE。此时预算可能已结算，不能据此退款或自动重试，应使用 request_id 核查。
 
-状态 `capturing/complete/incomplete/canceled/expired` 描述捕获，不证明客户端收到、供应商全部生成内容或费用已结算。取消保留已观测片段；硬崩溃留下 capturing 与已持久化请求，尚在内存的回复会丢失。**没有 WAL spool/异步重放或崩溃零丢失承诺。** 哈希覆盖完整已观测规范化字节，密文只保存 UTF-8 完整前缀；返回 observed_bytes、captured_bytes、truncated 和哈希。不采集认证头、Cookie、供应商错误原文或来源 IP。
+状态 `capturing/complete/incomplete/canceled/expired` 描述捕获，不证明客户端收到、供应商全部生成内容或费用已结算。取消保留已观测片段；当前版本新增转发前的加密持久检查点与租约恢复（数据库 0017），详见 [崩溃恢复与运维](content-audit-recovery.md)。恢复不重放推理、不证明交付，不对未提交字节或数据库物理故障承诺零丢失。 哈希覆盖完整已观测规范化字节，密文只保存 UTF-8 完整前缀；返回 observed_bytes、captured_bytes、truncated 和哈希。不采集认证头、Cookie、供应商错误原文或来源 IP。
 
 ## 密钥、完整性与恢复
 
@@ -54,3 +54,5 @@ purge 每批最多 1000 条，事务内删除正文、写 expired 墓碑与 purg
 远程终端仅提供 `aigw content-audit list --org <ID> --project <ID> --output json` 的分页元数据，不将正文输出到终端。维护二进制 content-audit 与远程 aigw 分离，不能向浏览器或远程客户端提供数据库凭证。
 
 本阶段全量验证：125 个后端顶层测试和 9 个 Chromium 场景通过，包含真实临时 PostgreSQL、签名测试 IdP、合成 TLS 供应商；冻结依赖、类型检查、lint、构建与 race 检查通过。覆盖授权/撤权/跨项目、访问日志失败、篡改检测、版本轮换、取消与占额、SSE 封存故障、到期清理和迁移漂移。没有真实供应商/真实企业 IdP、生产性能、安全专项、生产备份恢复或大陆实际部署验收证据。
+
+0017 增量：加密片段与检查点暂存表、转发前同步提交、维护工具 `content-audit recover`；最新验收见 [交付跟踪](p0-p1-delivery.md)，本页早期测试数字为同步 MVP 当时证据。

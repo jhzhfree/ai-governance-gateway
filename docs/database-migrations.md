@@ -114,3 +114,7 @@ AIGW_VERIFY_WEB=1 bash scripts/verify.sh
 ## 预算站内告警增量（0016）
 
 新增预算告警策略、持久告警与追加策略版本表；旧账户/占额不改写。预算写路径需要新表，部署新二进制前必须运行 `migrate up` / `migrate check`。配置默认关闭，启用时原子检查现有余额。迁移失败回滚 DDL 与历史，迁移前后保留既有开放占额。功能与升级说明见 [预算告警](budget-alerts.md)。
+
+## 审计持久检查点增量（0017）
+
+追加 `content_audit_checkpoints` 与 `content_audit_checkpoint_parts`，不改写旧记录或余额。新服务启动前先迁移；正常启动只检查。旧 capturing 不回填虚构回复，恢复只覆盖新格式检查点。迁移回滚、升级后的余额保留与检查点清理已纳入测试。运维见 [审计恢复](content-audit-recovery.md)。

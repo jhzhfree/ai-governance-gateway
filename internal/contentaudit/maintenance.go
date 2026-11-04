@@ -104,6 +104,9 @@ func (s *Service) Purge(ctx context.Context, limit int) (n int, err error) {
 			return err
 		}
 		for _, t := range targets {
+			if _, err := tx.Exec(ctx, `DELETE FROM content_audit_checkpoints WHERE request_id=$1`, t.id); err != nil {
+				return err
+			}
 			if _, err := tx.Exec(ctx, `DELETE FROM content_audit_payloads WHERE request_id=$1`, t.id); err != nil {
 				return err
 			}

@@ -16,6 +16,8 @@ import (
 type auditWriter struct {
 	http.ResponseWriter
 	capture               *contentaudit.Capture
+	ctx                   context.Context
+	failed                bool
 	status                int
 	stream, started, done bool
 	buffer                bytes.Buffer
@@ -31,7 +33,18 @@ func (w *auditWriter) Write(data []byte) (int, error) {
 	if w.status == 0 {
 		w.status = 200
 	}
-	w.capture.Observe(data)
+	if w.failed {
+		return 0, contentaudit.ErrUnavailable
+	}
+	checkpoint, stop := context.WithTimeout(w.ctx, 3*time.Second)
+	err := w.capture.Checkpoint(checkpoint, data)
+	stop()
+	if err != nil {
+		w.failed = true
+		return 0, contentaudit.ErrUnavailable
+	}
+	// The persistence round trip must not consume the downstream write deadline.
+	_ = http.NewResponseController(w.ResponseWriter).SetWriteDeadline(time.Now().Add(2 * time.Second))
 	if strings.HasPrefix(w.Header().Get("Content-Type"), "text/event-stream") {
 		w.stream = true
 		if bytes.Equal(data, []byte("data: [DONE]\n\n")) {
@@ -70,7 +83,7 @@ func (h *Handler) capture(w http.ResponseWriter, r *http.Request, id, token stri
 	if c == nil {
 		return w, func() {}, true
 	}
-	wrapped := &auditWriter{ResponseWriter: w, capture: c}
+	wrapped := &auditWriter{ResponseWriter: w, capture: c, ctx: r.Context()}
 	finish := func() {
 		status := wrapped.status
 		if status == 0 {
@@ -80,6 +93,12 @@ func (h *Handler) capture(w http.ResponseWriter, r *http.Request, id, token stri
 		if (!wrapped.stream && wrapped.buffer.Len() > 0) || wrapped.done {
 			state = "complete"
 		}
+		if wrapped.failed {
+			if !wrapped.started {
+				status = 503
+			}
+			state = "incomplete"
+		}
 		if r.Context().Err() != nil {
 			state = "canceled"
 		}
@@ -87,7 +106,7 @@ func (h *Handler) capture(w http.ResponseWriter, r *http.Request, id, token stri
 		err := c.Finish(persist, status, state)
 		stop()
 		_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(2 * time.Second))
-		if err != nil {
+		if err != nil || wrapped.failed {
 			h.report(id, "content_audit_seal_failed")
 			if wrapped.started {
 				_, _ = w.Write([]byte("data: {\"error\":{\"code\":\"content_audit_unavailable\"}}\n\n"))
