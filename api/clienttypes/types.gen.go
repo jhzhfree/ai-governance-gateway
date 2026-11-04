@@ -22,6 +22,47 @@ const (
 	AccountCheckScopeProject      AccountCheckScope = "project"
 )
 
+// Defines values for BillingRecordCurrency.
+const (
+	BillingRecordCurrencyCNYMICRO BillingRecordCurrency = "CNY_MICRO"
+)
+
+// Defines values for BillingRecordDecision.
+const (
+	BillingRecordDecisionApproved BillingRecordDecision = "approved"
+	BillingRecordDecisionPending  BillingRecordDecision = "pending"
+	BillingRecordDecisionRejected BillingRecordDecision = "rejected"
+)
+
+// Defines values for BillingRecordIssues.
+const (
+	ActiveExecution    BillingRecordIssues = "active_execution"
+	AmountMismatch     BillingRecordIssues = "amount_mismatch"
+	DuplicateRequest   BillingRecordIssues = "duplicate_request"
+	MissingRequest     BillingRecordIssues = "missing_request"
+	OverBound          BillingRecordIssues = "over_bound"
+	ProviderMismatch   BillingRecordIssues = "provider_mismatch"
+	ProviderUnrecorded BillingRecordIssues = "provider_unrecorded"
+	RecentExecution    BillingRecordIssues = "recent_execution"
+	ScopeMismatch      BillingRecordIssues = "scope_mismatch"
+	Unsettled          BillingRecordIssues = "unsettled"
+	UnsupportedState   BillingRecordIssues = "unsupported_state"
+	UsageMismatch      BillingRecordIssues = "usage_mismatch"
+)
+
+// Defines values for BillingRecordProvider.
+const (
+	BillingRecordProviderAliyun     BillingRecordProvider = "aliyun"
+	BillingRecordProviderVolcengine BillingRecordProvider = "volcengine"
+	BillingRecordProviderZhipu      BillingRecordProvider = "zhipu"
+)
+
+// Defines values for BillingReviewAction.
+const (
+	Approve BillingReviewAction = "approve"
+	Reject  BillingReviewAction = "reject"
+)
+
 // Defines values for CreateOrganizationCurrency.
 const (
 	CreateOrganizationCurrencyCNYMICRO CreateOrganizationCurrency = "CNY_MICRO"
@@ -155,10 +196,10 @@ const (
 
 // Defines values for RouteStatusProvider.
 const (
-	Aliyun     RouteStatusProvider = "aliyun"
-	Mock       RouteStatusProvider = "mock"
-	Volcengine RouteStatusProvider = "volcengine"
-	Zhipu      RouteStatusProvider = "zhipu"
+	RouteStatusProviderAliyun     RouteStatusProvider = "aliyun"
+	RouteStatusProviderMock       RouteStatusProvider = "mock"
+	RouteStatusProviderVolcengine RouteStatusProvider = "volcengine"
+	RouteStatusProviderZhipu      RouteStatusProvider = "zhipu"
 )
 
 // Defines values for RouteStatusState.
@@ -170,10 +211,24 @@ const (
 	Unobserved    RouteStatusState = "unobserved"
 )
 
+// Defines values for StatementImportProvider.
+const (
+	Aliyun     StatementImportProvider = "aliyun"
+	Volcengine StatementImportProvider = "volcengine"
+	Zhipu      StatementImportProvider = "zhipu"
+)
+
 // Defines values for UsageCurrency.
 const (
-	UsageCurrencyCNYMICRO UsageCurrency = "CNY_MICRO"
-	UsageCurrencyMOCK     UsageCurrency = "MOCK"
+	CNYMICRO UsageCurrency = "CNY_MICRO"
+	MOCK     UsageCurrency = "MOCK"
+)
+
+// Defines values for ListBillingRecordsParamsDecision.
+const (
+	ListBillingRecordsParamsDecisionApproved ListBillingRecordsParamsDecision = "approved"
+	ListBillingRecordsParamsDecisionPending  ListBillingRecordsParamsDecision = "pending"
+	ListBillingRecordsParamsDecisionRejected ListBillingRecordsParamsDecision = "rejected"
 )
 
 // Defines values for ListRequestsParamsState.
@@ -240,6 +295,70 @@ type AuditPage struct {
 	// NextCursor Pass as after; empty means end. Ordering is by ID, not creation time.
 	NextCursor string `json:"next_cursor"`
 }
+
+// BillingActor defines model for BillingActor.
+type BillingActor struct {
+	Issuer  string `json:"issuer"`
+	Subject string `json:"subject"`
+}
+
+// BillingPage defines model for BillingPage.
+type BillingPage struct {
+	Data       []BillingRecord `json:"data"`
+	NextCursor string          `json:"next_cursor"`
+}
+
+// BillingRecord defines model for BillingRecord.
+type BillingRecord struct {
+	AccountRef        string                `json:"account_ref"`
+	Actual            *string               `json:"actual"`
+	Amount            string                `json:"amount"`
+	CreatedAt         time.Time             `json:"created_at"`
+	Currency          BillingRecordCurrency `json:"currency"`
+	Decision          BillingRecordDecision `json:"decision"`
+	EvidenceRef       string                `json:"evidence_ref"`
+	Id                string                `json:"id"`
+	ImportId          string                `json:"import_id"`
+	Importer          BillingActor          `json:"importer"`
+	InputTokens       int64                 `json:"input_tokens"`
+	Issues            []BillingRecordIssues `json:"issues"`
+	LedgerState       string                `json:"ledger_state"`
+	OutputTokens      int64                 `json:"output_tokens"`
+	Period            string                `json:"period"`
+	Provider          BillingRecordProvider `json:"provider"`
+	Reason            *string               `json:"reason"`
+	RecordId          string                `json:"record_id"`
+	RequestId         string                `json:"request_id"`
+	Reserved          *string               `json:"reserved"`
+	ResolvedRequestId *string               `json:"resolved_request_id"`
+	ReviewedAt        *time.Time            `json:"reviewed_at"`
+	Reviewer          *BillingActor         `json:"reviewer"`
+	Revision          int                   `json:"revision"`
+}
+
+// BillingRecordCurrency defines model for BillingRecord.Currency.
+type BillingRecordCurrency string
+
+// BillingRecordDecision defines model for BillingRecord.Decision.
+type BillingRecordDecision string
+
+// BillingRecordIssues defines model for BillingRecord.Issues.
+type BillingRecordIssues string
+
+// BillingRecordProvider defines model for BillingRecord.Provider.
+type BillingRecordProvider string
+
+// BillingReview defines model for BillingReview.
+type BillingReview struct {
+	Action           BillingReviewAction `json:"action"`
+	ConfirmedFinal   bool                `json:"confirmed_final"`
+	ExpectedRevision int                 `json:"expected_revision"`
+	Reason           string              `json:"reason"`
+	RequestId        string              `json:"request_id"`
+}
+
+// BillingReviewAction defines model for BillingReview.Action.
+type BillingReviewAction string
 
 // BrowserError defines model for BrowserError.
 type BrowserError struct {
@@ -334,6 +453,13 @@ type HTTPCounters struct {
 	Rejected     int64   `json:"rejected"`
 	Requests     int64   `json:"requests"`
 	ServerErrors int64   `json:"server_errors"`
+}
+
+// ImportReceipt defines model for ImportReceipt.
+type ImportReceipt struct {
+	Count     int    `json:"count"`
+	Duplicate bool   `json:"duplicate"`
+	Id        string `json:"id"`
 }
 
 // InferenceRequest defines model for InferenceRequest.
@@ -627,6 +753,17 @@ type SetModels struct {
 	Models []string `json:"models"`
 }
 
+// StatementImport defines model for StatementImport.
+type StatementImport struct {
+	AccountRef  string                  `json:"account_ref"`
+	Csv         string                  `json:"csv"`
+	EvidenceRef string                  `json:"evidence_ref"`
+	Provider    StatementImportProvider `json:"provider"`
+}
+
+// StatementImportProvider defines model for StatementImport.Provider.
+type StatementImportProvider string
+
 // UpdateProjectLimits defines model for UpdateProjectLimits.
 type UpdateProjectLimits struct {
 	ExpectedRevision  int64 `json:"expected_revision"`
@@ -663,6 +800,16 @@ type ListProjectsParams struct {
 	Limit *int    `form:"limit,omitempty" json:"limit,omitempty"`
 	After *string `form:"after,omitempty" json:"after,omitempty"`
 }
+
+// ListBillingRecordsParams defines parameters for ListBillingRecords.
+type ListBillingRecordsParams struct {
+	After    *string                           `form:"after,omitempty" json:"after,omitempty"`
+	Decision *ListBillingRecordsParamsDecision `form:"decision,omitempty" json:"decision,omitempty"`
+	Limit    *int                              `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListBillingRecordsParamsDecision defines parameters for ListBillingRecords.
+type ListBillingRecordsParamsDecision string
 
 // InspectProjectParams defines parameters for InspectProject.
 type InspectProjectParams struct {
@@ -709,6 +856,12 @@ type PutOrganizationMemberJSONRequestBody = Member
 
 // CreateProjectJSONRequestBody defines body for CreateProject for application/json ContentType.
 type CreateProjectJSONRequestBody = CreateProject
+
+// ImportStatementJSONRequestBody defines body for ImportStatement for application/json ContentType.
+type ImportStatementJSONRequestBody = StatementImport
+
+// ReviewStatementRecordJSONRequestBody defines body for ReviewStatementRecord for application/json ContentType.
+type ReviewStatementRecordJSONRequestBody = BillingReview
 
 // CreateProjectKeyJSONRequestBody defines body for CreateProjectKey for application/json ContentType.
 type CreateProjectKeyJSONRequestBody = CreateKey

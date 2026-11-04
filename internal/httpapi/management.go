@@ -52,6 +52,9 @@ func NewWithRuntime(store *control.Store, auth identity.Authenticator, session S
 	mux.HandleFunc("DELETE /api/v1/organizations/{org}/projects/{project}/keys/{key}", h.revokeKey)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/usage", h.usage)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/runtime", h.runtime)
+	mux.HandleFunc("POST /api/v1/organizations/{org}/projects/{project}/billing/imports", h.importStatement)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/billing/records", h.billingRecords)
+	mux.HandleFunc("POST /api/v1/organizations/{org}/projects/{project}/billing/records/{record}/review", h.reviewBill)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/limits", h.limits)
 	mux.HandleFunc("PUT /api/v1/organizations/{org}/projects/{project}/limits", h.setLimits)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/inspection", h.inspect)
@@ -105,7 +108,7 @@ func failure(w http.ResponseWriter, r *http.Request, err error) {
 		status, code = 403, "forbidden"
 	case errors.Is(err, control.ErrNotFound):
 		status, code = 404, "not_found"
-	case errors.Is(err, admission.ErrConflict):
+	case errors.Is(err, admission.ErrConflict) || errors.Is(err, control.ErrBillingConflict):
 		status, code = 409, "conflict"
 	case errors.Is(err, control.ErrInvalid) || errors.Is(err, admission.ErrInvalid):
 		status, code = 400, "invalid_request"

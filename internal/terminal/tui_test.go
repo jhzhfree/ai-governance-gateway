@@ -234,3 +234,7 @@ func TestTUIRequestLedgerNavigation(t *testing.T) {
 func (fakeAPI) Runtime(context.Context, string, string) (types.Runtime, error) {
 	return types.Runtime{HeldAmount: "0", Models: []types.RouteStatus{{Model: "aliyun/test", Provider: "aliyun", State: "open", RetryAfter: 30}}}, nil
 }
+
+func (fakeAPI) BillingRecords(context.Context, string, string, string, string, int) (types.BillingPage, error) {
+	return types.BillingPage{Data: []types.BillingRecord{{RecordId: "bill-test", Provider: "aliyun", Currency: "CNY_MICRO", Amount: "10", Decision: "pending"}}}, nil
+}

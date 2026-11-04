@@ -99,3 +99,5 @@ go run ./cmd/gateway --mock-only
 调用记录可空 attempt 对象与独立 outcome 筛选已接入，保持原组织/项目授权；不增加全局 attempt 查询。见[执行结果与故障语义](execution-metadata.md)。
 
 项目级 `GET /runtime` 返回已授权模型的共享熔断、全周期未结占额和可空的当前实例 HTTP 观测；查询不触发供应商探测。详见[运行手册](supplier-resilience.md)。
+
+标准账单导入、项目差异查询和独立管理员审核位于项目 `/billing/imports`、`/billing/records`、`/billing/records/{record}/review`；权限、原子财务与幂等边界见[对账手册](billing-reconciliation.md)。

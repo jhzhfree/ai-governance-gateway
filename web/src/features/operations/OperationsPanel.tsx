@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Button } from 'tdesign-react';
 import { api, type ProjectLimits, type Inspection } from '../../api';
+import { BillingPanel } from '../billing/BillingPanel';
 import { RuntimePanel } from './RuntimePanel';
 import { ErrorBox, Empty } from '../../shared/Feedback';
 
@@ -10,11 +11,13 @@ export function OperationsPanel({
   projectPath,
   canManage,
   csrf,
+  currency,
 }: {
   identity: string[];
   projectPath: string;
   canManage: boolean;
   csrf: string;
+  currency: string;
 }) {
   const [error, setError] = useState<unknown>(null);
   const [saving, setSaving] = useState(false);
@@ -64,6 +67,14 @@ export function OperationsPanel({
   return (
     <>
       <RuntimePanel identity={identity} projectPath={projectPath} />
+      {currency === 'CNY_MICRO' && (
+        <BillingPanel
+          identity={identity}
+          projectPath={projectPath}
+          canManage={canManage}
+          csrf={csrf}
+        />
+      )}
       <section className="panel">
         <div className="panel-heading">
           <div>

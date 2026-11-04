@@ -2,8 +2,12 @@
 
 AI 治理网关：面向团队的统一模型接入、访问控制、预算限额和调用审计平台。
 
-当前状态：已实现预算/SSE、组织/项目权限、项目密钥，以及带 OIDC 服务端会话的 Web 控制台、只读 CLI/TUI 与 Device Flow 登录。另已实现百炼北京、火山方舟北京、智谱国内服务的受控适配与人民币计价；真实账号、模型参数、价格与大陆数据驻留仍待验收。企业 IdP、原生钥匙串和生产部署也尚未验收。
+当前状态：已实现预算/SSE、组织/项目权限、项目密钥，以及带 OIDC 服务端会话的 Web 控制台、只读 CLI/TUI 与 Device Flow 登录。另已实现百炼北京、火山方舟北京、智谱国内服务的受控适配与人民币计价；真实账号、模型参数、价格与大陆数据驻留仍待验收。已补充共享限流、熔断、运行状态和标准账单人工对账。企业 IdP、原生钥匙串、真实账单及生产部署尚未验收，整体仍为开发集成版本。
 
+- [整体功能覆盖与剩余工作](docs/functional-coverage.md)
+- [标准账单与人工对账](docs/billing-reconciliation.md)
+- [共享熔断与运行状态](docs/supplier-resilience.md)
+- [项目限流与故障核查](docs/traffic-and-recovery.md)
 - [执行结果与 attempt 元数据](docs/execution-metadata.md)
 - [三家大陆供应商与人民币计价](docs/mainland-providers.md)
 - [调用账本查询与排障](docs/request-history.md)

@@ -337,3 +337,49 @@ test('project traffic policy saves with revision and inspection stays read only'
     .analyze();
   expect(accessibility.violations.map((issue) => issue.id)).toEqual([]);
 });
+
+test('normalized bill import, duplicate detection and rejection preserve budget', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: /使用组织账号登录/ }).click();
+  await page.getByRole('button', { name: /新建组织/ }).click();
+  await page.getByLabel('组织名称', { exact: true }).fill('账单核对团队');
+  await page.getByLabel('预算单位', { exact: true }).selectOption('CNY_MICRO');
+  await page.getByRole('button', { name: '确认创建', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: '组织已创建' })).toBeVisible();
+  await page.getByRole('button', { name: /新建项目/ }).click();
+  await page.getByLabel('项目名称', { exact: true }).fill('账单核对项目');
+  await page.getByRole('button', { name: '确认创建', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '账单核对项目' })).toBeVisible();
+  await page.getByRole('button', { name: '流量与核查', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '账单对账工作台' })).toBeVisible();
+  await page.getByLabel('供应商账户引用', { exact: true }).fill('account-browser');
+  await page.getByLabel('证据引用', { exact: true }).fill('synthetic-final-invoice');
+  await page
+    .getByLabel('标准账单CSV', { exact: true })
+    .fill(
+      'record_id,request_id,period,currency,amount,input_tokens,output_tokens\nbrowser-invoice,,2026-11,CNY_MICRO,10,0,0\n',
+    );
+  await page.getByRole('button', { name: '导入标准账单', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: '已导入 1 条账单' })).toBeVisible();
+  await page.getByRole('button', { name: '导入标准账单', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: '相同账单已导入' })).toBeVisible();
+  await page.getByRole('button', { name: '查看或审核 browser-invoice', exact: true }).click();
+  await expect(page.getByLabel('审核动作', { exact: true })).toHaveValue('reject');
+  await page.getByLabel('审核原因', { exact: true }).fill('合成证据缺少请求映射，驳回核查');
+  await page.getByRole('button', { name: '提交账单审核', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: '账单记录已驳回' })).toBeVisible();
+  await page.reload();
+  const table = page.getByRole('region', { name: '项目账单对账表' });
+  await expect(table.getByRole('cell', { name: /已驳回/ })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const a11y = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(a11y.violations.map((v) => v.id)).toEqual([]);
+  await page.getByRole('button', { name: '项目概览', exact: true }).click();
+  await expect(page.getByRole('progressbar', { name: '预算占用比例' })).toHaveAttribute(
+    'value',
+    '0',
+  );
+});

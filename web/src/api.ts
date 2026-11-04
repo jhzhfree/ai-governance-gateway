@@ -1,5 +1,8 @@
 import type { components } from './generated/api';
 
+export type BillingRecord = components['schemas']['BillingRecord'];
+export type BillingPage = components['schemas']['BillingPage'];
+export type ImportReceipt = components['schemas']['ImportReceipt'];
 export type Runtime = components['schemas']['Runtime'];
 export type ProjectLimits = components['schemas']['ProjectLimits'];
 export type Inspection = components['schemas']['Inspection'];
@@ -29,7 +32,7 @@ export class ApiError extends Error {
           : status === 404
             ? '资源不存在，或你没有访问权限。'
             : status === 409
-              ? '策略已被其他人修改，请刷新后重新填写。'
+              ? '记录已变更或当前状态不允许此操作，请刷新核对。'
               : status === 400
                 ? '请检查填写内容后重试。'
                 : '服务暂时不可用，请稍后重试。',

@@ -179,38 +179,48 @@ func (s *Store) MarkUncertain(ctx context.Context, id string) error {
 }
 
 func (s *Store) finish(ctx context.Context, id, target string, actual int64) error {
-	return s.transaction(ctx, id, func(tx pgx.Tx) error {
-		r, err := read(ctx, tx, id)
-		if err != nil {
-			return err
-		}
-		if actual < 0 || actual > r.Amount {
-			return ErrCostBound
-		}
-		if r.State == target && r.Actual != nil && *r.Actual == actual {
-			return nil
-		}
-		if (target == "released" && r.State != "reserved") ||
-			(target != "released" && r.State != "dispatched" && r.State != "uncertain") {
-			return ErrState
-		}
-		if err := lockAccounts(ctx, tx, r.Scope); err != nil {
-			return err
-		}
-		result, err := tx.Exec(ctx, `UPDATE budget_accounts SET held=held-$5,spent=spent+$6
-			WHERE organization_id=$1 AND project_id IN ('',$2) AND period_id=$3 AND currency=$4 AND held >= $5`,
-			r.Organization, r.Project, r.Period, r.Currency, r.Amount, actual)
-		if err != nil {
-			return err
-		}
-		if result.RowsAffected() != 2 {
-			return errors.New("budget ledger inconsistent")
-		}
-		if _, err := tx.Exec(ctx, `UPDATE budget_reservations SET state=$2,actual=$3,updated_at=clock_timestamp() WHERE request_id=$1`, id, target, actual); err != nil {
-			return err
-		}
-		return event(ctx, tx, id, target)
-	})
+	return s.transaction(ctx, id, func(tx pgx.Tx) error { return finishTx(ctx, tx, id, target, actual) })
+}
+
+// ReconcileTx participates in the caller's evidence/review/audit transaction.
+// The caller must authenticate reviewers and verify scope and final evidence.
+func ReconcileTx(ctx context.Context, tx pgx.Tx, id string, actual int64) error {
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, id); err != nil {
+		return err
+	}
+	return finishTx(ctx, tx, id, "settled", actual)
+}
+func finishTx(ctx context.Context, tx pgx.Tx, id, target string, actual int64) error {
+	r, err := read(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+	if actual < 0 || actual > r.Amount {
+		return ErrCostBound
+	}
+	if r.State == target && r.Actual != nil && *r.Actual == actual {
+		return nil
+	}
+	if (target == "released" && r.State != "reserved") ||
+		(target != "released" && r.State != "dispatched" && r.State != "uncertain") {
+		return ErrState
+	}
+	if err := lockAccounts(ctx, tx, r.Scope); err != nil {
+		return err
+	}
+	result, err := tx.Exec(ctx, `UPDATE budget_accounts SET held=held-$5,spent=spent+$6
+		WHERE organization_id=$1 AND project_id IN ('',$2) AND period_id=$3 AND currency=$4 AND held >= $5`,
+		r.Organization, r.Project, r.Period, r.Currency, r.Amount, actual)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() != 2 {
+		return errors.New("budget ledger inconsistent")
+	}
+	if _, err := tx.Exec(ctx, `UPDATE budget_reservations SET state=$2,actual=$3,updated_at=clock_timestamp() WHERE request_id=$1`, id, target, actual); err != nil {
+		return err
+	}
+	return event(ctx, tx, id, target)
 }
 
 func (s *Store) Settle(ctx context.Context, id string, actual int64) error {

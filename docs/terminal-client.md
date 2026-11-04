@@ -73,3 +73,5 @@ NO_COLOR=1 ./bin/aigw tui
 项目流量策略查询和预算/执行只读核查见[操作手册](traffic-and-recovery.md)，使用 `limits show`、`recovery inspect`（支持 JSON 和分页）。TUI 暂沿用调用列表与详情排查，独立核查屏幕待后续增加。
 
 供应商共享熔断与当前实例 HTTP 观测见[运行手册](supplier-resilience.md)，使用 `runtime show`；TUI 项目页按 `s`，上下滚动、`r` 刷新、Esc 返回。
+
+标准账单只读查询使用 `billing list --decision pending --output json`，TUI 的 CNY_MICRO 项目页按 `b`；财务审核通过 Web/受权 API。见[对账手册](billing-reconciliation.md)。

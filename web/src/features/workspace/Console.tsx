@@ -455,6 +455,7 @@ export function Console({ session }: { session: Session }) {
                   <>
                     {view === 'operations' && (
                       <OperationsPanel
+                        currency={organization?.currency ?? usage.data?.currency ?? ''}
                         key={projectPath}
                         identity={identity}
                         projectPath={projectPath}

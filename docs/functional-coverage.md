@@ -1,0 +1,61 @@
+# 整体功能覆盖核查（2026-11-04）
+
+结论：项目已具备可运行的治理主链路和 Web/终端入口，适合受控开发集成与验收；目前不能标记为生产可发布。最大缺口已经从基础功能转向真实服务接入、管理体验收尾及生产运行保障。
+
+本报告以源码、OpenAPI、迁移、测试和发布文件为依据，不用代码行数或测试数量推算“完成百分比”。“本地已验证”表示真实 PostgreSQL/签名测试 IdP/合成供应商条件下通过，不能替代真实大陆驻留、企业 IdP 或供应商付费验收。
+
+## 当前能力与边界
+
+| 领域 | 已实现并验证的范围 | 尚缺或受限之处 | 证据入口 |
+| --- | --- | --- | --- |
+| 工程基础 | Go 模块化后端、固定依赖、OpenAPI Go/TS 类型、Web 构建与测试脚本、GitHub 工作流配置 | 无部署镜像/Compose/Kubernetes 交付；配置工作流不等于托管 CI 已通过；依赖/密钥扫描与发布门禁未齐 | scripts/verify.sh、.github/workflows/verify.yml、docs/engineering.md |
+| 组织与项目 | 多组织/项目作用域、owner/admin/developer/viewer、跨项目隔离、创建与查询 | 无完整 Web 成员管理、邀请/移除、组织/项目生命周期管理 | internal/control/store.go、internal/httpapi/management_test.go |
+| 身份登录 | OIDC JWT、浏览器授权码/PKCE、服务端 Cookie 会话/CSRF、终端 Device Flow | 企业 IdP、真实 OS 钥匙串、Windows/macOS 与自动令牌刷新未验收 | internal/identity、internal/browser、internal/terminal/auth.go |
+| 项目密钥 | 高熵摘要存储、一次性展示、到期、实时撤销、模型约束、读写权限分离 | 无完整轮换/审批流程，密钥自助管理主要通过 Web；供应商密钥依赖环境注入，无 KMS 集成 | internal/control/store.go、web/src/features/keys |
+| 模型与供应商 | 百炼、方舟、智谱固定国内入口、目录/别名、项目白名单、驻留证据及到期校验 | 真实账号/合同/模型参数/价格/大陆处理和存储未验收；供应商及价格配置主要是文件，不是在线管理台 | internal/provider、docs/mainland-providers.md |
+| 推理协议 | POST /v1/chat/completions 文本 JSON/SSE、取消、超时、输出与 usage 校验 | 尚无推理密钥可用的 GET /v1/models；现有 /api/v1/models 是管理目录；无工具、多模态、embedding/rerank 等扩展 | internal/gateway/handler.go、internal/provider/protocol.go、api/openapi/management.json |
+| 预算治理 | 组织/项目原子预留、保守成本上界、价格指纹、结算/不确定状态、outbox、币种隔离 | 预算主要创建时设定，无在线预算调整/周期滚动/完整不可变策略发布；超过预留的财务差额不强行入账 | internal/budget、docs/prototype.md |
+| 调用记录 | request_id/attempt_id、结果与财务分离、模型/用量/时间、筛选、详情与游标分页 | 单次 attempt；无供应商原始请求号关联、全量拒绝前访问日志、TTFT、批量导出或自动修复 unfinished | internal/execution、internal/control/requests.go |
+| 项目限流 | PostgreSQL 跨实例并发租约、滚动 60 秒频率、CAS 策略修改与审计、故障关闭放行 | 固定窗口定义和有界请求时长；没有容量基准、排队或租约续期；不需要 Redis 才能运行 | internal/admission、docs/traffic-and-recovery.md |
+| 故障隔离 | 共享路由熔断、5 次失败/30 秒冷却、单探测租约、迟到结果隔离 | 无生产供应商恢复演练；没有供应商整体联动策略或运维告警集成 | internal/circuit、docs/supplier-resilience.md |
+| 观测与审计 | 项目有效租约/未结占额、实例 HTTP 计数/累计延迟桶、治理审计；关键变更审计失败回滚 | HTTP 指标实例级且重启清零；无 Prometheus/OTel、集群历史、TTFT、自动告警；普通审计非完整变更前后快照/防篡改归档 | internal/observe、internal/control/runtime.go、internal/control/store.go |
+| 故障核查 | 未结束执行、开放占额、账户 held/spent 重算差异、权限隔离 | 只读快照/有界列表，无全库恢复任务或保留清理调度器；过期租约不等于供应商停止 | internal/control/operations.go |
+| 人工对账 | 标准 CSV、整批幂等/冲突、精确人工关联、重复候选、两人审核、原子财务/决定/审计、最终零费用、Web 工作台和 CLI/TUI 查询 | 不等于原生官方账单验真；无自动拉单、附件验证、税费/折扣/贷项、终态差额调整或超出上界处置；成员角色需用 API 设置 | internal/control/billing.go、docs/billing-reconciliation.md |
+| Web | 组织/项目、模型授权、密钥、预算用量、账本/审计、流量/运行状态/对账；桌面/窄屏和自动无障碍检查 | 缺少上述成员/预算/供应商编辑页；无完整首次接入向导、复杂趋势图/全量导出；筛选 URL 能力未覆盖所有新面板 | web/src/features、web/tests/console.spec.ts |
+| CLI/TUI | OIDC 登录、上下文、JSON/分页、用量/密钥元数据/模型/审计/请求；s 运行状态、b 账单 | 首期业务只读；TUI 无独立 inspection 核查屏；平台与屏幕阅读器人工验收待做 | internal/terminal、docs/terminal-client.md |
+| 数据与发布保障 | 0010 迁移、结构/校验和漂移检查、事务回滚、旧数据保留、readiness/liveness、优雅关闭 | 无生产备份恢复、RPO/RTO、跨版本应用回退、容量/压测、安全专项或数据保留/销毁演练 | internal/database、cmd/gateway/health.go、docs/database-migrations.md |
+
+当前受管迁移 10 个；OpenAPI 24 个路径、28 个操作，数量只说明契约规模，不代表功能完整度。历史设计中 Redis、sqlc、完整策略发布、OTel 等内容应视为选择或目标，不能算作已集成能力。
+
+## 主链路验收结论
+
+1. 管理账号登录 → 建组织/项目 → 配模型 → 发项目密钥 → 文本推理 → 查询用量/执行记录：本地闭环已验证。
+2. 超限拒绝 → 供应商失败 → 不确定占额 → 熔断/单次恢复探测 → 只读核查：本地故障场景已验证。
+3. 标准化最终账单 → 导入 → 核对差异 → 独立管理员确认 → 财务/审核/审计原子提交：本地 API 闭环已验证；Web 覆盖导入、重复、驳回、刷新及预算不变，正向财务通过/并发/回滚由 API 测试覆盖，不冒充双人浏览器端到端验收。
+4. 三家真实供应商 → 真实付费 usage/账单 → 已核验中国大陆处理与存储 → 企业身份和生产部署：尚未验收。
+
+自动跨供应商重放、SSE 输出后重试、超时自动退款、Agent 工作流、知识库及插件市场按当前边界不做，不能为了补齐功能表而直接加入。
+
+## 对 M0–M5 计划的判断
+
+| 阶段 | 判断 | 剩余退出条件 |
+| --- | --- | --- |
+| M0 技术与需求验证 | 主要设计和局部验证已有证据 | 明确真实企业接入、性能目标和大陆部署清单 |
+| M1 工程基础 | 本地工程与基础门禁可运行 | 交付部署产物、供应链/发布门禁与生产安装验证 |
+| M2 推理闭环 | 合成供应商文本闭环已验证 | 三家真实模型与 /v1/models 等接入兼容收尾 |
+| M3 治理闭环 | 限流/预算/熔断/人工对账主链路已有实现 | 完整策略/预算周期管理、真实对账、保留/恢复演练 |
+| M4 双端体验 | 主要查询和操作入口可用 | 成员/预算/供应商管理 UI、首次接入引导、跨平台与人工体验验收 |
+| M5 发布准备 | 仍未达到退出条件 | 大陆部署、真实 IdP/供应商、性能、安全、监控告警、灾备和回退证据 |
+
+## 建议推进顺序
+
+- P0 真实验收准备：确定大陆网关/数据库/日志/备份及操作终端位置，取得企业 IdP 配置、三家真实账号/合同/模型/价格和脱敏账单样本。没有这些证据，不使用真实业务载荷或账单来冒充验收。
+- P1 MVP 功能收尾：推理 GET /v1/models；成员管理 Web 与双人审核流程；预算调整/周期管理的版本化设计；供应商/价格发布和首次接入指南。按小阶段交付，避免同时引入宽泛重试/自动退款。
+- P1 运行保障：容器/部署产物，Prometheus/OTel 与告警，数据保留，固定硬件压测、备份恢复及升级回退演练。规模目标先定再测，不给未经测量的吞吐承诺。
+- P2 产品扩展：真实场景证明需要后，再决定更多协议、导出、复杂报表和财务贷项/差额流程。
+
+## 核查证据
+
+本阶段完整集成脚本通过：107 个 Go 顶层测试、浏览器 fixture 父测试、7 个 Chromium 场景，包含 vet/race、OpenAPI Go/TS 差异、冻结安装、TS/ESLint/Prettier 和生产构建。随后补充的“重复请求账单与终态差额拦截”测试在独立 PostgreSQL/race 下通过，合计验证当前 108 个 Go 顶层测试。无跳过数据库测试来宣称成功。
+
+这些是当前工作区的本地证据；本报告不宣称 GitHub 托管 CI、真实供应商、系统原生钥匙串、屏幕阅读器、正式安全审计或生产灾备已经通过。
