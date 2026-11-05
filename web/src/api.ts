@@ -91,3 +91,7 @@ export type LocalSecurityEvent = components['schemas']['LocalSecurityEvent'];
 
 export type DepartmentConfiguration = components['schemas']['DepartmentConfiguration'];
 export type DepartmentVersion = components['schemas']['DepartmentVersion'];
+
+export type BudgetApproval = components['schemas']['BudgetApproval'];
+export type BudgetApprovalPolicy = components['schemas']['BudgetApprovalPolicy'];
+export type BudgetApprovalPolicyChange = components['schemas']['BudgetApprovalPolicyChange'];

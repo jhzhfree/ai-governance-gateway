@@ -208,8 +208,21 @@ func (s *Store) CreateProject(ctx context.Context, p identity.Principal, org, na
 	}
 	project = Project{ID: rand.Text(), OrganizationID: org, Name: name, Role: "admin"}
 	err = transaction(ctx, s.pool, func(tx pgx.Tx) error {
+		if err := memberLock(ctx, tx, org); err != nil {
+			return err
+		}
+		if err := approvalLock(ctx, tx, org); err != nil {
+			return err
+		}
 		if err := orgAdmin(ctx, tx, p, org); err != nil {
 			return err
+		}
+		policy, err := readApprovalPolicy(ctx, tx, org)
+		if err != nil {
+			return err
+		}
+		if policy.Enabled && limit != 0 {
+			return ErrBudgetApprovalRequired
 		}
 		var lockedOrg string
 		if err := tx.QueryRow(ctx, `SELECT id FROM organizations WHERE id=$1 FOR SHARE`, org).Scan(&lockedOrg); err != nil {

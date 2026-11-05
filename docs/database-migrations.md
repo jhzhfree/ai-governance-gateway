@@ -134,3 +134,7 @@ AIGW_VERIFY_WEB=1 bash scripts/verify.sh
 ### 0021：入账时部门归属
 
 新增 `request_department_attributions`，在新预算占额事务内捕获路径与配置版本，失败整体回滚。升级不回填旧请求，不改变历史预算或结算；摘流排空旧进程后迁移，禁止不捕获归属的旧版本继续混跑。详见 [部门成本与升级](department-cost-attribution.md)。
+
+### 0022：预算调额审批
+
+新增 `budget_approval_policies`、`budget_approval_requests`、`budget_approval_policy_versions`。默认关闭，不改旧余额或费用；启用后直接调额和非零新建项目被拒绝，须独立审批。先排空旧服务再迁移至 0022 并检查，禁止不识别审批策略的旧版混跑。详见 [预算审批](budget-approvals.md)。

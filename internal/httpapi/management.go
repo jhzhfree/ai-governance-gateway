@@ -38,6 +38,9 @@ func NewWithSession(store *control.Store, auth identity.Authenticator, session S
 func NewWithRuntime(store *control.Store, auth identity.Authenticator, session SessionAuthenticator, monitor *observe.Registry) http.Handler {
 	h := &Handler{Store: store, Auth: auth, Monitor: monitor}
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/organizations/{org}/budget/approval-policy/changes", h.approvalPolicyChanges)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/budget/approval-policy", h.approvalPolicy)
+	mux.HandleFunc("PUT /api/v1/organizations/{org}/budget/approval-policy", h.approvalPolicy)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/departments", h.departments)
 	mux.HandleFunc("PUT /api/v1/organizations/{org}/departments", h.departments)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/departments/history", h.departmentHistory)
@@ -53,6 +56,9 @@ func NewWithRuntime(store *control.Store, auth identity.Authenticator, session S
 		h.finishOwnership(w, r)
 	})
 	for _, base := range []string{"/api/v1/organizations/{org}", "/api/v1/organizations/{org}/projects/{project}"} {
+		mux.HandleFunc("GET "+base+"/budget/approvals", h.budgetApprovals)
+		mux.HandleFunc("POST "+base+"/budget/approvals", h.budgetApprovals)
+		mux.HandleFunc("POST "+base+"/budget/approvals/{approval}/{action}", h.decideBudgetApproval)
 		mux.HandleFunc("GET "+base+"/budget/alerts/policy", h.alertPolicy)
 		mux.HandleFunc("PUT "+base+"/budget/alerts/policy", h.setAlertPolicy)
 		mux.HandleFunc("GET "+base+"/budget/alerts", h.budgetAlerts)
@@ -161,6 +167,8 @@ func failure(w http.ResponseWriter, r *http.Request, err error) {
 		status, code = 403, "forbidden"
 	case errors.Is(err, control.ErrNotFound):
 		status, code = 404, "not_found"
+	case errors.Is(err, control.ErrBudgetApprovalRequired):
+		status, code = 409, "budget_approval_required"
 	case errors.Is(err, control.ErrBudgetConflict) || errors.Is(err, control.ErrKeywordConflict) || errors.Is(err, contentaudit.ErrConflict) || errors.Is(err, provider.ErrConfigurationConflict):
 		status, code = 409, "conflict"
 	case errors.Is(err, admission.ErrConflict) || errors.Is(err, control.ErrBillingConflict) || errors.Is(err, control.ErrMemberConflict):

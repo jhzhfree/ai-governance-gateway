@@ -57,3 +57,5 @@ AI 治理网关：面向团队的统一模型接入、访问控制、预算限�
 部门治理：见 [部门层级、项目归属与继承授权](docs/department-authorization.md)，组织内配置、祖先继承、版本比较与成员停用联动。
 
 部门成本：见 [入账时快照与历史筛选](docs/department-cost-attribution.md)，旧账不回填，移动/重命名不改历史归属，Web/CLI/TUI 与审计 CSV 共用口径。
+
+预算审批：见 [双人调额流程与升级](docs/budget-approvals.md)，所有者可启用策略，禁止自审，批准时重检周期/版本/余额，事务原子留痕。

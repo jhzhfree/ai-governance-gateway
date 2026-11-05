@@ -9160,6 +9160,1028 @@
           }
         }
       }
+    },
+    "/api/v1/organizations/{org}/budget/approval-policy": {
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getBudgetApprovalPolicy",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "description": "Organization-scoped two-person budget limit adjustment. Default disabled. Policy is owner-only; requests/decisions require current active owner/admin. No self approval, 24h expiry, period/revision/balance rechecked and atomic audit. Policy changes cancel pending requests. Enabled policy blocks direct limit writes and nonzero project initialization; cycle rotation is unchanged.",
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle revision or state changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetApprovalPolicy"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "setBudgetApprovalPolicy",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "description": "Organization-scoped two-person budget limit adjustment. Default disabled. Policy is owner-only; requests/decisions require current active owner/admin. No self approval, 24h expiry, period/revision/balance rechecked and atomic audit. Policy changes cancel pending requests. Enabled policy blocks direct limit writes and nonzero project initialization; cycle rotation is unchanged.",
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle revision or state changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetApprovalPolicy"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetBudgetApprovalPolicy"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{org}/budget/approvals": {
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      ],
+      "get": {
+        "operationId": "listOrganizationBudgetApprovals",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "description": "Organization-scoped two-person budget limit adjustment. Default disabled. Policy is owner-only; requests/decisions require current active owner/admin. No self approval, 24h expiry, period/revision/balance rechecked and atomic audit. Policy changes cancel pending requests. Enabled policy blocks direct limit writes and nonzero project initialization; cycle rotation is unchanged.",
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle revision or state changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetApprovalPage"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "description": "Responses use fixed 50 item pages."
+          }
+        ]
+      },
+      "post": {
+        "operationId": "requestOrganizationBudgetApproval",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "description": "Organization-scoped two-person budget limit adjustment. Default disabled. Policy is owner-only; requests/decisions require current active owner/admin. No self approval, 24h expiry, period/revision/balance rechecked and atomic audit. Policy changes cancel pending requests. Enabled policy blocks direct limit writes and nonzero project initialization; cycle rotation is unchanged.",
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle revision or state changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetApproval"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestBudgetApproval"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{org}/budget/approvals/{approval}/{action}": {
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        {
+          "name": "approval",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "action",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "reject",
+              "cancel"
+            ]
+          }
+        }
+      ],
+      "post": {
+        "operationId": "decideOrganizationBudgetApproval",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "description": "Organization-scoped two-person budget limit adjustment. Default disabled. Policy is owner-only; requests/decisions require current active owner/admin. No self approval, 24h expiry, period/revision/balance rechecked and atomic audit. Policy changes cancel pending requests. Enabled policy blocks direct limit writes and nonzero project initialization; cycle rotation is unchanged.",
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle revision or state changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetApproval"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BudgetApprovalDecision"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{org}/projects/{project}/budget/approvals": {
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        {
+          "name": "project",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "listProjectBudgetApprovals",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "description": "Organization-scoped two-person budget limit adjustment. Default disabled. Policy is owner-only; requests/decisions require current active owner/admin. No self approval, 24h expiry, period/revision/balance rechecked and atomic audit. Policy changes cancel pending requests. Enabled policy blocks direct limit writes and nonzero project initialization; cycle rotation is unchanged.",
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle revision or state changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetApprovalPage"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "description": "Responses use fixed 50 item pages."
+          }
+        ]
+      },
+      "post": {
+        "operationId": "requestProjectBudgetApproval",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "description": "Organization-scoped two-person budget limit adjustment. Default disabled. Policy is owner-only; requests/decisions require current active owner/admin. No self approval, 24h expiry, period/revision/balance rechecked and atomic audit. Policy changes cancel pending requests. Enabled policy blocks direct limit writes and nonzero project initialization; cycle rotation is unchanged.",
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle revision or state changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetApproval"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestBudgetApproval"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{org}/projects/{project}/budget/approvals/{approval}/{action}": {
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        {
+          "name": "project",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "approval",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "action",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "reject",
+              "cancel"
+            ]
+          }
+        }
+      ],
+      "post": {
+        "operationId": "decideProjectBudgetApproval",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "description": "Organization-scoped two-person budget limit adjustment. Default disabled. Policy is owner-only; requests/decisions require current active owner/admin. No self approval, 24h expiry, period/revision/balance rechecked and atomic audit. Policy changes cancel pending requests. Enabled policy blocks direct limit writes and nonzero project initialization; cycle rotation is unchanged.",
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle revision or state changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetApproval"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BudgetApprovalDecision"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{org}/budget/approval-policy/changes": {
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      ],
+      "get": {
+        "operationId": "listBudgetApprovalPolicyChanges",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "description": "Organization-scoped two-person budget limit adjustment. Default disabled. Policy is owner-only; requests/decisions require current active owner/admin. No self approval, 24h expiry, period/revision/balance rechecked and atomic audit. Policy changes cancel pending requests. Enabled policy blocks direct limit writes and nonzero project initialization; cycle rotation is unchanged.",
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle revision or state changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetApprovalPolicyChangePage"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -13041,6 +14063,264 @@
           }
         },
         "additionalProperties": false
+      },
+      "BudgetApprovalPolicy": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "enabled",
+          "revision"
+        ],
+        "additionalProperties": false
+      },
+      "SetBudgetApprovalPolicy": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "enabled",
+          "expected_revision",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "RequestBudgetApproval": {
+        "type": "object",
+        "properties": {
+          "period": {
+            "type": "string"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "limit": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "period",
+          "expected_revision",
+          "limit",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "BudgetApproval": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "period": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "previous_limit": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "requested_limit": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "requester": {
+            "$ref": "#/components/schemas/Principal"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "rejected",
+              "canceled"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finished_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "decider": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Principal"
+              }
+            ],
+            "nullable": true
+          },
+          "decision_reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "applied_revision": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "period",
+          "currency",
+          "expected_revision",
+          "previous_limit",
+          "requested_limit",
+          "requester",
+          "reason",
+          "state",
+          "created_at",
+          "expires_at",
+          "finished_at",
+          "decider",
+          "decision_reason",
+          "applied_revision"
+        ],
+        "additionalProperties": false
+      },
+      "BudgetApprovalPage": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BudgetApproval"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "next_cursor"
+        ],
+        "additionalProperties": false
+      },
+      "BudgetApprovalDecision": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "BudgetApprovalPolicyChange": {
+        "type": "object",
+        "required": [
+          "revision",
+          "actor",
+          "reason",
+          "created_at",
+          "enabled"
+        ],
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "actor": {
+            "$ref": "#/components/schemas/Principal"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "BudgetApprovalPolicyChangePage": {
+        "type": "object",
+        "required": [
+          "data",
+          "next_cursor"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BudgetApprovalPolicyChange"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        }
       }
     }
   }

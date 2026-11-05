@@ -86,6 +86,14 @@ const (
 	BrowserSessionAuthModeOidc  BrowserSessionAuthMode = "oidc"
 )
 
+// Defines values for BudgetApprovalState.
+const (
+	BudgetApprovalStateApproved BudgetApprovalState = "approved"
+	BudgetApprovalStateCanceled BudgetApprovalState = "canceled"
+	BudgetApprovalStatePending  BudgetApprovalState = "pending"
+	BudgetApprovalStateRejected BudgetApprovalState = "rejected"
+)
+
 // Defines values for ContentMetaState.
 const (
 	ContentMetaStateCanceled   ContentMetaState = "canceled"
@@ -399,9 +407,9 @@ const (
 
 // Defines values for ListBillingRecordsParamsDecision.
 const (
-	ListBillingRecordsParamsDecisionApproved ListBillingRecordsParamsDecision = "approved"
-	ListBillingRecordsParamsDecisionPending  ListBillingRecordsParamsDecision = "pending"
-	ListBillingRecordsParamsDecisionRejected ListBillingRecordsParamsDecision = "rejected"
+	Approved ListBillingRecordsParamsDecision = "approved"
+	Pending  ListBillingRecordsParamsDecision = "pending"
+	Rejected ListBillingRecordsParamsDecision = "rejected"
 )
 
 // Defines values for ListRequestsParamsState.
@@ -619,6 +627,61 @@ type BudgetAlert struct {
 type BudgetAlertPage struct {
 	Data       []BudgetAlert `json:"data"`
 	NextCursor string        `json:"next_cursor"`
+}
+
+// BudgetApproval defines model for BudgetApproval.
+type BudgetApproval struct {
+	AppliedRevision  *int64              `json:"applied_revision"`
+	CreatedAt        time.Time           `json:"created_at"`
+	Currency         string              `json:"currency"`
+	Decider          *Principal          `json:"decider"`
+	DecisionReason   *string             `json:"decision_reason"`
+	ExpectedRevision int64               `json:"expected_revision"`
+	ExpiresAt        time.Time           `json:"expires_at"`
+	FinishedAt       *time.Time          `json:"finished_at"`
+	Id               string              `json:"id"`
+	Period           string              `json:"period"`
+	PreviousLimit    int64               `json:"previous_limit"`
+	ProjectId        string              `json:"project_id"`
+	Reason           string              `json:"reason"`
+	RequestedLimit   int64               `json:"requested_limit"`
+	Requester        Principal           `json:"requester"`
+	State            BudgetApprovalState `json:"state"`
+}
+
+// BudgetApprovalState defines model for BudgetApproval.State.
+type BudgetApprovalState string
+
+// BudgetApprovalDecision defines model for BudgetApprovalDecision.
+type BudgetApprovalDecision struct {
+	Reason string `json:"reason"`
+}
+
+// BudgetApprovalPage defines model for BudgetApprovalPage.
+type BudgetApprovalPage struct {
+	Data       []BudgetApproval `json:"data"`
+	NextCursor string           `json:"next_cursor"`
+}
+
+// BudgetApprovalPolicy defines model for BudgetApprovalPolicy.
+type BudgetApprovalPolicy struct {
+	Enabled  bool  `json:"enabled"`
+	Revision int64 `json:"revision"`
+}
+
+// BudgetApprovalPolicyChange defines model for BudgetApprovalPolicyChange.
+type BudgetApprovalPolicyChange struct {
+	Actor     Principal `json:"actor"`
+	CreatedAt time.Time `json:"created_at"`
+	Enabled   bool      `json:"enabled"`
+	Reason    string    `json:"reason"`
+	Revision  int64     `json:"revision"`
+}
+
+// BudgetApprovalPolicyChangePage defines model for BudgetApprovalPolicyChangePage.
+type BudgetApprovalPolicyChangePage struct {
+	Data       []BudgetApprovalPolicyChange `json:"data"`
+	NextCursor string                       `json:"next_cursor"`
 }
 
 // BudgetChange defines model for BudgetChange.
@@ -1388,6 +1451,14 @@ type RemoveProjectMember struct {
 // RemoveProjectMemberExpectedRole defines model for RemoveProjectMember.ExpectedRole.
 type RemoveProjectMemberExpectedRole string
 
+// RequestBudgetApproval defines model for RequestBudgetApproval.
+type RequestBudgetApproval struct {
+	ExpectedRevision int64  `json:"expected_revision"`
+	Limit            int64  `json:"limit"`
+	Period           string `json:"period"`
+	Reason           string `json:"reason"`
+}
+
 // RequestOwnership defines model for RequestOwnership.
 type RequestOwnership struct {
 	ExpectedRole RequestOwnershipExpectedRole `json:"expected_role"`
@@ -1474,6 +1545,13 @@ type SetAlertPolicy struct {
 
 // SetAlertPolicyThresholds defines model for SetAlertPolicy.Thresholds.
 type SetAlertPolicyThresholds int
+
+// SetBudgetApprovalPolicy defines model for SetBudgetApprovalPolicy.
+type SetBudgetApprovalPolicy struct {
+	Enabled          bool   `json:"enabled"`
+	ExpectedRevision int64  `json:"expected_revision"`
+	Reason           string `json:"reason"`
+}
 
 // SetDepartments defines model for SetDepartments.
 type SetDepartments struct {
@@ -1601,6 +1679,19 @@ type GetOrganizationBudgetAlertsParams struct {
 	After *string `form:"after,omitempty" json:"after,omitempty"`
 }
 
+// ListBudgetApprovalPolicyChangesParams defines parameters for ListBudgetApprovalPolicyChanges.
+type ListBudgetApprovalPolicyChangesParams struct {
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+}
+
+// ListOrganizationBudgetApprovalsParams defines parameters for ListOrganizationBudgetApprovals.
+type ListOrganizationBudgetApprovalsParams struct {
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+
+	// Limit Responses use fixed 50 item pages.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ListOrganizationBudgetChangesParams defines parameters for ListOrganizationBudgetChanges.
 type ListOrganizationBudgetChangesParams struct {
 	Period string  `form:"period" json:"period"`
@@ -1674,6 +1765,14 @@ type ListBillingRecordsParamsDecision string
 type GetProjectBudgetAlertsParams struct {
 	// After Descending keyset, 50 alerts per page.
 	After *string `form:"after,omitempty" json:"after,omitempty"`
+}
+
+// ListProjectBudgetApprovalsParams defines parameters for ListProjectBudgetApprovals.
+type ListProjectBudgetApprovalsParams struct {
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+
+	// Limit Responses use fixed 50 item pages.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // ListProjectBudgetChangesParams defines parameters for ListProjectBudgetChanges.
@@ -1799,6 +1898,15 @@ type PutOrganizationAlertPolicyJSONRequestBody = SetAlertPolicy
 // PostOrganizationAcknowledgeBudgetAlertJSONRequestBody defines body for PostOrganizationAcknowledgeBudgetAlert for application/json ContentType.
 type PostOrganizationAcknowledgeBudgetAlertJSONRequestBody = AcknowledgeBudgetAlert
 
+// SetBudgetApprovalPolicyJSONRequestBody defines body for SetBudgetApprovalPolicy for application/json ContentType.
+type SetBudgetApprovalPolicyJSONRequestBody = SetBudgetApprovalPolicy
+
+// RequestOrganizationBudgetApprovalJSONRequestBody defines body for RequestOrganizationBudgetApproval for application/json ContentType.
+type RequestOrganizationBudgetApprovalJSONRequestBody = RequestBudgetApproval
+
+// DecideOrganizationBudgetApprovalJSONRequestBody defines body for DecideOrganizationBudgetApproval for application/json ContentType.
+type DecideOrganizationBudgetApprovalJSONRequestBody = BudgetApprovalDecision
+
 // SetBudgetCycleJSONRequestBody defines body for SetBudgetCycle for application/json ContentType.
 type SetBudgetCycleJSONRequestBody = UpdateBudgetCycle
 
@@ -1834,6 +1942,12 @@ type PutProjectAlertPolicyJSONRequestBody = SetAlertPolicy
 
 // PostProjectAcknowledgeBudgetAlertJSONRequestBody defines body for PostProjectAcknowledgeBudgetAlert for application/json ContentType.
 type PostProjectAcknowledgeBudgetAlertJSONRequestBody = AcknowledgeBudgetAlert
+
+// RequestProjectBudgetApprovalJSONRequestBody defines body for RequestProjectBudgetApproval for application/json ContentType.
+type RequestProjectBudgetApprovalJSONRequestBody = RequestBudgetApproval
+
+// DecideProjectBudgetApprovalJSONRequestBody defines body for DecideProjectBudgetApproval for application/json ContentType.
+type DecideProjectBudgetApprovalJSONRequestBody = BudgetApprovalDecision
 
 // GrantContentAuditorJSONRequestBody defines body for GrantContentAuditor for application/json ContentType.
 type GrantContentAuditorJSONRequestBody = ContentAuditor

@@ -23,6 +23,7 @@ export function MemberLifecycleDialog({
   onChanged: () => void;
 }) {
   const [reason, setReason] = useState('');
+  const [opened, setOpened] = useState(false);
   const [restoreRole, setRestoreRole] = useState('developer');
   const [confirmed, setConfirmed] = useState(false);
   const [pending, setPending] = useState(false);
@@ -58,6 +59,7 @@ export function MemberLifecycleDialog({
   return (
     <Dialog
       visible
+      onOpened={() => setOpened(true)}
       header={historyOnly ? '成员状态历史' : member.enabled ? '停用组织成员' : '恢复组织成员'}
       footer={false}
       closeOnOverlayClick={false}
@@ -65,7 +67,13 @@ export function MemberLifecycleDialog({
         if (!pending) onClose();
       }}
     >
-      <div className="governance-panel">
+      <div
+        className="governance-panel"
+        role="region"
+        aria-label={historyOnly ? '成员状态历史内容' : '成员状态变更内容'}
+        tabIndex={0}
+        data-dialog-ready={opened ? 'true' : 'false'}
+      >
         <p className="member-identity">
           {member.subject}
           <br />

@@ -44,6 +44,7 @@ type migration struct {
 const legacyBaselineVersion = 3
 
 var managedTables = map[int][]string{
+	22: {"budget_approval_policies", "budget_approval_requests", "budget_approval_policy_versions"},
 	21: {"request_department_attributions"},
 	20: {"department_configurations", "departments", "department_members", "department_projects", "department_versions"},
 	19: {"organization_member_lifecycle"},

@@ -1,7 +1,14 @@
+import { BudgetApprovalPanel } from './BudgetApprovalPanel';
 import { useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from 'tdesign-react';
-import { api, type BudgetAccount, type BudgetChange, type BudgetCycle } from '../../api';
+import {
+  api,
+  type BudgetAccount,
+  type BudgetChange,
+  type BudgetCycle,
+  type BudgetApprovalPolicy,
+} from '../../api';
 import { usePage } from '../../shared/useResourcePage';
 import { ErrorBox } from '../../shared/Feedback';
 import { date, number } from '../../shared/format';
@@ -11,16 +18,43 @@ type Props = {
   orgPath: string;
   projectPath?: string;
   canManage: boolean;
+  isOwner: boolean;
   csrf: string;
 };
 export function BudgetPanel(props: Props) {
+  const policy = useQuery({
+    queryKey: [...props.identity, 'budget-approval-policy', props.orgPath],
+    queryFn: ({ signal }) =>
+      api<BudgetApprovalPolicy>(`${props.orgPath}/budget/approval-policy`, { signal }),
+    enabled: props.canManage,
+  });
   return (
     <>
       {props.canManage && (
-        <AccountEditor {...props} path={`${props.orgPath}/budget`} title="组织预算上限" />
+        <AccountEditor
+          {...props}
+          approval={policy.data}
+          path={`${props.orgPath}/budget`}
+          title="组织预算上限"
+        />
       )}
       {props.projectPath && (
-        <AccountEditor {...props} path={`${props.projectPath}/budget`} title="项目预算上限" />
+        <AccountEditor
+          {...props}
+          approval={policy.data}
+          path={`${props.projectPath}/budget`}
+          title="项目预算上限"
+        />
+      )}
+      {props.canManage && (
+        <BudgetApprovalPanel
+          {...props}
+          policy={policy.data}
+          error={policy.error}
+          refresh={() => {
+            void policy.refetch();
+          }}
+        />
       )}
       {props.canManage && <CycleEditor {...props} />}
     </>
@@ -28,11 +62,12 @@ export function BudgetPanel(props: Props) {
 }
 function AccountEditor({
   identity,
+  approval,
   path,
   title,
   canManage,
   csrf,
-}: Props & { path: string; title: string }) {
+}: Props & { path: string; title: string; approval?: BudgetApprovalPolicy }) {
   const client = useQueryClient();
   const query = useQuery({
     queryKey: [...identity, path],
@@ -55,8 +90,8 @@ function AccountEditor({
     setError(null);
     setNotice('');
     try {
-      await api(path, {
-        method: 'PUT',
+      await api(approval?.enabled ? `${path}/approvals` : path, {
+        method: approval?.enabled ? 'POST' : 'PUT',
         csrf,
         body: {
           period: query.data.period,
@@ -65,7 +100,7 @@ function AccountEditor({
           reason: form.get('reason'),
         },
       });
-      setNotice('预算已更新');
+      setNotice(approval?.enabled ? '预算申请已提交，批准后才生效' : '预算已更新');
       await client.invalidateQueries();
     } catch (value) {
       setError(value);
@@ -104,7 +139,7 @@ function AccountEditor({
           </p>
           {canManage && (
             <form
-              key={`${query.data.period}/${query.data.revision}`}
+              key={`${query.data.period}/${query.data.revision}/${approval?.revision}`}
               onSubmit={(event) => {
                 void save(event);
               }}
@@ -126,8 +161,15 @@ function AccountEditor({
                 调整原因
                 <input aria-label={`${title}调整原因`} name="reason" required maxLength={256} />
               </label>
-              <Button type="submit" theme="primary" loading={pending}>
-                保存{title}
+              <Button
+                tag="button"
+                type="submit"
+                theme="primary"
+                loading={pending}
+                disabled={!approval}
+              >
+                {approval?.enabled ? '申请调整' : '保存'}
+                {title}
               </Button>
             </form>
           )}

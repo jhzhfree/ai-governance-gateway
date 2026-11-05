@@ -1458,6 +1458,129 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organizations/{org}/budget/approval-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+            };
+            cookie?: never;
+        };
+        /** @description Organization-scoped two-person budget limit adjustment. Default disabled. Policy is owner-only; requests/decisions require current active owner/admin. No self approval, 24h expiry, period/revision/balance rechecked and atomic audit. Policy changes cancel pending requests. Enabled policy blocks direct limit writes and nonzero project initialization; cycle rotation is unchanged. */
+        get: operations["getBudgetApprovalPolicy"];
+        /** @description Organization-scoped two-person budget limit adjustment. Default disabled. Policy is owner-only; requests/decisions require current active owner/admin. No self approval, 24h expiry, period/revision/balance rechecked and atomic audit. Policy changes cancel pending requests. Enabled policy blocks direct limit writes and nonzero project initialization; cycle rotation is unchanged. */
+        put: operations["setBudgetApprovalPolicy"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{org}/budget/approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+            };
+            cookie?: never;
+        };
+        /** @description Organization-scoped two-person budget limit adjustment. Default disabled. Policy is owner-only; requests/decisions require current active owner/admin. No self approval, 24h expiry, period/revision/balance rechecked and atomic audit. Policy changes cancel pending requests. Enabled policy blocks direct limit writes and nonzero project initialization; cycle rotation is unchanged. */
+        get: operations["listOrganizationBudgetApprovals"];
+        put?: never;
+        /** @description Organization-scoped two-person budget limit adjustment. Default disabled. Policy is owner-only; requests/decisions require current active owner/admin. No self approval, 24h expiry, period/revision/balance rechecked and atomic audit. Policy changes cancel pending requests. Enabled policy blocks direct limit writes and nonzero project initialization; cycle rotation is unchanged. */
+        post: operations["requestOrganizationBudgetApproval"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{org}/budget/approvals/{approval}/{action}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                approval: string;
+                action: "approve" | "reject" | "cancel";
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Organization-scoped two-person budget limit adjustment. Default disabled. Policy is owner-only; requests/decisions require current active owner/admin. No self approval, 24h expiry, period/revision/balance rechecked and atomic audit. Policy changes cancel pending requests. Enabled policy blocks direct limit writes and nonzero project initialization; cycle rotation is unchanged. */
+        post: operations["decideOrganizationBudgetApproval"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{org}/projects/{project}/budget/approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        /** @description Organization-scoped two-person budget limit adjustment. Default disabled. Policy is owner-only; requests/decisions require current active owner/admin. No self approval, 24h expiry, period/revision/balance rechecked and atomic audit. Policy changes cancel pending requests. Enabled policy blocks direct limit writes and nonzero project initialization; cycle rotation is unchanged. */
+        get: operations["listProjectBudgetApprovals"];
+        put?: never;
+        /** @description Organization-scoped two-person budget limit adjustment. Default disabled. Policy is owner-only; requests/decisions require current active owner/admin. No self approval, 24h expiry, period/revision/balance rechecked and atomic audit. Policy changes cancel pending requests. Enabled policy blocks direct limit writes and nonzero project initialization; cycle rotation is unchanged. */
+        post: operations["requestProjectBudgetApproval"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{org}/projects/{project}/budget/approvals/{approval}/{action}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+                approval: string;
+                action: "approve" | "reject" | "cancel";
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Organization-scoped two-person budget limit adjustment. Default disabled. Policy is owner-only; requests/decisions require current active owner/admin. No self approval, 24h expiry, period/revision/balance rechecked and atomic audit. Policy changes cancel pending requests. Enabled policy blocks direct limit writes and nonzero project initialization; cycle rotation is unchanged. */
+        post: operations["decideProjectBudgetApproval"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{org}/budget/approval-policy/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+            };
+            cookie?: never;
+        };
+        /** @description Organization-scoped two-person budget limit adjustment. Default disabled. Policy is owner-only; requests/decisions require current active owner/admin. No self approval, 24h expiry, period/revision/balance rechecked and atomic audit. Policy changes cancel pending requests. Enabled policy blocks direct limit writes and nonzero project initialization; cycle rotation is unchanged. */
+        get: operations["listBudgetApprovalPolicyChanges"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2404,6 +2527,71 @@ export interface components {
         };
         DepartmentVersionPage: {
             data: components["schemas"]["DepartmentVersion"][];
+            next_cursor: string;
+        };
+        BudgetApprovalPolicy: {
+            enabled: boolean;
+            /** Format: int64 */
+            revision: number;
+        };
+        SetBudgetApprovalPolicy: {
+            enabled: boolean;
+            /** Format: int64 */
+            expected_revision: number;
+            reason: string;
+        };
+        RequestBudgetApproval: {
+            period: string;
+            /** Format: int64 */
+            expected_revision: number;
+            /** Format: int64 */
+            limit: number;
+            reason: string;
+        };
+        BudgetApproval: {
+            id: string;
+            project_id: string;
+            period: string;
+            currency: string;
+            /** Format: int64 */
+            expected_revision: number;
+            /** Format: int64 */
+            previous_limit: number;
+            /** Format: int64 */
+            requested_limit: number;
+            requester: components["schemas"]["Principal"];
+            reason: string;
+            /** @enum {string} */
+            state: "pending" | "approved" | "rejected" | "canceled";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            expires_at: string;
+            /** Format: date-time */
+            finished_at: string | null;
+            decider: components["schemas"]["Principal"] | null;
+            decision_reason: string | null;
+            /** Format: int64 */
+            applied_revision: number | null;
+        };
+        BudgetApprovalPage: {
+            data: components["schemas"]["BudgetApproval"][];
+            next_cursor: string;
+        };
+        BudgetApprovalDecision: {
+            reason: string;
+        };
+        BudgetApprovalPolicyChange: {
+            /** Format: int64 */
+            revision: number;
+            actor: components["schemas"]["Principal"];
+            reason: string;
+            /** Format: date-time */
+            created_at: string;
+            enabled: boolean;
+        };
+        BudgetApprovalPolicyChangePage: {
+            data: components["schemas"]["BudgetApprovalPolicyChange"][];
             next_cursor: string;
         };
     };
@@ -8765,6 +8953,727 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DepartmentVersionPage"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Lifecycle revision or state changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getBudgetApprovalPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetApprovalPolicy"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Lifecycle revision or state changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    setBudgetApprovalPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetBudgetApprovalPolicy"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetApprovalPolicy"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Lifecycle revision or state changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listOrganizationBudgetApprovals: {
+        parameters: {
+            query?: {
+                after?: string;
+                /** @description Responses use fixed 50 item pages. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                org: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetApprovalPage"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Lifecycle revision or state changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    requestOrganizationBudgetApproval: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RequestBudgetApproval"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetApproval"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Lifecycle revision or state changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    decideOrganizationBudgetApproval: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                approval: string;
+                action: "approve" | "reject" | "cancel";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BudgetApprovalDecision"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetApproval"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Lifecycle revision or state changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listProjectBudgetApprovals: {
+        parameters: {
+            query?: {
+                after?: string;
+                /** @description Responses use fixed 50 item pages. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetApprovalPage"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Lifecycle revision or state changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    requestProjectBudgetApproval: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RequestBudgetApproval"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetApproval"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Lifecycle revision or state changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    decideProjectBudgetApproval: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+                approval: string;
+                action: "approve" | "reject" | "cancel";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BudgetApprovalDecision"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetApproval"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Lifecycle revision or state changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listBudgetApprovalPolicyChanges: {
+        parameters: {
+            query?: {
+                after?: string;
+            };
+            header?: never;
+            path: {
+                org: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetApprovalPolicyChangePage"];
                 };
             };
             /** @description Invalid input */

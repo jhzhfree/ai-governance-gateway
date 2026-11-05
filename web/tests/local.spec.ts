@@ -196,6 +196,59 @@ test('offline administrator, forced password changes and user offboarding', asyn
         })
       ).status(),
     ).toBe(204);
+    // The two real local sessions submit and independently approve one budget change.
+    await receiver.goto(`/?org=${org.id}&project=${project.id}&view=budget`);
+    await receiver.getByLabel('启用预算双人审批', { exact: true }).check();
+    await receiver.getByLabel('审批策略变更原因', { exact: true }).fill('合成验收：启用双人审批');
+    await receiver.getByLabel('我确认策略变更会取消所有待审批申请', { exact: true }).check();
+    await receiver.getByRole('button', { name: '保存审批策略', exact: true }).click();
+    await expect(receiver.getByText('当前策略：已启用 · 版本 1', { exact: true })).toBeVisible();
+    await page.goto(`/?org=${org.id}&project=${project.id}&view=budget`);
+    await page.getByLabel('项目预算上限新上限', { exact: true }).fill('800');
+    await page
+      .getByLabel('项目预算上限调整原因', { exact: true })
+      .fill('合成验收：平台项目调额申请');
+    await page.getByRole('button', { name: '申请调整项目预算上限', exact: true }).click();
+    await expect(
+      page.getByRole('status').filter({ hasText: '预算申请已提交，批准后才生效' }),
+    ).toBeVisible();
+    const requests = (await (await page.request.get(`${projectPath}/budget/approvals`)).json()) as {
+      data: { id: string }[];
+    };
+    expect(requests.data).toHaveLength(1);
+    const approvalID = requests.data[0].id;
+    const ownRequest = page.getByRole('article', { name: `预算申请 ${approvalID}`, exact: true });
+    await expect(ownRequest.locator('option[value="approve"]')).toHaveCount(0);
+    expect(
+      ((await (await page.request.get(`${projectPath}/budget`)).json()) as { limit: number }).limit,
+    ).toBe(500);
+    await receiver.getByRole('button', { name: '刷新项目预算申请', exact: true }).click();
+    const review = receiver.getByRole('article', { name: `预算申请 ${approvalID}`, exact: true });
+    await review
+      .getByRole('combobox', { name: `审批操作 ${approvalID}`, exact: true })
+      .selectOption('approve');
+    await review
+      .getByLabel(`审批决定原因 ${approvalID}`, { exact: true })
+      .fill('合成验收：独立复核后批准');
+    await review.getByRole('button', { name: `提交审批决定 ${approvalID}`, exact: true }).click();
+    await expect(review.getByRole('heading')).toContainText('已批准');
+    const applied = (await (await receiver.request.get(`${projectPath}/budget`)).json()) as {
+      limit: number;
+      revision: number;
+    };
+    expect(applied.limit).toBe(800);
+    expect(applied.revision).toBe(1);
+    await receiver.setViewportSize({ width: 390, height: 844 });
+    const approvalA11y = await new AxeBuilder({ page: receiver })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+      .analyze();
+    expect(
+      approvalA11y.violations.map((v) => ({ id: v.id, nodes: v.nodes.map((n) => n.target) })),
+    ).toEqual([]);
+    expect(await receiver.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await receiver.setViewportSize({ width: 1440, height: 1050 });
     const issued = await page.request.post(`${projectPath}/keys`, {
       headers: adminHeaders,
       data: { name: '原负责人密钥', models: ['aliyun/fixture'], ttl_seconds: 3600 },
@@ -255,10 +308,18 @@ test('offline administrator, forced password changes and user offboarding', asyn
     await expect(receiver.getByRole('heading', { name: /第 1 次变更.*停用/ })).toBeVisible();
     await expect(receiver.getByRole('heading', { name: /第 2 次变更.*恢复/ })).toBeVisible();
     await receiver.setViewportSize({ width: 390, height: 844 });
+    await expect(
+      receiver.getByRole('region', { name: '成员状态历史内容', exact: true }),
+    ).toHaveAttribute('data-dialog-ready', 'true');
     const historyA11y = await new AxeBuilder({ page: receiver })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
       .analyze();
-    expect(historyA11y.violations.map((item) => item.id)).toEqual([]);
+    expect(
+      historyA11y.violations.map((item) => ({
+        id: item.id,
+        nodes: item.nodes.map((n) => ({ target: n.target, summary: n.failureSummary })),
+      })),
+    ).toEqual([]);
     await receiver.keyboard.press('Escape');
     await receiver.setViewportSize({ width: 390, height: 844 });
     expect(await receiver.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(

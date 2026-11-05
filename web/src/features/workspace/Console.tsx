@@ -27,6 +27,7 @@ import { OperationsPanel } from '../operations/OperationsPanel';
 import { ContentAuditPanel } from '../content/ContentAuditPanel';
 import { LocalAccountsPanel } from '../local/LocalAccountsPanel';
 import { BudgetAlertsPanel } from '../governance/BudgetAlertsPanel';
+import type { BudgetApprovalPolicy } from '../../api';
 import { BudgetPanel } from '../governance/BudgetPanel';
 import { KeywordPanel } from '../governance/KeywordPanel';
 import { ProviderPanel } from '../providers/ProviderPanel';
@@ -126,6 +127,12 @@ export function Console({ session }: { session: Session }) {
   const [issued, setIssued] = useState<IssuedKey | null>(null);
   const [revoke, setRevoke] = useState<ProjectKey | null>(null);
   const canManage = organization?.role === 'owner' || organization?.role === 'admin';
+  const approvalPolicy = useQuery({
+    queryKey: [...identity, 'budget-approval-policy', orgPath],
+    queryFn: ({ signal }) =>
+      api<BudgetApprovalPolicy>(`${orgPath}/budget/approval-policy`, { signal }),
+    enabled: Boolean(orgID && canManage && modal === 'project'),
+  });
   const canIssue = project.data && project.data.role !== 'viewer' && project.data.models.length > 0;
   const visibleKeys = keys.data?.pages.flatMap((page) => page.data) ?? [];
   const choose = (values: Record<string, string>) => {
@@ -532,6 +539,7 @@ export function Console({ session }: { session: Session }) {
                 />
               ) : view === 'budget' ? (
                 <BudgetPanel
+                  isOwner={organization?.role === 'owner'}
                   identity={identity}
                   orgPath={orgPath}
                   projectPath={projectID ? projectPath : undefined}
@@ -758,20 +766,37 @@ export function Console({ session }: { session: Session }) {
                 预算上限
                 <input
                   name="limit"
+                  disabled={
+                    modal === 'project' &&
+                    (approvalPolicy.isPending || Boolean(approvalPolicy.error))
+                  }
                   type="number"
                   min={0}
                   max={Number.MAX_SAFE_INTEGER}
                   step={1}
                   required
-                  key={`${modal}-${createCurrency}`}
+                  key={`${modal}-${createCurrency}-${Boolean(modal === 'project' && approvalPolicy.data?.enabled)}`}
                   defaultValue={
-                    (modal === 'organization' ? createCurrency : organization?.currency) ===
-                    'CNY_MICRO'
-                      ? 1000000
-                      : 1000
+                    modal === 'project' && approvalPolicy.data?.enabled
+                      ? 0
+                      : (modal === 'organization' ? createCurrency : organization?.currency) ===
+                          'CNY_MICRO'
+                        ? 1000000
+                        : 1000
                   }
                 />
               </label>
+              {modal === 'project' && approvalPolicy.data?.enabled && (
+                <p>本组织启用双人审批：请以零上限创建项目，再到预算管理申请额度。</p>
+              )}
+              {modal === 'project' && approvalPolicy.error && (
+                <ErrorBox
+                  error={approvalPolicy.error}
+                  retry={() => {
+                    void approvalPolicy.refetch();
+                  }}
+                />
+              )}
               {modal === 'organization' && (
                 <label>
                   预算单位
@@ -829,7 +854,15 @@ export function Console({ session }: { session: Session }) {
             <Button variant="outline" disabled={pending} onClick={() => setModal(null)}>
               取消
             </Button>
-            <Button theme="primary" type="submit" loading={pending}>
+            <Button
+              tag="button"
+              theme="primary"
+              type="submit"
+              loading={pending}
+              disabled={
+                modal === 'project' && (approvalPolicy.isPending || Boolean(approvalPolicy.error))
+              }
+            >
               确认创建
             </Button>
           </div>

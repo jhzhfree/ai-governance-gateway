@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jhzhfree/ai-governance-gateway/internal/budgetalert"
@@ -56,50 +57,70 @@ func (s *Store) Budget(ctx context.Context, p identity.Principal, org, project s
 	return
 }
 func (s *Store) SetBudget(ctx context.Context, p identity.Principal, org, project, period string, revision, limit int64, reason string) error {
-	if revision < 0 || revision >= MaxAPIAmount || limit < 0 || limit > MaxAPIAmount || len(reason) < 1 || len(reason) > 256 || strings.TrimSpace(reason) != reason {
+	if revision < 0 || revision >= MaxAPIAmount || limit < 0 || limit > MaxAPIAmount || utf8.RuneCountInString(reason) < 1 || utf8.RuneCountInString(reason) > 256 || strings.TrimSpace(reason) != reason {
 		return ErrInvalid
 	}
 	return transaction(ctx, s.pool, func(tx pgx.Tx) error {
+		if err := memberLock(ctx, tx, org); err != nil {
+			return err
+		}
+		if err := approvalLock(ctx, tx, org); err != nil {
+			return err
+		}
 		if err := budgetPermission(ctx, tx, p, org, project, true); err != nil {
 			return err
 		}
-		var current, currency string
-		if err := tx.QueryRow(ctx, `SELECT period_id,currency FROM organizations WHERE id=$1 FOR SHARE`, org).Scan(&current, &currency); err != nil {
-			return err
-		}
-		if current != period {
-			return ErrBudgetConflict
-		}
-		rows, err := tx.Query(ctx, `SELECT project_id FROM budget_accounts WHERE organization_id=$1 AND period_id=$2 AND project_id IN ('',$3) AND currency=$4 ORDER BY project_id FOR UPDATE`, org, period, project, currency)
+		policy, err := readApprovalPolicy(ctx, tx, org)
 		if err != nil {
 			return err
 		}
-		for rows.Next() {
+		if policy.Enabled {
+			return ErrBudgetApprovalRequired
 		}
-		err = rows.Err()
-		rows.Close()
-		if err != nil {
-			return err
-		}
-		account, err := readBudget(ctx, tx, org, project)
-		if err != nil {
-			return err
-		}
-		if account.Revision != revision || limit < account.Spent+account.Held {
-			return ErrBudgetConflict
-		}
-		if _, err = tx.Exec(ctx, `UPDATE budget_accounts SET limit_amount=$4 WHERE organization_id=$1 AND project_id=$2 AND period_id=$3 AND currency=$5`, org, project, period, limit, account.Currency); err != nil {
-			return err
-		}
-		if _, err = tx.Exec(ctx, `INSERT INTO budget_limit_changes(organization_id,project_id,period_id,currency,revision,previous_limit,new_limit,reason,actor_issuer,actor_subject) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, org, project, period, account.Currency, revision+1, account.Limit, limit, reason, p.Issuer, p.Subject); err != nil {
-			return err
-		}
-		if err := budgetalert.Evaluate(ctx, tx, org, project, period, account.Currency); err != nil {
-			return err
-		}
-		return audit(ctx, tx, org, p, "budget.limit_changed", project)
+		return applyBudget(ctx, tx, p, org, project, period, revision, limit, reason)
 	})
 }
+func applyBudget(ctx context.Context, tx pgx.Tx, p identity.Principal, org, project, period string, revision, limit int64, reason string) error {
+	if err := budgetPermission(ctx, tx, p, org, project, true); err != nil {
+		return err
+	}
+	var current, currency string
+	if err := tx.QueryRow(ctx, `SELECT period_id,currency FROM organizations WHERE id=$1 FOR SHARE`, org).Scan(&current, &currency); err != nil {
+		return err
+	}
+	if current != period {
+		return ErrBudgetConflict
+	}
+	rows, err := tx.Query(ctx, `SELECT project_id FROM budget_accounts WHERE organization_id=$1 AND period_id=$2 AND project_id IN ('',$3) AND currency=$4 ORDER BY project_id FOR UPDATE`, org, period, project, currency)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	account, err := readBudget(ctx, tx, org, project)
+	if err != nil {
+		return err
+	}
+	if account.Revision != revision || limit < account.Spent+account.Held {
+		return ErrBudgetConflict
+	}
+	if _, err = tx.Exec(ctx, `UPDATE budget_accounts SET limit_amount=$4 WHERE organization_id=$1 AND project_id=$2 AND period_id=$3 AND currency=$5`, org, project, period, limit, account.Currency); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO budget_limit_changes(organization_id,project_id,period_id,currency,revision,previous_limit,new_limit,reason,actor_issuer,actor_subject) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, org, project, period, account.Currency, revision+1, account.Limit, limit, reason, p.Issuer, p.Subject); err != nil {
+		return err
+	}
+	if err := budgetalert.Evaluate(ctx, tx, org, project, period, account.Currency); err != nil {
+		return err
+	}
+	return audit(ctx, tx, org, p, "budget.limit_changed", project)
+}
+
 func (s *Store) BudgetChanges(ctx context.Context, p identity.Principal, org, project, period string, after int64) (items []BudgetChange, err error) {
 	items = []BudgetChange{}
 	err = transaction(ctx, s.pool, func(tx pgx.Tx) error {
