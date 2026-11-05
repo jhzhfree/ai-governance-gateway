@@ -126,3 +126,7 @@ AIGW_VERIFY_WEB=1 bash scripts/verify.sh
 ## 组织成员生命周期增量（0019）
 
 旧成员增加 enabled=true 与 lifecycle_revision=0，追加状态历史与签发者索引，约束 owner 必须启用。旧数据不自动回收，必须显式操作。升级/回滚及旧版数据保留纳入测试；恢复不复活旧密钥，见 [成员生命周期](organization-member-lifecycle.md)。
+
+### 0020：部门层级与项目授权
+
+追加 `department_configurations`、`departments`、`department_members`、`department_projects`、`department_versions` 及成员生命周期的部门回收计数。升级默认无部门授权，不改旧项目/预算；先排空、备份、`migrate up`、`migrate check` 再启动。详见 [部门授权](department-authorization.md)。

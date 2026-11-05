@@ -31,6 +31,7 @@ import { BudgetPanel } from '../governance/BudgetPanel';
 import { KeywordPanel } from '../governance/KeywordPanel';
 import { ProviderPanel } from '../providers/ProviderPanel';
 import { OwnershipPanel } from '../members/OwnershipPanel';
+import { DepartmentPanel } from '../departments/DepartmentPanel';
 import { MemberPanel } from '../members/MemberPanel';
 import { AuditPanel } from '../audit/AuditPanel';
 
@@ -84,6 +85,7 @@ export function Console({ session }: { session: Session }) {
         'requests',
         'operations',
         'members',
+        'departments',
         'content',
         'providers',
         'budget',
@@ -101,6 +103,7 @@ export function Console({ session }: { session: Session }) {
     requests: '调用账本',
     operations: '流量与核查',
     members: '成员管理',
+    departments: '部门管理',
     content: '内容审计',
     providers: '供应商配置',
     budget: '预算管理',
@@ -251,6 +254,7 @@ export function Console({ session }: { session: Session }) {
             ['requests', '↗', '调用账本'],
             ['operations', '⚙', '流量与核查'],
             ['members', '♧', '成员管理'],
+            ['departments', '♧', '部门管理'],
             ['content', '▤', '内容审计'],
             ['providers', '⇄', '供应商配置'],
             ['local', '♙', '本地账号'],
@@ -263,7 +267,7 @@ export function Console({ session }: { session: Session }) {
             .filter(
               ([id]) =>
                 (id !== 'local' || session.auth_mode === 'local') &&
-                (!['members', 'content', 'keywords'].includes(id) || canManage),
+                (!['members', 'departments', 'content', 'keywords'].includes(id) || canManage),
             )
             .map(([id, icon, label]) => (
               <button
@@ -464,6 +468,7 @@ export function Console({ session }: { session: Session }) {
                 !projects.isPending &&
                 view !== 'audit' &&
                 view !== 'members' &&
+                view !== 'departments' &&
                 view !== 'budget' &&
                 view !== 'reports' &&
                 view !== 'alerts' &&
@@ -489,9 +494,18 @@ export function Console({ session }: { session: Session }) {
               {project.error &&
                 view !== 'audit' &&
                 view !== 'members' &&
+                view !== 'departments' &&
                 view !== 'budget' &&
                 view !== 'reports' && <ErrorBox error={project.error} />}
-              {view === 'ownership' ? (
+              {view === 'departments' ? (
+                <DepartmentPanel
+                  key={orgPath}
+                  identity={identity}
+                  orgPath={orgPath}
+                  csrf={session.csrf_token}
+                  canManage={canManage}
+                />
+              ) : view === 'ownership' ? (
                 <OwnershipPanel
                   key={orgPath}
                   identity={identity}

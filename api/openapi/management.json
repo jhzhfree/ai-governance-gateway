@@ -8766,6 +8766,312 @@
           }
         }
       ]
+    },
+    "/api/v1/organizations/{org}/departments": {
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getDepartments",
+        "description": "Organization owner/admin only. Atomic versioned department tree, scoped membership and project bindings. Ancestor grants inherit downwards; explicit project grants combine by strongest role under existing organization ceilings. Department changes do not revoke existing project keys. Limits: 100 nodes, depth 8, 1000 grants, 1000 project bindings, 1 MiB request. Stale revision, disabled grantee, or atomic audit failure rejects the update.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepartmentConfiguration"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle revision or state changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "setDepartments",
+        "description": "Organization owner/admin only. Atomic versioned department tree, scoped membership and project bindings. Ancestor grants inherit downwards; explicit project grants combine by strongest role under existing organization ceilings. Department changes do not revoke existing project keys. Limits: 100 nodes, depth 8, 1000 grants, 1000 project bindings, 1 MiB request. Stale revision, disabled grantee, or atomic audit failure rejects the update.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepartmentConfiguration"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle revision or state changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetDepartments"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{org}/departments/history": {
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        {
+          "name": "after",
+          "in": "query",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "listDepartmentHistory",
+        "description": "Organization owner/admin only. Atomic versioned department tree, scoped membership and project bindings. Ancestor grants inherit downwards; explicit project grants combine by strongest role under existing organization ceilings. Department changes do not revoke existing project keys. Limits: 100 nodes, depth 8, 1000 grants, 1000 project bindings, 1 MiB request. Stale revision, disabled grantee, or atomic audit failure rejects the update.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepartmentVersionPage"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle revision or state changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -12346,7 +12652,8 @@
           "revoked_keys",
           "removed_project_grants",
           "revoked_auditors",
-          "canceled_transfers"
+          "canceled_transfers",
+          "removed_department_grants"
         ],
         "properties": {
           "revision": {
@@ -12389,6 +12696,11 @@
             "minimum": 0
           },
           "canceled_transfers": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "removed_department_grants": {
             "type": "integer",
             "format": "int64",
             "minimum": 0
@@ -12451,6 +12763,179 @@
             "maxLength": 256
           }
         }
+      },
+      "Department": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "parent_id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "parent_id": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DepartmentGrant": {
+        "type": "object",
+        "required": [
+          "department_id",
+          "issuer",
+          "subject",
+          "role"
+        ],
+        "properties": {
+          "department_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          },
+          "issuer": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "developer",
+              "viewer"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "DepartmentProject": {
+        "type": "object",
+        "required": [
+          "department_id",
+          "project_id"
+        ],
+        "properties": {
+          "department_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          },
+          "project_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DepartmentConfiguration": {
+        "type": "object",
+        "required": [
+          "revision",
+          "departments",
+          "grants",
+          "projects"
+        ],
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "departments": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/Department"
+            }
+          },
+          "grants": {
+            "type": "array",
+            "maxItems": 1000,
+            "items": {
+              "$ref": "#/components/schemas/DepartmentGrant"
+            }
+          },
+          "projects": {
+            "type": "array",
+            "maxItems": 1000,
+            "items": {
+              "$ref": "#/components/schemas/DepartmentProject"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "SetDepartments": {
+        "type": "object",
+        "required": [
+          "configuration",
+          "reason"
+        ],
+        "properties": {
+          "configuration": {
+            "$ref": "#/components/schemas/DepartmentConfiguration"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "additionalProperties": false
+      },
+      "DepartmentVersion": {
+        "type": "object",
+        "required": [
+          "revision",
+          "actor",
+          "reason",
+          "created_at"
+        ],
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "actor": {
+            "$ref": "#/components/schemas/Principal"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DepartmentVersionPage": {
+        "type": "object",
+        "required": [
+          "data",
+          "next_cursor"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DepartmentVersion"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
       }
     }
   }

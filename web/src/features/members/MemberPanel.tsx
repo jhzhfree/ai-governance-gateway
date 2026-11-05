@@ -101,7 +101,7 @@ export function MemberPanel({
           expected_role: member.project_role,
         },
       });
-      setNotice('项目单独授权已移除，组织继承权限与既有项目密钥保持独立。');
+      setNotice('项目单独授权已移除，组织/部门继承权限与既有项目密钥保持独立。');
       setSelected(null);
       setRemoving(false);
       await client.invalidateQueries({
@@ -176,7 +176,7 @@ export function MemberPanel({
       </label>
       <p>
         组织 owner/admin 在所有项目继承管理员权限；组织 viewer 继承只读权限；组织 developer
-        需要项目单独授权。项目角色不能降低继承权限。
+        需要项目单独授权或部门继承授权。有效权限取较高角色，项目角色不能降低组织继承权限。
       </p>
       {scope === 'organization' && !isOwner && (
         <p>只有组织所有者可新增或调整组织成员；管理员可管理当前项目授权。</p>

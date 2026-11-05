@@ -1331,3 +1331,22 @@ fieldset.model-selection {
   padding-bottom: 12px;
   border-bottom: 1px solid #d9e2e7;
 }
+
+.department-forms {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  align-items: start;
+}
+.department-list {
+  padding-left: 20px;
+  overflow-wrap: anywhere;
+}
+.department-list li {
+  margin: 12px 0;
+}
+@media (max-width: 1100px) {
+  .department-forms {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

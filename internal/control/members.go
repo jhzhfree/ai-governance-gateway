@@ -58,6 +58,11 @@ func (s *Store) ListMembers(ctx context.Context, p identity.Principal, org, proj
 				return err
 			}
 		}
+		if project != "" {
+			if err := departmentLock(ctx, tx, org, false); err != nil {
+				return err
+			}
+		}
 		rows, err := tx.Query(ctx, `SELECT m.issuer,m.subject,m.role,g.role,m.enabled,m.lifecycle_revision FROM organization_members m LEFT JOIN project_members g ON g.organization_id=m.organization_id AND g.project_id=$2 AND g.issuer=m.issuer AND g.subject=m.subject WHERE m.organization_id=$1 AND ($3='' OR (m.issuer,m.subject)>($3,$4)) ORDER BY m.issuer,m.subject LIMIT $5`, org, project, cursor.Issuer, cursor.Subject, limit+1)
 		if err != nil {
 			return err
@@ -89,6 +94,19 @@ func (s *Store) ListMembers(ctx context.Context, p identity.Principal, org, proj
 		}
 		if err := rows.Err(); err != nil {
 			return err
+		}
+		rows.Close()
+		if project != "" {
+			for i := range items {
+				m := &items[i]
+				if m.Enabled && m.Role == "developer" {
+					inherited, err := departmentRole(ctx, tx, m.Principal, org, project)
+					if err != nil {
+						return err
+					}
+					m.EffectiveRole = strongerRole(m.EffectiveRole, inherited)
+				}
+			}
 		}
 		if len(items) > limit {
 			items = items[:limit]

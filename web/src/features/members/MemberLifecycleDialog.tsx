@@ -88,8 +88,9 @@ export function MemberLifecycleDialog({
                 </p>
                 <p>{v.reason}</p>
                 <p>
-                  撤销密钥 {v.revoked_keys} · 移除项目授权 {v.removed_project_grants} · 撤销审计员{' '}
-                  {v.revoked_auditors} · 取消交接 {v.canceled_transfers}
+                  撤销密钥 {v.revoked_keys} · 移除项目授权 {v.removed_project_grants} · 回收部门授权{' '}
+                  {v.removed_department_grants} · 撤销审计员 {v.revoked_auditors} · 取消交接{' '}
+                  {v.canceled_transfers}
                 </p>
               </div>
             ))}
@@ -117,12 +118,12 @@ export function MemberLifecycleDialog({
           >
             {member.enabled ? (
               <p>
-                仅停用当前组织身份：撤销此人在本组织签发的项目密钥，移除项目单独授权和审计员权限，并取消待接收交接。在途已授权调用可能继续结算；其他组织与全局登录保持独立。
+                仅停用当前组织身份：撤销此人在本组织签发的项目密钥，移除部门授权、项目单独授权和审计员权限，并取消待接收交接。在途已授权调用可能继续结算；其他组织与全局登录保持独立。
               </p>
             ) : (
               <>
                 <p>
-                  恢复必须明确选择组织角色。旧密钥、项目单独授权、审计员权限和已取消交接不会自动恢复。
+                  恢复必须明确选择组织角色。旧密钥、部门授权、项目单独授权、审计员权限和已取消交接不会自动恢复。
                 </p>
                 <label>
                   恢复后的组织角色

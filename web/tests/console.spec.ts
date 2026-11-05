@@ -905,3 +905,131 @@ test('budget notifications persist short holds and acknowledgment never changes 
   const a11y = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(a11y.violations.map((issue) => issue.id)).toEqual([]);
 });
+
+test('department tree, scoped grants, project assignment and history persist through real API', async ({
+  page,
+  baseURL,
+}) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: /使用组织账号登录/ }).click();
+  const session = (await (await page.request.get('/auth/session')).json()) as {
+    csrf_token: string;
+    user: { issuer: string; subject: string };
+  };
+  const headers = { Origin: baseURL!, 'X-CSRF-Token': session.csrf_token };
+  const orgResponse = await page.request.post('/api/v1/organizations', {
+    headers,
+    data: { name: '部门验收组织', period: '2026-11', limit_amount: 1000 },
+  });
+  expect(orgResponse.status()).toBe(201);
+  const org = (await orgResponse.json()) as { id: string };
+  const orgPath = `/api/v1/organizations/${org.id}`;
+  const projectResponse = await page.request.post(`${orgPath}/projects`, {
+    headers,
+    data: { name: '部门验收项目', limit_amount: 500 },
+  });
+  expect(projectResponse.status()).toBe(201);
+  const project = (await projectResponse.json()) as { id: string };
+  expect(
+    (
+      await page.request.put(`${orgPath}/members`, {
+        headers,
+        data: { issuer: session.user.issuer, subject: 'department-test-member', role: 'developer' },
+      })
+    ).status(),
+  ).toBe(204);
+  await page.goto(`/?org=${org.id}&project=${project.id}&view=departments`);
+  await expect(page.getByRole('heading', { name: '部门与项目授权', exact: true })).toBeVisible();
+  const prepare = async (reason: string) => {
+    await page.getByLabel('部门配置变更原因', { exact: true }).fill(reason);
+    await page.getByLabel('我已核查部门继承影响，既有密钥将单独处理', { exact: true }).check();
+  };
+  await prepare('创建研发根部门');
+  await page.getByLabel('部门名称', { exact: true }).fill('研发');
+  await page.getByRole('button', { name: '保存部门层级', exact: true }).click();
+  await expect(
+    page.getByText('组织内的部门树与项目归属 · 配置版本 1', { exact: true }),
+  ).toBeVisible();
+  await prepare('创建平台子部门');
+  await page.getByLabel('部门名称', { exact: true }).fill('平台');
+  await page
+    .getByRole('combobox', { name: '上级部门', exact: true })
+    .selectOption({ label: '研发' });
+  await page.getByRole('button', { name: '保存部门层级', exact: true }).click();
+  await expect(
+    page.getByText('组织内的部门树与项目归属 · 配置版本 2', { exact: true }),
+  ).toBeVisible();
+  await prepare('授予研发部门开发权限');
+  await page
+    .getByRole('combobox', { name: '授权部门', exact: true })
+    .selectOption({ label: '研发' });
+  await page
+    .getByRole('combobox', { name: '授权组织成员', exact: true })
+    .selectOption({ label: `department-test-member · ${session.user.issuer}` });
+  await page.getByRole('combobox', { name: '部门角色', exact: true }).selectOption('developer');
+  await page.getByRole('button', { name: '保存部门成员授权', exact: true }).click();
+  await expect(
+    page
+      .getByRole('region', { name: '部门授权表', exact: true })
+      .getByRole('row')
+      .filter({ hasText: 'department-test-member' }),
+  ).toBeVisible();
+  await prepare('项目归属平台子部门');
+  await page.getByRole('combobox', { name: '归属项目', exact: true }).selectOption(project.id);
+  await page
+    .getByRole('combobox', { name: '归属部门', exact: true })
+    .selectOption({ label: '研发 / 平台' });
+  await page.getByRole('button', { name: '保存项目归属', exact: true }).click();
+  await expect(
+    page.getByText('组织内的部门树与项目归属 · 配置版本 4', { exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(page.getByText('部门验收项目 → 研发 / 平台', { exact: true })).toBeVisible();
+  const configuration = (await (await page.request.get(`${orgPath}/departments`)).json()) as {
+    revision: number;
+    grants: unknown[];
+    projects: { project_id: string }[];
+  };
+  expect(configuration.revision).toBe(4);
+  expect(configuration.grants).toHaveLength(1);
+  expect(configuration.projects[0].project_id).toBe(project.id);
+  expect(
+    (
+      await page.request.put(`${orgPath}/departments`, {
+        headers,
+        data: { configuration, reason: '并发管理员合成验收' },
+      })
+    ).status(),
+  ).toBe(200);
+  await prepare('过期版本不能覆盖');
+  await page
+    .getByRole('button', { name: '移除部门授权 department-test-member 研发', exact: true })
+    .click();
+  await expect(page.getByRole('alert')).toContainText(
+    '记录已变更或当前状态不允许此操作，请刷新核对。',
+  );
+  await expect(
+    page
+      .getByRole('region', { name: '部门授权表', exact: true })
+      .getByRole('row')
+      .filter({ hasText: 'department-test-member' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: '刷新部门配置', exact: true }).click();
+  await expect(
+    page.getByText('组织内的部门树与项目归属 · 配置版本 5', { exact: true }),
+  ).toBeVisible();
+  await prepare('移除部门授权');
+  await page
+    .getByRole('button', { name: '移除部门授权 department-test-member 研发', exact: true })
+    .click();
+  await expect(page.getByText('暂无部门成员授权。', { exact: true })).toBeVisible();
+  await expect(page.getByText(/版本 6 ·/)).toContainText('移除部门授权');
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const accessibility = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+    .analyze();
+  expect(
+    accessibility.violations.map((v) => ({ id: v.id, nodes: v.nodes.map((n) => n.target) })),
+  ).toEqual([]);
+});

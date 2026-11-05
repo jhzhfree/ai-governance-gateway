@@ -53,3 +53,5 @@ AI 治理网关：面向团队的统一模型接入、访问控制、预算限�
 成员治理：见 [两方确认的组织所有权交接](docs/organization-ownership.md)，现任所有者发起、接收成员本人登录确认，原子切换角色并留痕。
 
 组织离职回收：见 [成员停用与显式恢复](docs/organization-member-lifecycle.md)，原子回收当前组织的密钥、项目与审计员授权，恢复需重新配置权限。
+
+部门治理：见 [部门层级、项目归属与继承授权](docs/department-authorization.md)，组织内配置、祖先继承、版本比较与成员停用联动。

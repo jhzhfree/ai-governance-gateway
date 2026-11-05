@@ -88,3 +88,6 @@ export type KeywordRule = components['schemas']['KeywordRule'];
 export type LocalUser = components['schemas']['LocalUser'];
 
 export type LocalSecurityEvent = components['schemas']['LocalSecurityEvent'];
+
+export type DepartmentConfiguration = components['schemas']['DepartmentConfiguration'];
+export type DepartmentVersion = components['schemas']['DepartmentVersion'];

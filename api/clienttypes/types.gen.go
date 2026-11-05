@@ -101,6 +101,13 @@ const (
 	CreateOrganizationCurrencyMOCK     CreateOrganizationCurrency = "MOCK"
 )
 
+// Defines values for DepartmentGrantRole.
+const (
+	DepartmentGrantRoleAdmin     DepartmentGrantRole = "admin"
+	DepartmentGrantRoleDeveloper DepartmentGrantRole = "developer"
+	DepartmentGrantRoleViewer    DepartmentGrantRole = "viewer"
+)
+
 // Defines values for ExecutionAttemptOutcome.
 const (
 	ExecutionAttemptOutcomeCanceled   ExecutionAttemptOutcome = "canceled"
@@ -365,9 +372,9 @@ const (
 
 // Defines values for SetMemberEnabledRestoreRole.
 const (
-	SetMemberEnabledRestoreRoleAdmin     SetMemberEnabledRestoreRole = "admin"
-	SetMemberEnabledRestoreRoleDeveloper SetMemberEnabledRestoreRole = "developer"
-	SetMemberEnabledRestoreRoleViewer    SetMemberEnabledRestoreRole = "viewer"
+	Admin     SetMemberEnabledRestoreRole = "admin"
+	Developer SetMemberEnabledRestoreRole = "developer"
+	Viewer    SetMemberEnabledRestoreRole = "viewer"
 )
 
 // Defines values for StatementImportProvider.
@@ -778,6 +785,52 @@ type CreateProject struct {
 	Name string `json:"name"`
 }
 
+// Department defines model for Department.
+type Department struct {
+	Id       string `json:"id"`
+	Name     string `json:"name"`
+	ParentId string `json:"parent_id"`
+}
+
+// DepartmentConfiguration defines model for DepartmentConfiguration.
+type DepartmentConfiguration struct {
+	Departments []Department        `json:"departments"`
+	Grants      []DepartmentGrant   `json:"grants"`
+	Projects    []DepartmentProject `json:"projects"`
+	Revision    int64               `json:"revision"`
+}
+
+// DepartmentGrant defines model for DepartmentGrant.
+type DepartmentGrant struct {
+	DepartmentId string              `json:"department_id"`
+	Issuer       string              `json:"issuer"`
+	Role         DepartmentGrantRole `json:"role"`
+	Subject      string              `json:"subject"`
+}
+
+// DepartmentGrantRole defines model for DepartmentGrant.Role.
+type DepartmentGrantRole string
+
+// DepartmentProject defines model for DepartmentProject.
+type DepartmentProject struct {
+	DepartmentId string `json:"department_id"`
+	ProjectId    string `json:"project_id"`
+}
+
+// DepartmentVersion defines model for DepartmentVersion.
+type DepartmentVersion struct {
+	Actor     Principal `json:"actor"`
+	CreatedAt time.Time `json:"created_at"`
+	Reason    string    `json:"reason"`
+	Revision  int64     `json:"revision"`
+}
+
+// DepartmentVersionPage defines model for DepartmentVersionPage.
+type DepartmentVersionPage struct {
+	Data       []DepartmentVersion `json:"data"`
+	NextCursor string              `json:"next_cursor"`
+}
+
 // Error defines model for Error.
 type Error struct {
 	Error struct {
@@ -1090,17 +1143,18 @@ type MemberRole string
 
 // MemberLifecycleEvent defines model for MemberLifecycleEvent.
 type MemberLifecycleEvent struct {
-	Actor                Principal `json:"actor"`
-	CanceledTransfers    int64     `json:"canceled_transfers"`
-	CreatedAt            time.Time `json:"created_at"`
-	Enabled              bool      `json:"enabled"`
-	NewRole              string    `json:"new_role"`
-	PreviousRole         string    `json:"previous_role"`
-	Reason               string    `json:"reason"`
-	RemovedProjectGrants int64     `json:"removed_project_grants"`
-	Revision             int64     `json:"revision"`
-	RevokedAuditors      int64     `json:"revoked_auditors"`
-	RevokedKeys          int64     `json:"revoked_keys"`
+	Actor                   Principal `json:"actor"`
+	CanceledTransfers       int64     `json:"canceled_transfers"`
+	CreatedAt               time.Time `json:"created_at"`
+	Enabled                 bool      `json:"enabled"`
+	NewRole                 string    `json:"new_role"`
+	PreviousRole            string    `json:"previous_role"`
+	Reason                  string    `json:"reason"`
+	RemovedDepartmentGrants int64     `json:"removed_department_grants"`
+	RemovedProjectGrants    int64     `json:"removed_project_grants"`
+	Revision                int64     `json:"revision"`
+	RevokedAuditors         int64     `json:"revoked_auditors"`
+	RevokedKeys             int64     `json:"revoked_keys"`
 }
 
 // MemberLifecyclePage defines model for MemberLifecyclePage.
@@ -1409,6 +1463,12 @@ type SetAlertPolicy struct {
 // SetAlertPolicyThresholds defines model for SetAlertPolicy.Thresholds.
 type SetAlertPolicyThresholds int
 
+// SetDepartments defines model for SetDepartments.
+type SetDepartments struct {
+	Configuration DepartmentConfiguration `json:"configuration"`
+	Reason        string                  `json:"reason"`
+}
+
 // SetMemberEnabled defines model for SetMemberEnabled.
 type SetMemberEnabled struct {
 	Enabled          bool   `json:"enabled"`
@@ -1545,6 +1605,11 @@ type GetOrganizationCostReportParams struct {
 type ExportOrganizationCostReportParams struct {
 	From string `form:"from" json:"from"`
 	To   string `form:"to" json:"to"`
+}
+
+// ListDepartmentHistoryParams defines parameters for ListDepartmentHistory.
+type ListDepartmentHistoryParams struct {
+	After *string `form:"after,omitempty" json:"after,omitempty"`
 }
 
 // ListOrganizationMembersParams defines parameters for ListOrganizationMembers.
@@ -1703,6 +1768,9 @@ type SetBudgetCycleJSONRequestBody = UpdateBudgetCycle
 
 // RotateBudgetPeriodJSONRequestBody defines body for RotateBudgetPeriod for application/json ContentType.
 type RotateBudgetPeriodJSONRequestBody = RotateBudgetPeriod
+
+// SetDepartmentsJSONRequestBody defines body for SetDepartments for application/json ContentType.
+type SetDepartmentsJSONRequestBody = SetDepartments
 
 // PutOrganizationMemberJSONRequestBody defines body for PutOrganizationMember for application/json ContentType.
 type PutOrganizationMemberJSONRequestBody = Member

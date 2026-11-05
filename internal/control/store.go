@@ -88,11 +88,23 @@ func projectRole(ctx context.Context, tx pgx.Tx, p identity.Principal, org, proj
 	if role == "viewer" {
 		return "viewer", nil
 	}
-	err = tx.QueryRow(ctx, `SELECT role FROM project_members WHERE organization_id=$1 AND project_id=$2 AND issuer=$3 AND subject=$4 FOR SHARE`, org, project, p.Issuer, p.Subject).Scan(&role)
-	if errors.Is(err, pgx.ErrNoRows) {
+	if err := departmentLock(ctx, tx, org, false); err != nil {
+		return "", err
+	}
+	inherited, err := departmentRole(ctx, tx, p, org, project)
+	if err != nil {
+		return "", err
+	}
+	var direct string
+	err = tx.QueryRow(ctx, `SELECT role FROM project_members WHERE organization_id=$1 AND project_id=$2 AND issuer=$3 AND subject=$4 FOR SHARE`, org, project, p.Issuer, p.Subject).Scan(&direct)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return "", err
+	}
+	effective := strongerRole(direct, inherited)
+	if effective == "" {
 		return "", ErrNotFound
 	}
-	return role, err
+	return effective, nil
 }
 
 type Organization struct {
@@ -223,7 +235,16 @@ func (s *Store) ListProjects(ctx context.Context, p identity.Principal, org, aft
 		if err != nil {
 			return err
 		}
-		rows, err := tx.Query(ctx, `SELECT id,name,CASE WHEN $3 IN ('owner','admin') THEN 'admin' WHEN $3='viewer' THEN 'viewer' ELSE (SELECT role FROM project_members m WHERE m.organization_id=p.organization_id AND m.project_id=p.id AND issuer=$4 AND subject=$5) END FROM projects p WHERE organization_id=$1 AND id>$2 AND ($3<>'developer' OR EXISTS(SELECT 1 FROM project_members m WHERE m.organization_id=p.organization_id AND m.project_id=p.id AND issuer=$4 AND subject=$5)) ORDER BY id LIMIT $6`, org, after, role, p.Issuer, p.Subject, limit)
+		if err := departmentLock(ctx, tx, org, false); err != nil {
+			return err
+		}
+		rows, err := tx.Query(ctx, `WITH RECURSIVE lineage(project_id,id,parent_id) AS (
+ SELECT b.project_id,d.id,d.parent_id FROM department_projects b JOIN departments d ON d.organization_id=b.organization_id AND d.id=b.department_id WHERE b.organization_id=$1
+ UNION SELECT l.project_id,d.id,d.parent_id FROM lineage l JOIN departments d ON d.organization_id=$1 AND d.id=l.parent_id
+ ), inherited AS (SELECT l.project_id,max(CASE m.role WHEN 'admin' THEN 3 WHEN 'developer' THEN 2 ELSE 1 END) AS rank FROM lineage l JOIN department_members m ON m.organization_id=$1 AND m.department_id=l.id AND m.issuer=$4 AND m.subject=$5 GROUP BY l.project_id), permitted AS (
+ SELECT p.id,p.name,CASE WHEN $3 IN ('owner','admin') THEN 3 WHEN $3='viewer' THEN 1 ELSE greatest(coalesce(i.rank,0),CASE m.role WHEN 'admin' THEN 3 WHEN 'developer' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END) END AS rank
+ FROM projects p LEFT JOIN inherited i ON i.project_id=p.id LEFT JOIN project_members m ON m.organization_id=p.organization_id AND m.project_id=p.id AND m.issuer=$4 AND m.subject=$5 WHERE p.organization_id=$1 AND p.id>$2)
+ SELECT id,name,CASE rank WHEN 3 THEN 'admin' WHEN 2 THEN 'developer' ELSE 'viewer' END FROM permitted WHERE rank>0 ORDER BY id LIMIT $6`, org, after, role, p.Issuer, p.Subject, limit)
 		if err != nil {
 			return err
 		}

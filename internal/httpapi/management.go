@@ -38,6 +38,9 @@ func NewWithSession(store *control.Store, auth identity.Authenticator, session S
 func NewWithRuntime(store *control.Store, auth identity.Authenticator, session SessionAuthenticator, monitor *observe.Registry) http.Handler {
 	h := &Handler{Store: store, Auth: auth, Monitor: monitor}
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/organizations/{org}/departments", h.departments)
+	mux.HandleFunc("PUT /api/v1/organizations/{org}/departments", h.departments)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/departments/history", h.departmentHistory)
 	mux.HandleFunc("PUT /api/v1/organizations/{org}/members/enabled", h.memberEnabled)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/members/lifecycle", h.memberLifecycle)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/ownership-transfer", h.ownership)
@@ -168,7 +171,10 @@ func failure(w http.ResponseWriter, r *http.Request, err error) {
 	send(w, status, map[string]any{"error": map[string]string{"code": code, "message": code, "request_id": w.Header().Get("X-Request-ID")}})
 }
 func decode(w http.ResponseWriter, r *http.Request, dst any) bool {
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
+	return decodeLimit(w, r, dst, 64<<10)
+}
+func decodeLimit(w http.ResponseWriter, r *http.Request, dst any, limit int64) bool {
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, limit))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(dst); err != nil {
 		failure(w, r, control.ErrInvalid)

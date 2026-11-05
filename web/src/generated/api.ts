@@ -1397,6 +1397,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organizations/{org}/departments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+            };
+            cookie?: never;
+        };
+        /** @description Organization owner/admin only. Atomic versioned department tree, scoped membership and project bindings. Ancestor grants inherit downwards; explicit project grants combine by strongest role under existing organization ceilings. Department changes do not revoke existing project keys. Limits: 100 nodes, depth 8, 1000 grants, 1000 project bindings, 1 MiB request. Stale revision, disabled grantee, or atomic audit failure rejects the update. */
+        get: operations["getDepartments"];
+        /** @description Organization owner/admin only. Atomic versioned department tree, scoped membership and project bindings. Ancestor grants inherit downwards; explicit project grants combine by strongest role under existing organization ceilings. Department changes do not revoke existing project keys. Limits: 100 nodes, depth 8, 1000 grants, 1000 project bindings, 1 MiB request. Stale revision, disabled grantee, or atomic audit failure rejects the update. */
+        put: operations["setDepartments"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{org}/departments/history": {
+        parameters: {
+            query?: {
+                after?: string;
+            };
+            header?: never;
+            path: {
+                org: string;
+            };
+            cookie?: never;
+        };
+        /** @description Organization owner/admin only. Atomic versioned department tree, scoped membership and project bindings. Ancestor grants inherit downwards; explicit project grants combine by strongest role under existing organization ceilings. Department changes do not revoke existing project keys. Limits: 100 nodes, depth 8, 1000 grants, 1000 project bindings, 1 MiB request. Stale revision, disabled grantee, or atomic audit failure rejects the update. */
+        get: operations["listDepartmentHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2284,6 +2325,8 @@ export interface components {
             revoked_auditors: number;
             /** Format: int64 */
             canceled_transfers: number;
+            /** Format: int64 */
+            removed_department_grants: number;
         };
         MemberLifecyclePage: {
             data: components["schemas"]["MemberLifecycleEvent"][];
@@ -2300,6 +2343,45 @@ export interface components {
              */
             restore_role?: "admin" | "developer" | "viewer";
             reason: string;
+        };
+        Department: {
+            id: string;
+            name: string;
+            parent_id: string;
+        };
+        DepartmentGrant: {
+            department_id: string;
+            issuer: string;
+            subject: string;
+            /** @enum {string} */
+            role: "admin" | "developer" | "viewer";
+        };
+        DepartmentProject: {
+            department_id: string;
+            project_id: string;
+        };
+        DepartmentConfiguration: {
+            /** Format: int64 */
+            revision: number;
+            departments: components["schemas"]["Department"][];
+            grants: components["schemas"]["DepartmentGrant"][];
+            projects: components["schemas"]["DepartmentProject"][];
+        };
+        SetDepartments: {
+            configuration: components["schemas"]["DepartmentConfiguration"];
+            reason: string;
+        };
+        DepartmentVersion: {
+            /** Format: int64 */
+            revision: number;
+            actor: components["schemas"]["Principal"];
+            reason: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        DepartmentVersionPage: {
+            data: components["schemas"]["DepartmentVersion"][];
+            next_cursor: string;
         };
     };
     responses: never;
@@ -8449,6 +8531,240 @@ export interface operations {
                 };
             };
             /** @description Version, period or committed balance conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getDepartments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartmentConfiguration"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Lifecycle revision or state changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    setDepartments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetDepartments"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartmentConfiguration"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Lifecycle revision or state changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listDepartmentHistory: {
+        parameters: {
+            query?: {
+                after?: string;
+            };
+            header?: never;
+            path: {
+                org: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartmentVersionPage"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Lifecycle revision or state changed */
             409: {
                 headers: {
                     [name: string]: unknown;
