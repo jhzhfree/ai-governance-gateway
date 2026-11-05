@@ -19,6 +19,12 @@ func costDates(from, to string) error {
 	return nil
 }
 func (c *Client) CostReport(ctx context.Context, org, project, from, to string) (v types.CostReport, err error) {
+	return c.CostReportForDepartment(ctx, org, project, from, to, "", "")
+}
+func (c *Client) CostReportForDepartment(ctx context.Context, org, project, from, to, department, state string) (v types.CostReport, err error) {
+	if len(department) > 80 || (state != "" && state != "assigned" && state != "unassigned" && state != "historical") || (department != "" && state != "" && state != "assigned") {
+		return v, input("部门筛选无效；部门 ID 只能与已分配状态组合")
+	}
 	if err = costDates(from, to); err != nil {
 		return
 	}
@@ -32,7 +38,14 @@ func (c *Client) CostReport(ctx context.Context, org, project, from, to string) 
 			return
 		}
 	}
-	err = c.get(ctx, path+"/cost-report", url.Values{"from": {from}, "to": {to}}, &v)
+	query := url.Values{"from": {from}, "to": {to}}
+	if department != "" {
+		query.Set("department_id", department)
+	}
+	if state != "" {
+		query.Set("department_state", state)
+	}
+	err = c.get(ctx, path+"/cost-report", query, &v)
 	return
 }
 func reportLines(v types.CostReport) []string {
@@ -45,6 +58,20 @@ func reportLines(v types.CostReport) []string {
 		if r.Provider != nil {
 			provider = SafeText(*r.Provider)
 		}
+		department := "历史未记录"
+		if r.DepartmentState == "unassigned" {
+			department = "入账时未分配"
+		}
+		if r.DepartmentState == "assigned" {
+			department = ""
+			for _, d := range r.DepartmentPath {
+				if department != "" {
+					department += " / "
+				}
+				department += SafeText(d.Name) + "(" + SafeText(d.Id) + ")"
+			}
+		}
+		rows = append(rows, "部门 "+department)
 		rows = append(rows, fmt.Sprintf("%s %s %s/%s [%s] 请求%d 已结算%s 估算%s 占额%s 已释放%d 用量覆盖%d/%d 输入%s 输出%s", SafeText(r.Day), SafeText(r.ProjectId), model, provider, SafeText(r.Currency), r.Admitted, SafeText(r.SettledAmount), SafeText(r.EstimatedAmount), SafeText(r.OpenReserved), r.Released, r.UsageKnown, r.Admitted, SafeText(r.InputTokens), SafeText(r.OutputTokens)))
 	}
 	if len(v.Rows) == 0 {
@@ -53,7 +80,7 @@ func reportLines(v types.CostReport) []string {
 	return rows
 }
 func (a *app) addCostReports() {
-	var org, project, from, to string
+	var org, project, from, to, department, state string
 	var organization bool
 	cmd := &cobra.Command{Use: "cost-report", Short: "只读 UTC 成本报表（已结算、估算、占额分列）", Args: noArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 		if err := costDates(from, to); err != nil {
@@ -70,7 +97,7 @@ func (a *app) addCostReports() {
 		if organization {
 			p = ""
 		}
-		v, err := c.CostReport(cmd.Context(), o, p, from, to)
+		v, err := c.CostReportForDepartment(cmd.Context(), o, p, from, to, department, state)
 		if err != nil {
 			return err
 		}
@@ -85,5 +112,7 @@ func (a *app) addCostReports() {
 	cmd.Flags().BoolVar(&organization, "organization", false, "管理员查询整个组织，忽略保存的项目")
 	cmd.Flags().StringVar(&from, "from", "", "起始 UTC 日期，含")
 	cmd.Flags().StringVar(&to, "to", "", "结束 UTC 日期，不含")
+	cmd.Flags().StringVar(&department, "department-id", "", "按入账时部门或祖先 ID 筛选")
+	cmd.Flags().StringVar(&state, "department-state", "", "assigned / unassigned / historical")
 	a.root.AddCommand(cmd)
 }

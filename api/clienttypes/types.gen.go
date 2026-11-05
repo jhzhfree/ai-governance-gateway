@@ -95,6 +95,13 @@ const (
 	ContentMetaStateIncomplete ContentMetaState = "incomplete"
 )
 
+// Defines values for CostRowDepartmentState.
+const (
+	Assigned   CostRowDepartmentState = "assigned"
+	Historical CostRowDepartmentState = "historical"
+	Unassigned CostRowDepartmentState = "unassigned"
+)
+
 // Defines values for CreateOrganizationCurrency.
 const (
 	CreateOrganizationCurrencyCNYMICRO CreateOrganizationCurrency = "CNY_MICRO"
@@ -732,20 +739,25 @@ type CostReport struct {
 
 // CostRow defines model for CostRow.
 type CostRow struct {
-	Admitted        int64   `json:"admitted"`
-	Currency        string  `json:"currency"`
-	Day             string  `json:"day"`
-	EstimatedAmount string  `json:"estimated_amount"`
-	InputTokens     string  `json:"input_tokens"`
-	Model           *string `json:"model"`
-	OpenReserved    string  `json:"open_reserved"`
-	OutputTokens    string  `json:"output_tokens"`
-	ProjectId       string  `json:"project_id"`
-	Provider        *string `json:"provider"`
-	Released        int64   `json:"released"`
-	SettledAmount   string  `json:"settled_amount"`
-	UsageKnown      int64   `json:"usage_known"`
+	Admitted        int64                  `json:"admitted"`
+	Currency        string                 `json:"currency"`
+	Day             string                 `json:"day"`
+	DepartmentPath  []Department           `json:"department_path"`
+	DepartmentState CostRowDepartmentState `json:"department_state"`
+	EstimatedAmount string                 `json:"estimated_amount"`
+	InputTokens     string                 `json:"input_tokens"`
+	Model           *string                `json:"model"`
+	OpenReserved    string                 `json:"open_reserved"`
+	OutputTokens    string                 `json:"output_tokens"`
+	ProjectId       string                 `json:"project_id"`
+	Provider        *string                `json:"provider"`
+	Released        int64                  `json:"released"`
+	SettledAmount   string                 `json:"settled_amount"`
+	UsageKnown      int64                  `json:"usage_known"`
 }
+
+// CostRowDepartmentState defines model for CostRow.DepartmentState.
+type CostRowDepartmentState string
 
 // CreateKey defines model for CreateKey.
 type CreateKey struct {
@@ -1599,12 +1611,24 @@ type ListOrganizationBudgetChangesParams struct {
 type GetOrganizationCostReportParams struct {
 	From string `form:"from" json:"from"`
 	To   string `form:"to" json:"to"`
+
+	// DepartmentId Historical ancestor ID in admission-time snapshot, never the current tree.
+	DepartmentId *string `form:"department_id,omitempty" json:"department_id,omitempty"`
+
+	// DepartmentState Attribution status; department_id can combine only with assigned or no status.
+	DepartmentState *string `form:"department_state,omitempty" json:"department_state,omitempty"`
 }
 
 // ExportOrganizationCostReportParams defines parameters for ExportOrganizationCostReport.
 type ExportOrganizationCostReportParams struct {
 	From string `form:"from" json:"from"`
 	To   string `form:"to" json:"to"`
+
+	// DepartmentId Historical ancestor ID in admission-time snapshot, never the current tree.
+	DepartmentId *string `form:"department_id,omitempty" json:"department_id,omitempty"`
+
+	// DepartmentState Attribution status; department_id can combine only with assigned or no status.
+	DepartmentState *string `form:"department_state,omitempty" json:"department_state,omitempty"`
 }
 
 // ListDepartmentHistoryParams defines parameters for ListDepartmentHistory.
@@ -1680,12 +1704,24 @@ type ListContentAuditParams struct {
 type GetProjectCostReportParams struct {
 	From string `form:"from" json:"from"`
 	To   string `form:"to" json:"to"`
+
+	// DepartmentId Historical ancestor ID in admission-time snapshot, never the current tree.
+	DepartmentId *string `form:"department_id,omitempty" json:"department_id,omitempty"`
+
+	// DepartmentState Attribution status; department_id can combine only with assigned or no status.
+	DepartmentState *string `form:"department_state,omitempty" json:"department_state,omitempty"`
 }
 
 // ExportProjectCostReportParams defines parameters for ExportProjectCostReport.
 type ExportProjectCostReportParams struct {
 	From string `form:"from" json:"from"`
 	To   string `form:"to" json:"to"`
+
+	// DepartmentId Historical ancestor ID in admission-time snapshot, never the current tree.
+	DepartmentId *string `form:"department_id,omitempty" json:"department_id,omitempty"`
+
+	// DepartmentState Attribution status; department_id can combine only with assigned or no status.
+	DepartmentState *string `form:"department_state,omitempty" json:"department_state,omitempty"`
 }
 
 // InspectProjectParams defines parameters for InspectProject.

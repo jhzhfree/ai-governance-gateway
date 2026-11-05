@@ -130,3 +130,7 @@ AIGW_VERIFY_WEB=1 bash scripts/verify.sh
 ### 0020：部门层级与项目授权
 
 追加 `department_configurations`、`departments`、`department_members`、`department_projects`、`department_versions` 及成员生命周期的部门回收计数。升级默认无部门授权，不改旧项目/预算；先排空、备份、`migrate up`、`migrate check` 再启动。详见 [部门授权](department-authorization.md)。
+
+### 0021：入账时部门归属
+
+新增 `request_department_attributions`，在新预算占额事务内捕获路径与配置版本，失败整体回滚。升级不回填旧请求，不改变历史预算或结算；摘流排空旧进程后迁移，禁止不捕获归属的旧版本继续混跑。详见 [部门成本与升级](department-cost-attribution.md)。

@@ -6949,6 +6949,28 @@
             "minLength": 1,
             "maxLength": 128
           }
+        },
+        {
+          "name": "department_id",
+          "in": "query",
+          "description": "Historical ancestor ID in admission-time snapshot, never the current tree.",
+          "schema": {
+            "type": "string",
+            "maxLength": 80
+          }
+        },
+        {
+          "name": "department_state",
+          "in": "query",
+          "description": "Attribution status; department_id can combine only with assigned or no status.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "historical",
+              "unassigned",
+              "assigned"
+            ]
+          }
         }
       ]
     },
@@ -7069,6 +7091,28 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 128
+          }
+        },
+        {
+          "name": "department_id",
+          "in": "query",
+          "description": "Historical ancestor ID in admission-time snapshot, never the current tree.",
+          "schema": {
+            "type": "string",
+            "maxLength": 80
+          }
+        },
+        {
+          "name": "department_state",
+          "in": "query",
+          "description": "Attribution status; department_id can combine only with assigned or no status.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "historical",
+              "unassigned",
+              "assigned"
+            ]
           }
         }
       ]
@@ -7192,6 +7236,28 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 128
+          }
+        },
+        {
+          "name": "department_id",
+          "in": "query",
+          "description": "Historical ancestor ID in admission-time snapshot, never the current tree.",
+          "schema": {
+            "type": "string",
+            "maxLength": 80
+          }
+        },
+        {
+          "name": "department_state",
+          "in": "query",
+          "description": "Attribution status; department_id can combine only with assigned or no status.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "historical",
+              "unassigned",
+              "assigned"
+            ]
           }
         }
       ]
@@ -7323,6 +7389,28 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 128
+          }
+        },
+        {
+          "name": "department_id",
+          "in": "query",
+          "description": "Historical ancestor ID in admission-time snapshot, never the current tree.",
+          "schema": {
+            "type": "string",
+            "maxLength": 80
+          }
+        },
+        {
+          "name": "department_state",
+          "in": "query",
+          "description": "Attribution status; department_id can combine only with assigned or no status.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "historical",
+              "unassigned",
+              "assigned"
+            ]
           }
         }
       ]
@@ -12264,7 +12352,9 @@
           "provider",
           "admitted",
           "released",
-          "usage_known"
+          "usage_known",
+          "department_state",
+          "department_path"
         ],
         "properties": {
           "day": {
@@ -12318,6 +12408,21 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          },
+          "department_state": {
+            "type": "string",
+            "enum": [
+              "historical",
+              "unassigned",
+              "assigned"
+            ]
+          },
+          "department_path": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "$ref": "#/components/schemas/Department"
+            }
           }
         }
       },

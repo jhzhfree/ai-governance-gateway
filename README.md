@@ -55,3 +55,5 @@ AI 治理网关：面向团队的统一模型接入、访问控制、预算限�
 组织离职回收：见 [成员停用与显式恢复](docs/organization-member-lifecycle.md)，原子回收当前组织的密钥、项目与审计员授权，恢复需重新配置权限。
 
 部门治理：见 [部门层级、项目归属与继承授权](docs/department-authorization.md)，组织内配置、祖先继承、版本比较与成员停用联动。
+
+部门成本：见 [入账时快照与历史筛选](docs/department-cost-attribution.md)，旧账不回填，移动/重命名不改历史归属，Web/CLI/TUI 与审计 CSV 共用口径。

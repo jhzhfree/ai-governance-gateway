@@ -434,6 +434,18 @@ func TestCostReportCLIAndTUIReadLedgerWithoutMutation(t *testing.T) {
 	if code != 0 || json.Unmarshal([]byte(out), &report) != nil || len(report.Rows) != 1 || report.Rows[0].OpenReserved != "10" || report.Rows[0].Model != nil || report.Rows[0].SettledAmount != "0" {
 		t.Fatal("CLI report differs from ledger")
 	}
+	code, out, _ = f.execute(t, f.token, "cost-report", "--org", f.org.ID, "--project", f.project.ID, "--from", from, "--to", to, "--department-state", "unassigned", "--output", "json")
+	if code != 0 || json.Unmarshal([]byte(out), &report) != nil || len(report.Rows) != 1 || report.Rows[0].DepartmentState != "unassigned" {
+		t.Fatal("CLI department filter differs from ledger")
+	}
+	code, out, _ = f.execute(t, f.token, "cost-report", "--org", f.org.ID, "--project", f.project.ID, "--from", from, "--to", to, "--department-state", "historical", "--output", "json")
+	if code != 0 || json.Unmarshal([]byte(out), &report) != nil || len(report.Rows) != 0 {
+		t.Fatal("CLI invented legacy attribution")
+	}
+	code, _, _ = f.execute(t, f.token, "cost-report", "--org", f.org.ID, "--project", f.project.ID, "--from", from, "--to", to, "--department-id", "root", "--department-state", "historical")
+	if code != 2 {
+		t.Fatal("conflicting department filter not rejected")
+	}
 	code, _, _ = f.execute(t, f.token, "cost-report", "--org", f.org.ID, "--organization", "--from", from, "--to", to)
 	if code != 0 {
 		t.Fatal("owner organization report denied")
@@ -458,7 +470,7 @@ func TestCostReportCLIAndTUIReadLedgerWithoutMutation(t *testing.T) {
 	m = complete(t, m, m.Init())
 	next, cmd := m.Update(keyPress('c'))
 	m = complete(t, next.(Model), cmd)
-	if m.screen != costReportScreen || !strings.Contains(m.View().Content, "成本报表") || m.costReport == nil || len(m.costReport.Rows) != 1 || m.costReport.Rows[0].OpenReserved != "10" {
+	if m.screen != costReportScreen || !strings.Contains(m.View().Content, "入账时未分配") || !strings.Contains(m.View().Content, "成本报表") || m.costReport == nil || len(m.costReport.Rows) != 1 || m.costReport.Rows[0].OpenReserved != "10" {
 		t.Fatal("TUI cost report missing")
 	}
 	next, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})

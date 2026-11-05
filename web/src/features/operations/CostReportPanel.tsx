@@ -26,36 +26,52 @@ export function CostReportPanel({
   const [from, setFrom] = useState(() => day(-6));
   const [to, setTo] = useState(() => day(1));
   const [organizationScope, setOrganizationScope] = useState(false);
-  const [filter, setFilter] = useState({ from, to, organizationScope });
+  const [departmentID, setDepartmentID] = useState('');
+  const [departmentState, setDepartmentState] = useState('');
+  const [filter, setFilter] = useState({
+    from,
+    to,
+    organizationScope,
+    departmentID,
+    departmentState,
+  });
   const [pending, setPending] = useState(false);
   const [exportError, setExportError] = useState<unknown>(null);
   const path = filter.organizationScope && canManage ? orgPath : projectPath;
-  const endpoint = `${path}/cost-report?${new URLSearchParams({ from: filter.from, to: filter.to })}`;
+  const search = new URLSearchParams({ from: filter.from, to: filter.to });
+  if (filter.departmentID) search.set('department_id', filter.departmentID);
+  if (filter.departmentState) search.set('department_state', filter.departmentState);
+  const endpoint = `${path}/cost-report?${search}`;
   const query = useQuery({
-    queryKey: [...identity, path, 'cost-report', filter.from, filter.to],
+    queryKey: [
+      ...identity,
+      path,
+      'cost-report',
+      filter.from,
+      filter.to,
+      filter.departmentID,
+      filter.departmentState,
+    ],
     enabled: Boolean(path),
     queryFn: ({ signal }) => api<CostReport>(endpoint, { signal }),
   });
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setExportError(null);
-    setFilter({ from, to, organizationScope });
+    setFilter({ from, to, organizationScope, departmentID: departmentID.trim(), departmentState });
   }
   async function download() {
     if (!path) return;
     setPending(true);
     setExportError(null);
     try {
-      const response = await fetch(
-        `${path}/cost-report/export?${new URLSearchParams({ from: filter.from, to: filter.to })}`,
-        {
-          method: 'POST',
-          credentials: 'same-origin',
-          cache: 'no-store',
-          redirect: 'error',
-          headers: { 'X-CSRF-Token': csrf },
-        },
-      );
+      const response = await fetch(`${path}/cost-report/export?${search}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        redirect: 'error',
+        headers: { 'X-CSRF-Token': csrf },
+      });
       if (!response.ok) {
         if (response.status === 401) window.dispatchEvent(new Event('aigw:session-expired'));
         throw new ApiError(response.status, response.headers.get('X-Request-ID') ?? '');
@@ -91,6 +107,39 @@ export function CostReportPanel({
           结束日期（UTC，不含）
           <input type="date" required value={to} onChange={(e) => setTo(e.target.value)} />
         </label>
+        <label>
+          部门 ID（含历史下级）
+          <input
+            maxLength={80}
+            list="cost-department-snapshots"
+            value={departmentID}
+            onChange={(e) => setDepartmentID(e.target.value)}
+          />
+        </label>
+        <datalist id="cost-department-snapshots">
+          {Array.from(
+            new Map(
+              query.data?.rows.flatMap((r) => r.department_path).map((d) => [d.id, d]) ?? [],
+            ).values(),
+          ).map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+        </datalist>
+        <label>
+          部门归属状态
+          <select
+            aria-label="部门归属状态"
+            value={departmentState}
+            onChange={(e) => setDepartmentState(e.target.value)}
+          >
+            <option value="">全部归属状态</option>
+            <option value="assigned">入账时已分配</option>
+            <option value="unassigned">入账时未分配</option>
+            <option value="historical">历史未记录</option>
+          </select>
+        </label>
         {canManage && (
           <label>
             <input
@@ -101,10 +150,11 @@ export function CostReportPanel({
             汇总整个组织
           </label>
         )}
-        <Button type="submit" disabled={!projectPath && !organizationScope}>
+        <Button tag="button" type="submit" disabled={!projectPath && !organizationScope}>
           查询成本报表
         </Button>
         <Button
+          tag="button"
           disabled={!query.data || query.isFetching}
           loading={pending}
           onClick={() => {
@@ -129,7 +179,9 @@ export function CostReportPanel({
             {filter.organizationScope && canManage ? '整个组织' : '当前项目'}
           </p>
           <p>
-            已结算、估算终结和开放占额分列。缺少完整 usage 的请求不计入已知 token
+            部门按入账时路径快照展示，后续移动/重命名不改旧账；历史未记录与入账时未分配分别统计。部门
+            ID 包含当时的下级项目，不扩大当前项目访问权限。 已结算、估算终结和开放占额分列。缺少完整
+            usage 的请求不计入已知 token
             合计；未知归属表示未留下执行记录。鉴权或预算拒绝且未占额的请求不在本报表中。
           </p>
           <div className="table-scroll" role="region" aria-label="成本明细表" tabIndex={0}>
@@ -139,6 +191,7 @@ export function CostReportPanel({
                   {[
                     '日期',
                     '项目',
+                    '入账时部门',
                     '模型 / 供应商',
                     '币种',
                     '入账请求',
@@ -159,6 +212,13 @@ export function CostReportPanel({
                   <tr key={i}>
                     <td>{row.day}</td>
                     <td>{row.project_id}</td>
+                    <td>
+                      {row.department_state === 'historical'
+                        ? '历史未记录'
+                        : row.department_state === 'unassigned'
+                          ? '入账时未分配'
+                          : row.department_path.map((d) => `${d.name} (${d.id})`).join(' / ')}
+                    </td>
                     <td>
                       {row.model ?? '未知归属'} / {row.provider ?? '未知归属'}
                     </td>

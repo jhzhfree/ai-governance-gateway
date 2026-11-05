@@ -1091,7 +1091,12 @@ export interface paths {
     };
     "/api/v1/organizations/{org}/cost-report": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Historical ancestor ID in admission-time snapshot, never the current tree. */
+                department_id?: string;
+                /** @description Attribution status; department_id can combine only with assigned or no status. */
+                department_state?: "historical" | "unassigned" | "assigned";
+            };
             header?: never;
             path: {
                 org: string;
@@ -1110,7 +1115,12 @@ export interface paths {
     };
     "/api/v1/organizations/{org}/cost-report/export": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Historical ancestor ID in admission-time snapshot, never the current tree. */
+                department_id?: string;
+                /** @description Attribution status; department_id can combine only with assigned or no status. */
+                department_state?: "historical" | "unassigned" | "assigned";
+            };
             header?: never;
             path: {
                 org: string;
@@ -1129,7 +1139,12 @@ export interface paths {
     };
     "/api/v1/organizations/{org}/projects/{project}/cost-report": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Historical ancestor ID in admission-time snapshot, never the current tree. */
+                department_id?: string;
+                /** @description Attribution status; department_id can combine only with assigned or no status. */
+                department_state?: "historical" | "unassigned" | "assigned";
+            };
             header?: never;
             path: {
                 org: string;
@@ -1149,7 +1164,12 @@ export interface paths {
     };
     "/api/v1/organizations/{org}/projects/{project}/cost-report/export": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Historical ancestor ID in admission-time snapshot, never the current tree. */
+                department_id?: string;
+                /** @description Attribution status; department_id can combine only with assigned or no status. */
+                department_state?: "historical" | "unassigned" | "assigned";
+            };
             header?: never;
             path: {
                 org: string;
@@ -2232,6 +2252,9 @@ export interface components {
             released: number;
             /** Format: int64 */
             usage_known: number;
+            /** @enum {string} */
+            department_state: "historical" | "unassigned" | "assigned";
+            department_path: components["schemas"]["Department"][];
         };
         CostReport: {
             /** Format: date */
@@ -7242,6 +7265,10 @@ export interface operations {
     getOrganizationCostReport: {
         parameters: {
             query: {
+                /** @description Historical ancestor ID in admission-time snapshot, never the current tree. */
+                department_id?: string;
+                /** @description Attribution status; department_id can combine only with assigned or no status. */
+                department_state?: "historical" | "unassigned" | "assigned";
                 from: string;
                 to: string;
             };
@@ -7312,6 +7339,10 @@ export interface operations {
     exportOrganizationCostReport: {
         parameters: {
             query: {
+                /** @description Historical ancestor ID in admission-time snapshot, never the current tree. */
+                department_id?: string;
+                /** @description Attribution status; department_id can combine only with assigned or no status. */
+                department_state?: "historical" | "unassigned" | "assigned";
                 from: string;
                 to: string;
             };
@@ -7383,6 +7414,10 @@ export interface operations {
     getProjectCostReport: {
         parameters: {
             query: {
+                /** @description Historical ancestor ID in admission-time snapshot, never the current tree. */
+                department_id?: string;
+                /** @description Attribution status; department_id can combine only with assigned or no status. */
+                department_state?: "historical" | "unassigned" | "assigned";
                 from: string;
                 to: string;
             };
@@ -7454,6 +7489,10 @@ export interface operations {
     exportProjectCostReport: {
         parameters: {
             query: {
+                /** @description Historical ancestor ID in admission-time snapshot, never the current tree. */
+                department_id?: string;
+                /** @description Attribution status; department_id can combine only with assigned or no status. */
+                department_state?: "historical" | "unassigned" | "assigned";
                 from: string;
                 to: string;
             };

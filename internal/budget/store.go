@@ -141,6 +141,9 @@ func (s *Store) Reserve(ctx context.Context, q Quote) (created bool, err error) 
 		} else if err == nil && currentPeriod != q.Period {
 			return ErrConflict
 		}
+		if err := lockDepartmentAttribution(ctx, tx, q.Organization); err != nil {
+			return err
+		}
 		if err := lockAccounts(ctx, tx, q.Scope); err != nil {
 			return err
 		}
@@ -157,6 +160,9 @@ func (s *Store) Reserve(ctx context.Context, q Quote) (created bool, err error) 
 			(request_id,organization_id,project_id,period_id,currency,price_version,reserved,state)
 			VALUES($1,$2,$3,$4,$5,$6,$7,'reserved')`, q.RequestID, q.Organization, q.Project, q.Period, q.Currency, q.PriceVersion, q.Amount)
 		if err != nil {
+			return err
+		}
+		if err := captureDepartment(ctx, tx, q); err != nil {
 			return err
 		}
 		created = true

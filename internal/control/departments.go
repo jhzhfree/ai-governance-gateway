@@ -50,6 +50,15 @@ func departmentLock(ctx context.Context, tx pgx.Tx, org string, write bool) erro
 		fn = "pg_advisory_xact_lock"
 	}
 	_, err := tx.Exec(ctx, `SELECT `+fn+`(hashtextextended($1,0))`, "aigw:departments:"+org)
+	if err != nil {
+		return err
+	}
+	if !write {
+		// A repeatable-read caller may have taken its snapshot before waiting for
+		// the advisory lock. Lock the version row too, forcing serialization failure
+		// rather than authorizing from a department version changed since that snapshot.
+		_, err = tx.Exec(ctx, `SELECT revision FROM department_configurations WHERE organization_id=$1 FOR SHARE`, org)
+	}
 	return err
 }
 func emptyDepartments() DepartmentConfiguration {

@@ -1033,3 +1033,114 @@ test('department tree, scoped grants, project assignment and history persist thr
     accessibility.violations.map((v) => ({ id: v.id, nodes: v.nodes.map((n) => n.target) })),
   ).toEqual([]);
 });
+
+test('department costs retain admission snapshot and CSV uses applied historical filters', async ({
+  page,
+  baseURL,
+}) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: /使用组织账号登录/ }).click();
+  const session = (await (await page.request.get('/auth/session')).json()) as {
+    csrf_token: string;
+  };
+  const headers = { Origin: baseURL!, 'X-CSRF-Token': session.csrf_token };
+  const orgResponse = await page.request.post('/api/v1/organizations', {
+    headers,
+    data: { name: '部门成本验收', period: '2026-11', currency: 'CNY_MICRO', limit_amount: 10000 },
+  });
+  expect(orgResponse.status()).toBe(201);
+  const org = (await orgResponse.json()) as { id: string };
+  const orgPath = `/api/v1/organizations/${org.id}`;
+  const projectResponse = await page.request.post(`${orgPath}/projects`, {
+    headers,
+    data: { name: '部门费用项目', limit_amount: 5000 },
+  });
+  expect(projectResponse.status()).toBe(201);
+  const project = (await projectResponse.json()) as { id: string };
+  const path = `${orgPath}/projects/${project.id}`;
+  expect(
+    (
+      await page.request.put(`${path}/models`, { headers, data: { models: ['aliyun/fixture'] } })
+    ).status(),
+  ).toBe(204);
+  const issued = await page.request.post(`${path}/keys`, {
+    headers,
+    data: { name: '部门成本合成密钥', models: ['aliyun/fixture'], ttl_seconds: 3600 },
+  });
+  expect(issued.status()).toBe(201);
+  const key = (await issued.json()) as { secret: string };
+  let configuration = {
+    revision: 0,
+    departments: [
+      { id: 'engineering', name: '研发', parent_id: '' },
+      { id: 'platform', name: '平台', parent_id: 'engineering' },
+      { id: 'sales', name: '销售', parent_id: '' },
+    ],
+    grants: [],
+    projects: [{ project_id: project.id, department_id: 'platform' }],
+  };
+  const publish = async () => {
+    const result = await page.request.put(`${orgPath}/departments`, {
+      headers,
+      data: { configuration, reason: '部门成本快照合成验收' },
+    });
+    expect(result.status()).toBe(200);
+    configuration = (await result.json()) as typeof configuration;
+  };
+  const infer = async () => {
+    expect(
+      (
+        await page.request.post('/v1/chat/completions', {
+          headers: { Authorization: `Bearer ${key.secret}` },
+          data: {
+            model: 'aliyun/fixture',
+            max_tokens: 8,
+            messages: [{ role: 'user', content: 'synthetic attribution fixture' }],
+          },
+        })
+      ).status(),
+    ).toBe(200);
+  };
+  await publish();
+  await infer();
+  configuration.departments[0].name = '研发新名称';
+  configuration.projects[0].department_id = 'sales';
+  await publish();
+  await infer();
+  await page.goto(`/?view=reports&org=${org.id}&project=${project.id}`);
+  const table = page.getByRole('region', { name: '成本明细表', exact: true });
+  await expect(
+    table.getByRole('cell', { name: '研发 (engineering) / 平台 (platform)', exact: true }),
+  ).toBeVisible();
+  await expect(table.getByRole('cell', { name: '销售 (sales)', exact: true })).toBeVisible();
+  await expect(table.getByText('研发新名称', { exact: false })).toHaveCount(0);
+  await page.getByLabel('部门 ID（含历史下级）', { exact: true }).fill('engineering');
+  await page.getByRole('button', { name: '查询成本报表', exact: true }).click();
+  await expect(table.getByRole('row')).toHaveCount(2);
+  await expect(
+    table.getByRole('cell', { name: '研发 (engineering) / 平台 (platform)', exact: true }),
+  ).toBeVisible();
+  // Unsaved form changes must not change the CSV scope.
+  await page.getByLabel('部门 ID（含历史下级）', { exact: true }).fill('sales');
+  const downloading = page.waitForEvent('download');
+  await page.getByRole('button', { name: '导出成本 CSV', exact: true }).click();
+  const download = await downloading;
+  const stream = await download.createReadStream();
+  let csv = '';
+  for await (const chunk of stream) csv += String(chunk);
+  expect(csv).toContain('department_state,department_path');
+  expect(csv).toContain('engineering');
+  expect(csv).not.toContain('sales');
+  await page.getByLabel('部门 ID（含历史下级）', { exact: true }).fill('');
+  await page
+    .getByRole('combobox', { name: '部门归属状态', exact: true })
+    .selectOption('historical');
+  await page.getByRole('button', { name: '查询成本报表', exact: true }).click();
+  await expect(page.getByText('所选时间范围没有账本记录。', { exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const accessibility = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+    .analyze();
+  expect(accessibility.violations.map((v) => v.id)).toEqual([]);
+});
