@@ -21,7 +21,7 @@
 make doctor            # 检查 go/node/psql/docker 与开发库连通
 make db-init           # 幂等创建角色与 aigw_dev / aigw_test
 make build             # 前端 dist + 全部二进制到 bin/（更新代码后必须重建）
-make migrate-up        # 迁移到最新（当前 0012）
+make migrate-up        # 迁移到最新（当前 0022）
 
 # —— 模拟链路（仅显式测试，AIGW_TEST_MODE=1）——
 make dev-oidc          # 终端 A：本地开发 IdP https://127.0.0.1:9443（仅回环）
@@ -84,7 +84,7 @@ curl -H "Authorization: Bearer $(make -s dev-token)" http://127.0.0.1:8080/api/v
 | 建库 | `make db-init` | 需要 `su postgres` 权限 |
 | 开发 IdP | `make dev-oidc` | 本地 OIDC（9443，回环，自动批准，勿用于生产） |
 | 开发 token | `make dev-token` | 打印 aud=`aigw-dev` 的 Bearer token |
-| 迁移 | `make migrate-up` / `migrate-status` / `migrate-check` | check 用于"二进制与库结构是否一致"（当前 0012） |
+| 迁移 | `make migrate-up` / `migrate-status` / `migrate-check` | check 用于"二进制与库结构是否一致"（当前 0022） |
 | 全量构建 | `make build` | 前端 + Go |
 | 仅 Go | `make build-go` | 输出 `bin/{gateway,migrate,aigw,content-audit,mock-provider}` |
 | 仅前端 | `make build-web` | 输出 `web/dist` |

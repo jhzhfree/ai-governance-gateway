@@ -22,6 +22,7 @@ DEV_OIDC_AUDIENCE ?= aigw-dev
 DEV_UPSTREAM_URL ?= http://127.0.0.1:8091/v1/chat/completions
 DEV_BROWSER_ORIGIN ?=
 DEV_OIDC_CLIENT_ID ?= aigw-dev-console
+GO_TEST_TIMEOUT ?= 600s
 
 # Managed sandboxes sometimes export a bundled LD_LIBRARY_PATH that shadows
 # system libstdc++; drop it when launching long-running binaries or tests.
@@ -115,7 +116,7 @@ test: ## 运行后端测试（使用 TEST_DATABASE_URL，不建删持久库）
 	TEST_DATABASE_URL='$(TEST_DATABASE_URL)' $(RUN) $(GO) test -mod=readonly -race -count=1 -timeout=120s ./api/... ./cmd/... ./internal/...
 
 verify: ## 运行仓库完整门禁（gofmt/api 契约/vet/race 测试）
-	TEST_DATABASE_URL='$(TEST_DATABASE_URL)' bash scripts/verify.sh
+	TEST_DATABASE_URL='$(TEST_DATABASE_URL)' AIGW_GO_TEST_TIMEOUT='$(GO_TEST_TIMEOUT)' bash scripts/verify.sh
 
 fmt: ## 格式化 Go 代码
 	$(GO) fmt ./api/... ./cmd/... ./internal/...
