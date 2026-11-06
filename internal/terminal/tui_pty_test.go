@@ -18,10 +18,12 @@ import (
 )
 
 type screenCapture struct {
-	mu      sync.Mutex
-	data    bytes.Buffer
-	entered chan struct{}
-	once    sync.Once
+	mu       sync.Mutex
+	data     bytes.Buffer
+	entered  chan struct{}
+	exited   chan struct{}
+	once     sync.Once
+	exitOnce sync.Once
 }
 
 func (s *screenCapture) Write(data []byte) (int, error) {
@@ -30,6 +32,9 @@ func (s *screenCapture) Write(data []byte) (int, error) {
 	n, _ := s.data.Write(data)
 	if strings.Contains(s.data.String(), "\x1b[?1049h") {
 		s.once.Do(func() { close(s.entered) })
+	}
+	if strings.Contains(s.data.String(), "\x1b[?1049l") {
+		s.exitOnce.Do(func() { close(s.exited) })
 	}
 	return n, nil
 }
@@ -45,7 +50,7 @@ func TestTUIRestoresRealPseudoTerminal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	capture := &screenCapture{entered: make(chan struct{})}
+	capture := &screenCapture{entered: make(chan struct{}), exited: make(chan struct{})}
 	copied := make(chan struct{})
 	go func() { _, _ = io.Copy(capture, master); close(copied) }()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -77,6 +82,13 @@ func TestTUIRestoresRealPseudoTerminal(t *testing.T) {
 	}
 	if !reflect.DeepEqual(before, after) {
 		t.Fatal("terminal raw mode was not restored")
+	}
+	// Run returning proves the writer finished, not that io.Copy has drained
+	// the PTY. Closing the master here can discard the restoration sequence.
+	select {
+	case <-capture.exited:
+	case <-ctx.Done():
+		t.Fatal("alternate screen was not restored")
 	}
 	slave.Close()
 	master.Close()

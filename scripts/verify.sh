@@ -17,6 +17,9 @@ if [[ -n "$formatting" ]]; then
   exit 1
 fi
 
+# Nested Go modules are not included by the root ./... pattern.
+GO_BIN="$go_bin" bash modules/engine/scripts/verify.sh
+
 container_id=""
 docker_local() {
   env -u DOCKER_HOST -u DOCKER_CONTEXT -u DOCKER_TLS -u DOCKER_TLS_VERIFY -u DOCKER_CERT_PATH \

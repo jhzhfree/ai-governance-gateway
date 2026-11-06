@@ -1,0 +1,6 @@
+/bin/
+/artifacts/
+/.cache/
+.env
+*.pem
+*.key
