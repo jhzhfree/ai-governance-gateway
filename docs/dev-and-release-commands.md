@@ -70,7 +70,8 @@ bin/local-admin init --username dev-admin --allow-loopback-http --password-stdin
 
 # 2. 启动（.env 至少配：AIGW_DATABASE_URL、AIGW_AUTH_MODE=local、AIGW_BROWSER_ORIGIN）
 set -a; source .env; set +a
-bin/gateway --listen 127.0.0.1:8080 --web-dir web/dist --allow-loopback-browser-http
+make run          # 等价于 bin/gateway --listen 127.0.0.1:8080 --web-dir web/dist
+                  # 检测到回环 HTTP 的 AIGW_BROWSER_ORIGIN 时自动附加 --allow-loopback-browser-http
 ```
 
 要点：
