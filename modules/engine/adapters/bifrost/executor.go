@@ -29,6 +29,9 @@ type Config struct {
 	// MaxOutputTokens is a server-owned ceiling, never a client override.
 	// Zero selects 4096. Values outside 16..1,000,000 are rejected.
 	MaxOutputTokens int
+	// MaxConcurrent bounds active executions, including streams and consumers.
+	// Zero selects 4. There is no adapter-side waiting queue.
+	MaxConcurrent int
 	// TestLoopback permits only literal loopback IPs over HTTP for local fixtures.
 	TestLoopback bool
 }
@@ -37,11 +40,15 @@ type Executor struct {
 	client          *core.Bifrost
 	model           string
 	maxOutputTokens int
+	lifecycle       *lifecycle
 }
 
 var _ execution.Executor = (*Executor)(nil)
 
 func New(ctx context.Context, cfg Config) (*Executor, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	u, err := url.Parse(cfg.BaseURL)
 	if err != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
 		return nil, errors.New("invalid upstream endpoint")
@@ -59,15 +66,21 @@ func New(ctx context.Context, cfg Config) (*Executor, error) {
 	if cfg.MaxOutputTokens < 16 || cfg.MaxOutputTokens > 1000000 {
 		return nil, errors.New("invalid output token ceiling")
 	}
+	if cfg.MaxConcurrent == 0 {
+		cfg.MaxConcurrent = 4
+	}
+	if cfg.MaxConcurrent < 1 || cfg.MaxConcurrent > 1024 {
+		return nil, errors.New("invalid execution concurrency")
+	}
 	a := &account{cfg: cfg}
 	client, err := core.Init(ctx, schemas.BifrostConfig{Account: a, Logger: core.NewNoOpLogger(), InitialPoolSize: 8, DropExcessRequests: true})
 	if err != nil {
 		return nil, errors.New("execution engine initialization failed")
 	}
-	return &Executor{client: client, model: cfg.Model, maxOutputTokens: cfg.MaxOutputTokens}, nil
+	return &Executor{client: client, model: cfg.Model, maxOutputTokens: cfg.MaxOutputTokens, lifecycle: newLifecycle(ctx, cfg.MaxConcurrent)}, nil
 }
 
-func (e *Executor) Close() { e.client.Shutdown() }
+func (e *Executor) Close() { e.lifecycle.close(e.client.Shutdown) }
 
 func (e *Executor) Execute(ctx context.Context, req execution.Request, emit execution.Emit) error {
 	if err := ctx.Err(); err != nil {
@@ -84,6 +97,11 @@ func (e *Executor) Execute(ctx context.Context, req execution.Request, emit exec
 	if err := json.Unmarshal(req.Body, &wire); err != nil || wire.Model != e.model || len(wire.Messages) == 0 {
 		return execution.ErrInvalidRequest
 	}
+	ctx, release, err := e.lifecycle.acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
 	bctx, cancel := schemas.NewBifrostContextWithCancel(ctx)
 	defer cancel()
 	bctx.SetValue(schemas.BifrostContextKeyRequestID, req.AttemptID)
@@ -187,6 +205,6 @@ func (a *account) GetConfigForProvider(p schemas.ModelProvider) (*schemas.Provid
 	}
 	return &schemas.ProviderConfig{
 		NetworkConfig:            schemas.NetworkConfig{BaseURL: a.cfg.BaseURL, MaxRetries: 0, DefaultRequestTimeoutInSeconds: 10, StreamIdleTimeoutInSeconds: 3, RetryBackoffInitial: time.Millisecond, RetryBackoffMax: time.Millisecond, AllowPrivateNetwork: a.cfg.TestLoopback},
-		ConcurrencyAndBufferSize: schemas.ConcurrencyAndBufferSize{Concurrency: 4, BufferSize: 8},
+		ConcurrencyAndBufferSize: schemas.ConcurrencyAndBufferSize{Concurrency: a.cfg.MaxConcurrent, BufferSize: a.cfg.MaxConcurrent * 2},
 	}, nil
 }

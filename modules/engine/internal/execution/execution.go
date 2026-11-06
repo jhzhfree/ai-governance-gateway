@@ -11,6 +11,8 @@ import (
 var (
 	ErrInvalidRequest = errors.New("invalid execution request")
 	ErrUpstream       = errors.New("upstream execution failed")
+	ErrOverloaded     = errors.New("execution capacity exhausted")
+	ErrClosed         = errors.New("execution engine is closed")
 )
 
 type Request struct {
@@ -40,5 +42,7 @@ type Emit func(ctx context.Context, event Event) error
 
 type Executor interface {
 	Execute(context.Context, Request, Emit) error
+	// Close stops admission, cancels active requests and waits for consumers to
+	// return before shutting down. Owners call it outside Execute/Emit callbacks.
 	Close()
 }

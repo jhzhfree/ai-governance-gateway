@@ -9,3 +9,5 @@ Bifrost Core v1.14.1，独立 Go 模块。来源为本工作区已验证的 M0 �
 首批契约涵盖取消、截断、单次派发、用量缺失和调用关联。全零用量视为未知，不能作为零费用结算依据。详细证据见 [delivery.md](docs/delivery.md)，V1 总体门禁见 [v1-delivery.md](../../docs/v1-delivery.md)。
 
 第二阶段增加显式请求白名单和计量一致性：必须提供 `max_tokens`（16 到服务端上限，默认 4096），当前仅支持文本 Chat 和 function 工具请求／历史。未知字段、内建工具和多模态输入拒绝派发。适配器现有 17 个顶层契约测试；范围和迁移限制见 [ADR 0002](docs/adr/0002-bounded-chat-contract.md)。
+
+当前增量增加实例并发上限与取消后关闭，共 20 个顶层契约测试。满载不排队派发，关闭停止接纳并回收在途调用；详见 [ADR 0003](docs/adr/0003-execution-lifecycle.md)。尚未完成真实负载容量和长期稳定性验收。
