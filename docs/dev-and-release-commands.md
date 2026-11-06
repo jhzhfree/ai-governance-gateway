@@ -283,6 +283,7 @@ WantedBy=multi-user.target
 | 推理返回 400 `unsupported_mock_request` | mock 模式请求体不符合 mock 契约 | 用完整 messages/max_tokens 字段 |
 | 启动报 `OIDC discovery failed` | issuer 不可达（离线机器常见） | 先 `make dev-oidc`；或 `DEV_OIDC_ISSUER=<可达 HTTPS IdP>` |
 | `/auth/login` 返回 403 `origin_mismatch` | 请求 Host 与 `AIGW_BROWSER_ORIGIN` 不一致 | 走 5173（Vite 保留 Host），或直接以同端口访问 |
+| `gateway listener failed`（`address already in use`） | 8080 已有实例在跑（后台残留/重复启动），ctx 取消连带首轮维护日志 `maintenance unavailable` | `pkill -f bin/gateway` 后重开，或直接用现有实例 |
 | `verify.sh` 卡在 docker run | 本机未配置镜像加速器，`postgres:17.6` 拉不下来 | 设置 `TEST_DATABASE_URL` 用本地库 |
 | `go mod download` 超时 | 直连 `proxy.golang.org` 不可达 | `go env -w GOPROXY=https://goproxy.cn,direct` |
 | `npm ci` 超时或 404 | 直连 `registry.npmjs.org` 不可达 | `npm config set registry https://registry.npmmirror.com` |
