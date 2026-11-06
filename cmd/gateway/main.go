@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -24,7 +23,6 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/console"
 	"github.com/jhzhfree/ai-governance-gateway/internal/contentaudit"
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
-	"github.com/jhzhfree/ai-governance-gateway/internal/database"
 	"github.com/jhzhfree/ai-governance-gateway/internal/execution"
 	"github.com/jhzhfree/ai-governance-gateway/internal/gateway"
 	"github.com/jhzhfree/ai-governance-gateway/internal/httpapi"
@@ -40,11 +38,19 @@ type config struct {
 	database, issuer, audience, upstream, listen  string
 	providerConfig                                string
 	initSchema, mockOnly                          bool
+	schemaMode                                    string
+	schemaTimeout                                 time.Duration
 	browserOrigin, clientID, clientSecret, webDir string
 	allowLoopbackHTTP                             bool
 }
 
 func (c config) validate() error {
+	if c.schemaMode != "" && c.schemaMode != "auto" && c.schemaMode != "check" {
+		return errors.New("schema mode must be auto or check")
+	}
+	if c.schemaTimeout < 0 || (c.schemaMode == "check" && c.initSchema) {
+		return errors.New("invalid schema timeout or conflicting migration flags")
+	}
 	if c.mockOnly && c.providerConfig != "" {
 		return errors.New("test mock mode and real provider configuration are mutually exclusive")
 	}
@@ -87,6 +93,14 @@ func run(ctx context.Context, c config) error {
 	if err := pool.Ping(setup); err != nil {
 		return errors.New("database connection failed")
 	}
+	cancel()
+	if err := prepareSchema(ctx, pool, c); err != nil {
+		return err
+	}
+	// Identity discovery gets its own budget; a successful long migration must
+	// not leave setup using the expired connection/migration deadline.
+	setup, cancel = context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
 	ledger := budget.New(pool)
 	store := control.New(pool)
 	var providers provider.Routing
@@ -100,14 +114,6 @@ func run(ctx context.Context, c config) error {
 			return err
 		}
 		store = control.NewWithCatalog(pool, providers)
-	}
-	if c.initSchema {
-		if err := database.Migrate(setup, pool); err != nil {
-			return fmt.Errorf("database migration failed: %w", err)
-		}
-	}
-	if err := database.Check(setup, pool); err != nil {
-		return fmt.Errorf("database schema is not ready: %w", err)
 	}
 
 	if !c.mockOnly && c.providerConfig == "" {
@@ -243,7 +249,9 @@ func main() {
 	c.clientSecret = os.Getenv("AIGW_OIDC_CLIENT_SECRET")
 	flag.StringVar(&c.authMode, "auth-mode", os.Getenv("AIGW_AUTH_MODE"), "oidc (default) or explicit local offline identity")
 	flag.StringVar(&c.listen, "listen", "127.0.0.1:8080", "development loopback listener")
-	flag.BoolVar(&c.initSchema, "migrate", false, "apply embedded database migrations before development startup")
+	flag.StringVar(&c.schemaMode, "schema-mode", "auto", "auto: upgrade embedded schema before serving; check: require pre-migrated schema")
+	flag.DurationVar(&c.schemaTimeout, "schema-timeout", 5*time.Minute, "database upgrade/check timeout including migration lock wait")
+	flag.BoolVar(&c.initSchema, "migrate", false, "deprecated: auto migration is now the default; use --schema-mode=check to disable")
 	flag.BoolVar(&c.initSchema, "init-schema", false, "deprecated alias for --migrate; includes legacy schema validation")
 	flag.BoolVar(&c.mockOnly, "mock-only", false, "test-only mock service; additionally requires AIGW_TEST_MODE=1")
 	flag.StringVar(&c.providerConfig, "providers", "", "explicit mainland provider configuration file; mutually exclusive with --mock-only")
