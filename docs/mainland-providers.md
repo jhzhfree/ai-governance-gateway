@@ -28,7 +28,7 @@
 
 ## 模型、价格与货币
 
-配置模板：[providers.mainland.example.json](../config/providers.mainland.example.json)。模板包含三家条目，但证据为空、日期过期，所以不能直接启用。模型名、火山北京 endpoint ID、价格及 token 上限均须按实际账号核实；示例数字不是官方现行报价。每个模型用稳定的公开别名，如 `aliyun/qwen-plus`，映射实际 upstream_model。
+配置模板：[providers.mainland.example.json](../config/providers.mainland.example.json)。模板包含四家条目（新增 DeepSeek），但证据为空、日期过期，所以不能直接启用。模型名、火山北京 endpoint ID、价格及 token 上限均须按实际账号核实；示例数字不是官方现行报价。每个模型用稳定的公开别名，如 `aliyun/qwen-plus`，映射实际 upstream_model。
 
 `CNY_MICRO` 表示微人民币，1 元 = 1,000,000 最小单位。价格为“每百万 token 的微人民币整数”；例如示例输入价 2,000,000 对应每百万 token 2 元，仅用于说明单位。不得使用浮点数累计，也不得将旧 MOCK 账户改名或兑换为人民币。创建组织时明确选择 currency；币种创建后不可通过 API 更换，项目继承组织币种。
 
@@ -72,3 +72,5 @@ CLI/TUI 沿用现有只读上下文与账本功能，显示真实币种；TUI �
 真实上线退出条件：三家所选账号与模型均有大陆处理/存储证据；应用/数据库/日志/备份部署在大陆；现场核实端点、thinking、usage、计价与 token 上界；分别完成最小非流式、流式、取消及错误请求，保存不含凭证/正文的 request_id、价格快照、用量、结果与账单核对记录。上述退出条件当前保持待验收。
 
 本阶段验证（2026-11-03）：完整脚本通过 76 个后端顶层测试、63 个子测试，另有浏览器 fixture 父测试和 5 个 Chromium 场景；无失败或跳过。Go/Web 类型生成差异、vet/race、冻结安装、TS/ESLint/Prettier、生产构建均通过。浏览器覆盖三家合成 TLS 推理、模型撤销、人民币账本、预算单位与模型弹窗键盘焦点/Tab 循环；桌面截图已核对。上述数字均为本地验证，不是三家真实大陆服务验收。
+
+后续已增加 DeepSeek 固定路由、凭证托管与账单导入。协议来源、非思考模式及缓存/分时计价限制见 [DeepSeek 接入范围](deepseek.md)。上文三家与测试数字保留为原阶段历史证据。

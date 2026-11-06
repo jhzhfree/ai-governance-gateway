@@ -70,6 +70,7 @@ const (
 // Defines values for BillingRecordProvider.
 const (
 	BillingRecordProviderAliyun     BillingRecordProvider = "aliyun"
+	BillingRecordProviderDeepseek   BillingRecordProvider = "deepseek"
 	BillingRecordProviderVolcengine BillingRecordProvider = "volcengine"
 	BillingRecordProviderZhipu      BillingRecordProvider = "zhipu"
 )
@@ -147,6 +148,7 @@ const (
 // Defines values for ExecutionAttemptProvider.
 const (
 	ExecutionAttemptProviderAliyun     ExecutionAttemptProvider = "aliyun"
+	ExecutionAttemptProviderDeepseek   ExecutionAttemptProvider = "deepseek"
 	ExecutionAttemptProviderMock       ExecutionAttemptProvider = "mock"
 	ExecutionAttemptProviderVolcengine ExecutionAttemptProvider = "volcengine"
 	ExecutionAttemptProviderZhipu      ExecutionAttemptProvider = "zhipu"
@@ -167,6 +169,7 @@ const (
 // Defines values for InferenceModelOwnedBy.
 const (
 	InferenceModelOwnedByAliyun     InferenceModelOwnedBy = "aliyun"
+	InferenceModelOwnedByDeepseek   InferenceModelOwnedBy = "deepseek"
 	InferenceModelOwnedByMock       InferenceModelOwnedBy = "mock"
 	InferenceModelOwnedByVolcengine InferenceModelOwnedBy = "volcengine"
 	InferenceModelOwnedByZhipu      InferenceModelOwnedBy = "zhipu"
@@ -287,6 +290,7 @@ const (
 // Defines values for ModelInfoProvider.
 const (
 	ModelInfoProviderAliyun     ModelInfoProvider = "aliyun"
+	ModelInfoProviderDeepseek   ModelInfoProvider = "deepseek"
 	ModelInfoProviderMock       ModelInfoProvider = "mock"
 	ModelInfoProviderVolcengine ModelInfoProvider = "volcengine"
 	ModelInfoProviderZhipu      ModelInfoProvider = "zhipu"
@@ -342,6 +346,7 @@ const (
 // Defines values for ProviderModelConfigurationProvider.
 const (
 	ProviderModelConfigurationProviderAliyun     ProviderModelConfigurationProvider = "aliyun"
+	ProviderModelConfigurationProviderDeepseek   ProviderModelConfigurationProvider = "deepseek"
 	ProviderModelConfigurationProviderVolcengine ProviderModelConfigurationProvider = "volcengine"
 	ProviderModelConfigurationProviderZhipu      ProviderModelConfigurationProvider = "zhipu"
 )
@@ -378,6 +383,7 @@ const (
 // Defines values for RouteStatusProvider.
 const (
 	RouteStatusProviderAliyun     RouteStatusProvider = "aliyun"
+	RouteStatusProviderDeepseek   RouteStatusProvider = "deepseek"
 	RouteStatusProviderMock       RouteStatusProvider = "mock"
 	RouteStatusProviderVolcengine RouteStatusProvider = "volcengine"
 	RouteStatusProviderZhipu      RouteStatusProvider = "zhipu"
@@ -413,6 +419,7 @@ const (
 // Defines values for StatementImportProvider.
 const (
 	Aliyun     StatementImportProvider = "aliyun"
+	Deepseek   StatementImportProvider = "deepseek"
 	Volcengine StatementImportProvider = "volcengine"
 	Zhipu      StatementImportProvider = "zhipu"
 )

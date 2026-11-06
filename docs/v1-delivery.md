@@ -94,3 +94,9 @@
 新增三家固定 origin/Chat 路径与服务端参数，JSON/SSE 共用请求构造。实际 HTTP 测试发现 SDK 会改写 token 字段和思考模式，已对三家采用白名单校验后的确定请求体，未放开客户端原始透传。新增 Route 执行设置与不对外暴露的凭证绑定身份、NewSupplier 工厂和关闭接纳控制；价格版本不受换密钥影响，旧绑定拒绝新凭证快照。详见 [ADR 0006](../modules/engine/docs/adr/0006-mainland-supplier-bindings.md)。自动轮换、共享池与主程序启用尚未完成，数据库无变更。
 
 本地 `AIGW_VERIFY_WEB=0 GOMAXPROCS=4 bash scripts/verify.sh` 退出码 0：主模块 212 个顶层测试、执行模块 36 个顶层测试（适配器 31、桥接 5）通过，包括三家 × JSON/SSE 契约、三家凭证快照隔离、真实隔离 PostgreSQL、race、vet、模块校验与 Go API 契约，无失败或跳过。httpapi 159.759 秒；日志 `/workspace/.onboarding/logs/v1-stage7-verify.log`。本轮未修改 Web 和主启动路径，未重跑本地浏览器；未调用真实付费上游或操作生产库。推送前，上一提交 86fe914 的远端 run 42294000854 仍为 in_progress，本提交的远端结果也须独立核验。
+
+## DeepSeek 扩展阶段
+
+新增第四家供应商，贯通主网关和候选执行器的固定路由/JSON/SSE、凭证托管、模型授权、attempt、账单导入和控制台。追加迁移 0024 扩充供应商约束，保留自动启动升级。候选模块核验缓存分项总和，不推算缓存优惠/分时价；详情见 [DeepSeek 接入范围](deepseek.md)。完整根脚本中后端 214 个顶层测试、执行模块 36 个顶层测试通过，含真实隔离 PostgreSQL、race/vet、API 生成检查；httpapi 167.579 秒，无跳过。初次浏览器测试有 1 个失败：供应商编辑场景仍使用新增前的第 4 行序号，修正为第 5 行后重新执行冻结安装、Web 契约/类型/Lint/构建和两套浏览器 fixture，最终 16＋1 场景全部通过，退出码 0（浏览器 72.589 秒）。日志 `deepseek-verify.log`、`deepseek-web-final.log` 位于 `/workspace/.onboarding/logs/`；未把第一次失败记作通过。仅合成上游与专用测试库，无真实付费调用。
+
+基线 4aff9bc 的远端 run 42295834384 已确认 success；该结果仅属于上阶段，DeepSeek 新提交需独立验证。

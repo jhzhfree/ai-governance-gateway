@@ -85,7 +85,7 @@ func billingError(err error) error {
 	return err
 }
 func (s *Store) ImportStatement(ctx context.Context, p identity.Principal, org, project string, in ImportInput) (v ImportReceipt, err error) {
-	if (in.Provider != "aliyun" && in.Provider != "volcengine" && in.Provider != "zhipu") || !billing.Identifier(in.AccountRef) || !billing.Identifier(in.EvidenceRef) {
+	if (in.Provider != "aliyun" && in.Provider != "volcengine" && in.Provider != "zhipu" && in.Provider != "deepseek") || !billing.Identifier(in.AccountRef) || !billing.Identifier(in.EvidenceRef) {
 		return v, ErrInvalid
 	}
 	lines, e := billing.Parse(in.CSV)

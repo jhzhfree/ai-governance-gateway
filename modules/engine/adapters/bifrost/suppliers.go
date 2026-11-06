@@ -19,6 +19,8 @@ func supplier(id string) (supplierProfile, bool) {
 	switch id {
 	case "":
 		return supplierProfile{path: "/v1/chat/completions", includeUsage: true}, true
+	case "deepseek":
+		return supplierProfile{id: id, origin: "https://api.deepseek.com", path: "/chat/completions", includeUsage: true}, true
 	case "aliyun":
 		return supplierProfile{id: id, origin: "https://dashscope.aliyuncs.com", path: "/compatible-mode/v1/chat/completions", includeUsage: true}, true
 	case "volcengine":
@@ -56,7 +58,7 @@ func (p supplierProfile) parameters() map[string]any {
 	switch p.id {
 	case "aliyun":
 		return map[string]any{"enable_thinking": false}
-	case "volcengine", "zhipu":
+	case "volcengine", "zhipu", "deepseek":
 		return map[string]any{"thinking": map[string]any{"type": "disabled"}}
 	default:
 		return nil

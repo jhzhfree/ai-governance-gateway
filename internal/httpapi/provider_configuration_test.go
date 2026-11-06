@@ -165,7 +165,7 @@ func TestManagedCatalogDoesNotAcquireNestedPoolConnection(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tx.Rollback(ctx)
-	if len(manager.ModelsIn(limited, tx)) != 3 {
+	if len(manager.ModelsIn(limited, tx)) != 4 {
 		t.Fatal("transaction-scoped catalog unavailable")
 	}
 }

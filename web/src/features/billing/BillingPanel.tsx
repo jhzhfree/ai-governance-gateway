@@ -139,6 +139,7 @@ export function BillingPanel({
               <option value="aliyun">阿里云百炼</option>
               <option value="volcengine">火山方舟</option>
               <option value="zhipu">智谱</option>
+              <option value="deepseek">DeepSeek</option>
             </select>
           </label>{' '}
           <label>

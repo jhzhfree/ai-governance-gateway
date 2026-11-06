@@ -104,7 +104,7 @@ func (e *usageEvidence) observe(raw any, maxOutput int) error {
 		if e.usage != nil || (e.stream && !e.finished) {
 			return execution.ErrUpstream
 		}
-		fields, ok := object(rawUsage, "prompt_tokens", "completion_tokens", "total_tokens", "prompt_tokens_details", "completion_tokens_details")
+		fields, ok := object(rawUsage, "prompt_tokens", "completion_tokens", "total_tokens", "prompt_tokens_details", "completion_tokens_details", "prompt_cache_hit_tokens", "prompt_cache_miss_tokens")
 		if !ok {
 			return execution.ErrUpstream
 		}
@@ -121,6 +121,15 @@ func (e *usageEvidence) observe(raw any, maxOutput int) error {
 		total, c := read("total_tokens")
 		if !a || !b || !c || in < 1 || in > 2000000 || out < 0 || out > maxOutput || total != in+out {
 			return execution.ErrUpstream
+		}
+		// DeepSeek reports a cache split in addition to total prompt tokens.
+		// Preserve evidence, but do not infer discounted prices from these fields.
+		if len(fields["prompt_cache_hit_tokens"]) > 0 || len(fields["prompt_cache_miss_tokens"]) > 0 {
+			hit, h := read("prompt_cache_hit_tokens")
+			miss, m := read("prompt_cache_miss_tokens")
+			if !h || !m || hit < 0 || miss < 0 || hit > in || miss != in-hit {
+				return execution.ErrUpstream
+			}
 		}
 		e.usage = &execution.Usage{InputTokens: in, OutputTokens: out, TotalTokens: total, Evidence: append(json.RawMessage(nil), rawUsage...)}
 	}

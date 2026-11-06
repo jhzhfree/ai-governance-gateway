@@ -654,7 +654,7 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                provider: "aliyun" | "volcengine" | "zhipu";
+                provider: "aliyun" | "volcengine" | "zhipu" | "deepseek";
             };
             cookie?: never;
         };
@@ -1962,7 +1962,7 @@ export interface components {
         ModelInfo: {
             id: string;
             /** @enum {string} */
-            provider: "mock" | "aliyun" | "volcengine" | "zhipu";
+            provider: "mock" | "aliyun" | "volcengine" | "zhipu" | "deepseek";
             /** @enum {string} */
             currency: "MOCK" | "CNY_MICRO";
             /** @enum {string} */
@@ -2015,7 +2015,7 @@ export interface components {
             request_id: string;
             model: string;
             /** @enum {string} */
-            provider: "mock" | "aliyun" | "volcengine" | "zhipu";
+            provider: "mock" | "aliyun" | "volcengine" | "zhipu" | "deepseek";
             /** @enum {string} */
             region: "local" | "cn-beijing" | "cn-mainland";
             stream: boolean;
@@ -2088,7 +2088,7 @@ export interface components {
         RouteStatus: {
             model: string;
             /** @enum {string} */
-            provider: "mock" | "aliyun" | "volcengine" | "zhipu";
+            provider: "mock" | "aliyun" | "volcengine" | "zhipu" | "deepseek";
             /** @enum {string} */
             state: "not_applicable" | "unobserved" | "closed" | "open" | "half_open";
             retry_after: number;
@@ -2132,7 +2132,7 @@ export interface components {
         };
         StatementImport: {
             /** @enum {string} */
-            provider: "aliyun" | "volcengine" | "zhipu";
+            provider: "aliyun" | "volcengine" | "zhipu" | "deepseek";
             account_ref: string;
             evidence_ref: string;
             csv: string;
@@ -2146,7 +2146,7 @@ export interface components {
             id: string;
             import_id: string;
             /** @enum {string} */
-            provider: "aliyun" | "volcengine" | "zhipu";
+            provider: "aliyun" | "volcengine" | "zhipu" | "deepseek";
             account_ref: string;
             record_id: string;
             request_id: string;
@@ -2220,7 +2220,7 @@ export interface components {
              */
             created: number;
             /** @enum {string} */
-            owned_by: "mock" | "aliyun" | "volcengine" | "zhipu";
+            owned_by: "mock" | "aliyun" | "volcengine" | "zhipu" | "deepseek";
         };
         InferenceModelList: {
             /** @enum {string} */
@@ -2320,7 +2320,7 @@ export interface components {
         ProviderModelConfiguration: {
             id: string;
             /** @enum {string} */
-            provider: "aliyun" | "volcengine" | "zhipu";
+            provider: "aliyun" | "volcengine" | "zhipu" | "deepseek";
             upstream_model: string;
             price_version: string;
             /** Format: int64 */
@@ -5766,7 +5766,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                provider: "aliyun" | "volcengine" | "zhipu";
+                provider: "aliyun" | "volcengine" | "zhipu" | "deepseek";
             };
             cookie?: never;
         };

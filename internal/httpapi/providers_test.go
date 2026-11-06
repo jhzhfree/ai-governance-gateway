@@ -64,7 +64,7 @@ func providerProject(f fixture) (control.Organization, control.Project, control.
 	f.t.Helper()
 	o := parse[control.Organization](f.t, f.request(f.token("alice"), "POST", "/api/v1/organizations", map[string]any{"name": "Mainland test team", "period": "2026-11", "currency": "CNY_MICRO", "limit_amount": 10000}, 201))
 	p := parse[control.Project](f.t, f.request(f.token("alice"), "POST", orgPath(o)+"/projects", map[string]any{"name": "Mainland project", "limit_amount": 5000}, 201))
-	models := []string{"aliyun/fixture", "volcengine/fixture", "zhipu/fixture"}
+	models := []string{"aliyun/fixture", "volcengine/fixture", "zhipu/fixture", "deepseek/fixture"}
 	f.request(f.token("alice"), "PUT", projectPath(o, p)+"/models", map[string]any{"models": models}, 204)
 	key := parse[control.IssuedKey](f.t, f.request(f.token("alice"), "POST", projectPath(o, p)+"/keys", map[string]any{"name": "Multi-provider key", "models": models, "ttl_seconds": 3600}, 201))
 	return o, p, key
@@ -72,7 +72,7 @@ func providerProject(f fixture) (control.Organization, control.Project, control.
 func realPayload(model string, stream bool) map[string]any {
 	return map[string]any{"model": model, "stream": stream, "max_tokens": 8, "messages": []map[string]string{{"role": "user", "content": "synthetic mainland protocol test"}}}
 }
-func TestThreeMainlandSuppliersThroughGovernanceAndBudget(t *testing.T) {
+func TestMainlandSuppliersThroughGovernanceAndBudget(t *testing.T) {
 	f := providerSetup(t, testutil.SupplierFixture(t))
 	o, p, key := providerProject(f)
 	models := f.request(f.token("alice"), "GET", "/api/v1/models", nil, 200)
@@ -98,11 +98,11 @@ func TestThreeMainlandSuppliersThroughGovernanceAndBudget(t *testing.T) {
 		})
 	}
 	usage := parse[control.Usage](t, f.request(f.token("alice"), "GET", projectPath(o, p)+"/usage", nil, 200))
-	if usage.Currency != "CNY_MICRO" || usage.Spent != 84 || usage.Held != 0 {
-		t.Fatal("three-provider ledger not settled in separate integer yuan units")
+	if usage.Currency != "CNY_MICRO" || usage.Spent != 112 || usage.Held != 0 {
+		t.Fatal("four-provider ledger not settled in separate integer yuan units")
 	}
 	records := parse[requestPage](t, f.request(f.token("alice"), "GET", projectPath(o, p)+"/requests", nil, 200))
-	if len(records.Data) != 6 {
+	if len(records.Data) != 8 {
 		t.Fatal("supplier requests missing from accounting history")
 	}
 	for _, record := range records.Data {

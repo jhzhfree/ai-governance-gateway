@@ -5,6 +5,7 @@ import { api, type ProviderConfiguration, type ProviderConfigurationStatus } fro
 import { ErrorBox } from '../../shared/Feedback';
 
 const names: Record<string, string> = {
+  deepseek: 'DeepSeek',
   aliyun: '阿里云百炼',
   volcengine: '火山方舟',
   zhipu: '智谱',

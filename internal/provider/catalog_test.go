@@ -14,10 +14,10 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/testutil"
 )
 
-func TestThreeMainlandProfilesAndProtocol(t *testing.T) {
+func TestMainlandProfilesAndProtocol(t *testing.T) {
 	catalog, _ := testutil.MainlandCatalog(t, testutil.SupplierFixture(t))
-	if len(catalog.Models()) != 3 || !catalog.Ready() {
-		t.Fatal("three mainland routes not available")
+	if len(catalog.Models()) != 4 || !catalog.Ready() {
+		t.Fatal("four mainland routes not available")
 	}
 	for _, profile := range provider.Profiles() {
 		t.Run(profile.ID, func(t *testing.T) {
@@ -97,7 +97,7 @@ func TestReviewExpiryDisablesRouteAndCatalog(t *testing.T) {
 	timer := time.NewTimer(150 * time.Millisecond)
 	defer timer.Stop()
 	<-timer.C
-	if route.Ready() || catalog.Ready() || len(catalog.Models()) != 2 {
+	if route.Ready() || catalog.Ready() || len(catalog.Models()) != 3 {
 		t.Fatal("expired review still enabled")
 	}
 	if _, err := route.Open(context.Background(), provider.Request{}); err == nil {

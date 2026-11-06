@@ -4271,7 +4271,8 @@
             "enum": [
               "aliyun",
               "volcengine",
-              "zhipu"
+              "zhipu",
+              "deepseek"
             ]
           }
         }
@@ -12198,7 +12199,8 @@
               "mock",
               "aliyun",
               "volcengine",
-              "zhipu"
+              "zhipu",
+              "deepseek"
             ]
           },
           "currency": {
@@ -12402,7 +12404,8 @@
               "mock",
               "aliyun",
               "volcengine",
-              "zhipu"
+              "zhipu",
+              "deepseek"
             ]
           },
           "region": {
@@ -12686,7 +12689,8 @@
               "mock",
               "aliyun",
               "volcengine",
-              "zhipu"
+              "zhipu",
+              "deepseek"
             ]
           },
           "state": {
@@ -12849,7 +12853,8 @@
             "enum": [
               "aliyun",
               "volcengine",
-              "zhipu"
+              "zhipu",
+              "deepseek"
             ]
           },
           "account_ref": {
@@ -12912,7 +12917,8 @@
             "enum": [
               "aliyun",
               "volcengine",
-              "zhipu"
+              "zhipu",
+              "deepseek"
             ]
           },
           "account_ref": {
@@ -13243,7 +13249,8 @@
               "mock",
               "aliyun",
               "volcengine",
-              "zhipu"
+              "zhipu",
+              "deepseek"
             ]
           }
         },
@@ -13659,7 +13666,8 @@
             "enum": [
               "aliyun",
               "volcengine",
-              "zhipu"
+              "zhipu",
+              "deepseek"
             ]
           },
           "upstream_model": {

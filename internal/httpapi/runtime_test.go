@@ -26,7 +26,7 @@ func TestSupplierIsolationRecoveryAndRuntimePermissions(t *testing.T) {
 	o, p, key := providerProject(f)
 	path := projectPath(o, p) + "/runtime"
 	initial := parse[control.Runtime](t, f.request(f.token("alice"), "GET", path, nil, 200))
-	if len(initial.Models) != 3 || initial.Models[0].State != "unobserved" || initial.Instance == nil || initial.Instance.Tracked {
+	if len(initial.Models) != 4 || initial.Models[0].State != "unobserved" || initial.Instance == nil || initial.Instance.Tracked {
 		t.Fatal("invalid initial runtime")
 	}
 	for i := 0; i < 5; i++ {

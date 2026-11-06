@@ -132,3 +132,28 @@ func TestProviderCredentialRequiresEncryptionAndRestoresWithHistoricalKey(t *tes
 		t.Fatal("credential audit missing")
 	}
 }
+
+func TestDeepSeekCredentialPublicationAndBillingImport(t *testing.T) {
+	f, m := managedSetup(t, testutil.SupplierFixture(t))
+	ctx := context.Background()
+	admin := identity.Principal{Issuer: f.issuer.URL, Subject: "alice"}
+	if err := m.SetCredential(ctx, admin, "deepseek", 0, "synthetic-AIGW_DEEPSEEK_API_KEY"); err != nil {
+		t.Fatal(err)
+	}
+	f.request(f.token("alice"), "PUT", "/api/v1/providers", map[string]any{"expected_revision": 0, "configuration": testutil.MainlandConfig()}, 200)
+	o, p, key := providerProject(f)
+	for _, stream := range []bool{false, true} {
+		f.request(key.Secret, "POST", "/v1/chat/completions", realPayload("deepseek/fixture", stream), 200)
+	}
+	input := billImport("deepseek-invoice,,2026-11,CNY_MICRO,14,3,2")
+	input.Provider = "deepseek"
+	f.request(f.token("alice"), "POST", projectPath(o, p)+"/billing/imports", input, 200)
+	var records int
+	if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM billing_records WHERE provider='deepseek'`).Scan(&records); err != nil || records != 1 {
+		t.Fatal("DeepSeek invoice not persisted")
+	}
+	var cipher []byte
+	if err := f.pool.QueryRow(ctx, `SELECT ciphertext FROM provider_credentials WHERE provider='deepseek'`).Scan(&cipher); err != nil || bytes.Contains(cipher, []byte("synthetic-AIGW")) {
+		t.Fatal("credential storage failed")
+	}
+}

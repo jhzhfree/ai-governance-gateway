@@ -50,6 +50,21 @@
         "evidence_ref": "",
         "expires_at": "2000-01-01T00:00:00Z"
       }
+    },
+    {
+      "id": "deepseek/text",
+      "provider": "deepseek",
+      "upstream_model": "deepseek-flash",
+      "price_version": "example-not-a-current-quote",
+      "input_per_million": 2000000,
+      "output_per_million": 8000000,
+      "max_input_tokens": 131072,
+      "max_output_tokens": 4096,
+      "residency": {
+        "region": "cn-mainland",
+        "evidence_ref": "",
+        "expires_at": "2000-01-01T00:00:00Z"
+      }
     }
   ]
 }

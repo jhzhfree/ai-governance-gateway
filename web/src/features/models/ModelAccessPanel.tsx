@@ -5,6 +5,7 @@ import { ErrorBox } from '../../shared/Feedback';
 
 const providers: Record<string, string> = {
   mock: '模拟模型',
+  deepseek: 'DeepSeek',
   aliyun: '阿里云百炼 · 北京',
   volcengine: '火山方舟 · 北京',
   zhipu: '智谱 · 国内服务',

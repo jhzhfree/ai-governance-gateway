@@ -63,7 +63,7 @@ func (s Start) valid() bool {
 		return s.Region == "local"
 	case "aliyun", "volcengine":
 		return s.Region == "cn-beijing"
-	case "zhipu":
+	case "zhipu", "deepseek":
 		return s.Region == "cn-mainland"
 	}
 	return false

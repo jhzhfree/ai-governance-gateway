@@ -21,6 +21,9 @@ func TestStreamRawUsageCannotBeRepairedOrCombinedBySDK(t *testing.T) {
 		"repaired total":    {finish, usageFrame(`{"prompt_tokens":7,"completion_tokens":3,"total_tokens":1}`)},
 		"premature":         {usageFrame(valid), finish},
 		"duplicate counter": {finish, usageFrame(`{"prompt_tokens":5,"prompt_tokens":7,"completion_tokens":3,"total_tokens":10}`)},
+		"cache mismatch":    {finish, usageFrame(`{"prompt_tokens":7,"completion_tokens":3,"total_tokens":10,"prompt_cache_hit_tokens":3,"prompt_cache_miss_tokens":5}`)},
+		"cache partial":     {finish, usageFrame(`{"prompt_tokens":7,"completion_tokens":3,"total_tokens":10,"prompt_cache_hit_tokens":3}`)},
+		"cache negative":    {finish, usageFrame(`{"prompt_tokens":7,"completion_tokens":3,"total_tokens":10,"prompt_cache_hit_tokens":-1,"prompt_cache_miss_tokens":8}`)},
 		"no finish":         {usageFrame(valid)},
 	} {
 		t.Run(name, func(t *testing.T) {

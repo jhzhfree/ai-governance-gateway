@@ -28,6 +28,7 @@ type Profile struct {
 // These are fixed service entry points, not proof of provider-internal residency.
 // Deployment operators must verify account contracts before enabling a route.
 var profiles = map[string]Profile{
+	"deepseek":   {"deepseek", "cn-mainland", "https://api.deepseek.com/chat/completions", "AIGW_DEEPSEEK_API_KEY", true},
 	"aliyun":     {"aliyun", "cn-beijing", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", "AIGW_ALIYUN_API_KEY", true},
 	"volcengine": {"volcengine", "cn-beijing", "https://ark.cn-beijing.volces.com/api/v3/chat/completions", "AIGW_VOLCENGINE_API_KEY", true},
 	"zhipu":      {"zhipu", "cn-mainland", "https://open.bigmodel.cn/api/paas/v4/chat/completions", "AIGW_ZHIPU_API_KEY", false},
@@ -35,7 +36,7 @@ var profiles = map[string]Profile{
 
 func Profiles() []Profile {
 	result := []Profile{}
-	for _, id := range []string{"aliyun", "volcengine", "zhipu"} {
+	for _, id := range []string{"aliyun", "volcengine", "zhipu", "deepseek"} {
 		result = append(result, profiles[id])
 	}
 	return result
