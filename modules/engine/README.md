@@ -15,3 +15,5 @@ Bifrost Core v1.14.1，独立 Go 模块。来源为本工作区已验证的 M0 �
 第五阶段增加受治理执行桥接与原始用量证据检查，见 [ADR 0004](docs/adr/0004-governed-execution-bridge.md)。必须保留 SDK 原始帧捕获缺口的生产门禁，不能将本地合成联调等同三家供应商兼容或生产切换完成。
 
 第六阶段：流式 Chat 由适配层直接接收原始 SSE，非流式继续 Bifrost SDK；两种路径互斥且不回退。当前受支持流子集不再依赖 SDK 原始捕获，用量证据到有效 DONE 才输出。契约、代价与剩余门禁见 [ADR 0005](docs/adr/0005-strict-stream-reception.md)。
+
+第七阶段增加三家大陆供应商固定路径/参数和 SupplierBinding 工厂。凭证快照变化使旧绑定拒绝接纳新快照，但尚无自动轮换和共享池；详见 [ADR 0006](docs/adr/0006-mainland-supplier-bindings.md)。

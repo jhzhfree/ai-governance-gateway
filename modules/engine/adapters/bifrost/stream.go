@@ -32,12 +32,7 @@ func (e *Executor) stream(ctx context.Context, req execution.Request, maxOutput 
 	parent := ctx
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
-	var body map[string]json.RawMessage
-	if json.Unmarshal(req.Body, &body) != nil {
-		return execution.ErrInvalidRequest
-	}
-	body["stream_options"] = json.RawMessage(`{"include_usage":true}`)
-	payload, err := json.Marshal(body)
+	payload, err := e.profile.wireBody(req.Body, true)
 	if err != nil {
 		return execution.ErrInvalidRequest
 	}

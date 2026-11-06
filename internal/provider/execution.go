@@ -1,0 +1,26 @@
+package provider
+
+import "crypto/sha256"
+
+// ExecutionSettings is an immutable in-process snapshot for execution factories.
+// It is never a management API response; credentials are excluded from JSON and
+// ordinary formatting. A new credential snapshot requires a new executor.
+type ExecutionSettings struct {
+	Supplier        string `json:"supplier"`
+	Model           string `json:"model"`
+	MaxOutputTokens int    `json:"max_output_tokens"`
+	APIKey          string `json:"-"`
+}
+
+func (ExecutionSettings) String() string   { return "[execution settings; credentials redacted]" }
+func (ExecutionSettings) GoString() string { return "[execution settings; credentials redacted]" }
+func (r *Route) ExecutionSettings() ExecutionSettings {
+	return ExecutionSettings{Supplier: r.profile.ID, Model: r.model.UpstreamModel, MaxOutputTokens: int(r.model.MaxOutputTokens), APIKey: r.key}
+}
+
+// ExecutionIdentity is an opaque in-process cache/binding discriminator. Price
+// identity intentionally excludes credentials; execution identity must not.
+// Do not expose it in APIs, logs or persistent audit records.
+func (r *Route) ExecutionIdentity() [32]byte {
+	return sha256.Sum256([]byte(r.fingerprint + "\x00" + r.key))
+}

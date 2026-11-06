@@ -88,3 +88,9 @@
 本地 `AIGW_VERIFY_WEB=0 GOMAXPROCS=4 bash scripts/verify.sh` 退出码 0：主模块 212 个顶层测试、执行模块 32 个顶层测试（桥接内含 15 个治理场景）通过，含真实隔离 PostgreSQL、race、vet、模块校验和 Go API 契约检查，无失败或跳过。httpapi 159.992 秒。关闭/取消/过载另连续 20 轮 race 通过。日志 `/workspace/.onboarding/logs/v1-stage6-verify.log` 与 `v1-stage6-lifecycle.log`。Web 与主启动路径未修改，本轮未重跑本地浏览器；未调用付费上游或操作生产库。
 
 前一提交 18836df 的远端 run 42291747120 已确认 success：治理桥接 11.642 秒、httpapi 159.688 秒、16＋1 浏览器场景通过，无失败/跳过。该远端证据不代替本次新提交的远端结果。
+
+## 第七阶段：供应商契约与凭证绑定
+
+新增三家固定 origin/Chat 路径与服务端参数，JSON/SSE 共用请求构造。实际 HTTP 测试发现 SDK 会改写 token 字段和思考模式，已对三家采用白名单校验后的确定请求体，未放开客户端原始透传。新增 Route 执行设置与不对外暴露的凭证绑定身份、NewSupplier 工厂和关闭接纳控制；价格版本不受换密钥影响，旧绑定拒绝新凭证快照。详见 [ADR 0006](../modules/engine/docs/adr/0006-mainland-supplier-bindings.md)。自动轮换、共享池与主程序启用尚未完成，数据库无变更。
+
+本地 `AIGW_VERIFY_WEB=0 GOMAXPROCS=4 bash scripts/verify.sh` 退出码 0：主模块 212 个顶层测试、执行模块 36 个顶层测试（适配器 31、桥接 5）通过，包括三家 × JSON/SSE 契约、三家凭证快照隔离、真实隔离 PostgreSQL、race、vet、模块校验与 Go API 契约，无失败或跳过。httpapi 159.759 秒；日志 `/workspace/.onboarding/logs/v1-stage7-verify.log`。本轮未修改 Web 和主启动路径，未重跑本地浏览器；未调用真实付费上游或操作生产库。推送前，上一提交 86fe914 的远端 run 42294000854 仍为 in_progress，本提交的远端结果也须独立核验。

@@ -22,10 +22,13 @@ import (
 const MaxRequestBytes = 1 << 20
 
 type Config struct {
+	// Supplier selects fixed server-owned mainland wire behavior. Empty keeps
+	// generic OpenAI Chat. No client request field can change this selection.
+	Supplier string
 	// BaseURL is the origin, optionally with a proxy prefix, without /v1.
 	// The OpenAI provider appends /v1/chat/completions itself.
 	BaseURL string
-	APIKey  string
+	APIKey  string `json:"-"`
 	Model   string
 	// MaxOutputTokens is a server-owned ceiling, never a client override.
 	// Zero selects 4096. Values outside 16..1,000,000 are rejected.
@@ -44,12 +47,17 @@ type Executor struct {
 	model                string
 	maxOutputTokens      int
 	lifecycle            *lifecycle
+	profile              supplierProfile
 }
 
 var _ execution.Executor = (*Executor)(nil)
 
 func New(ctx context.Context, cfg Config) (*Executor, error) {
 	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	cfg, profile, err := resolveSupplier(cfg)
+	if err != nil {
 		return nil, err
 	}
 	u, err := url.Parse(cfg.BaseURL)
@@ -83,7 +91,7 @@ func New(ctx context.Context, cfg Config) (*Executor, error) {
 	if err != nil {
 		return nil, errors.New("execution engine initialization failed")
 	}
-	return &Executor{streamHTTP: streamClient(cfg.TestLoopback), streamURL: strings.TrimRight(cfg.BaseURL, "/") + "/v1/chat/completions", streamKey: cfg.APIKey, client: client, model: cfg.Model, maxOutputTokens: cfg.MaxOutputTokens, lifecycle: newLifecycle(ctx, cfg.MaxConcurrent)}, nil
+	return &Executor{streamHTTP: streamClient(cfg.TestLoopback), profile: profile, streamURL: strings.TrimRight(cfg.BaseURL, "/") + profile.path, streamKey: cfg.APIKey, client: client, model: cfg.Model, maxOutputTokens: cfg.MaxOutputTokens, lifecycle: newLifecycle(ctx, cfg.MaxConcurrent)}, nil
 }
 
 func (e *Executor) Close() {
@@ -122,6 +130,14 @@ func (e *Executor) Execute(ctx context.Context, req execution.Request, emit exec
 	converted.Provider = schemas.OpenAI
 	converted.Model = e.model
 	converted.Fallbacks = nil
+	if e.profile.id != "" {
+		body, err := e.profile.wireBody(req.Body, false)
+		if err != nil {
+			return execution.ErrInvalidRequest
+		}
+		converted.RawRequestBody = body
+		bctx.SetValue(schemas.BifrostContextKeyUseRawRequestBody, true)
+	}
 	evidence := &usageEvidence{}
 	resp, upstreamErr := e.client.ChatCompletionRequest(bctx, converted)
 	if upstreamErr != nil {
@@ -183,9 +199,17 @@ func (a *account) GetConfigForProvider(p schemas.ModelProvider) (*schemas.Provid
 	if p != schemas.OpenAI {
 		return nil, fmt.Errorf("provider not configured")
 	}
+	var custom *schemas.CustomProviderConfig
+	if profile, ok := supplier(a.cfg.Supplier); ok && profile.id != "" {
+		custom = &schemas.CustomProviderConfig{BaseProviderType: schemas.OpenAI, RequestPathOverrides: map[schemas.RequestType]string{schemas.ChatCompletionRequest: profile.path}}
+	}
 	return &schemas.ProviderConfig{
+		CustomProviderConfig:     custom,
 		SendBackRawResponse:      true,
 		NetworkConfig:            schemas.NetworkConfig{BaseURL: a.cfg.BaseURL, MaxRetries: 0, DefaultRequestTimeoutInSeconds: 10, StreamIdleTimeoutInSeconds: 3, RetryBackoffInitial: time.Millisecond, RetryBackoffMax: time.Millisecond, AllowPrivateNetwork: a.cfg.TestLoopback},
 		ConcurrencyAndBufferSize: schemas.ConcurrencyAndBufferSize{Concurrency: a.cfg.MaxConcurrent, BufferSize: a.cfg.MaxConcurrent * 2},
 	}, nil
 }
+
+func (*Executor) String() string   { return "[execution engine; credentials redacted]" }
+func (*Executor) GoString() string { return "[execution engine; credentials redacted]" }

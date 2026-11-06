@@ -20,6 +20,7 @@ import (
 // The owner closes the Executor after all bound requests have been reclaimed.
 type Binding struct {
 	executor               execution.Executor
+	revision               [32]byte
 	price, alias, upstream string
 }
 
@@ -30,11 +31,11 @@ func New(route *provider.Route, executor execution.Executor) (*Binding, error) {
 		return nil, execution.ErrInvalidRequest
 	}
 	alias, upstream := route.ExecutionModel()
-	return &Binding{executor: executor, price: route.PriceVersion(), alias: alias, upstream: upstream}, nil
+	return &Binding{revision: route.ExecutionIdentity(), executor: executor, price: route.PriceVersion(), alias: alias, upstream: upstream}, nil
 }
 
 func (b *Binding) Validate(route *provider.Route, req provider.Request) error {
-	if b == nil || route == nil || !route.Ready() || route.PriceVersion() != b.price || req.Model != b.alias || req.MaxTokens < 16 || !provider.ValidateRequest(req) {
+	if b == nil || route == nil || !route.Ready() || route.PriceVersion() != b.price || route.ExecutionIdentity() != b.revision || req.Model != b.alias || req.MaxTokens < 16 || !provider.ValidateRequest(req) {
 		return execution.ErrInvalidRequest
 	}
 	if _, err := route.Bound(req.MaxTokens); err != nil {
