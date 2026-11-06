@@ -54,7 +54,7 @@ func setup(t *testing.T) fixture {
 	t.Cleanup(upstream.Close)
 	mux := http.NewServeMux()
 	mux.Handle("/api/v1/", httpapi.New(store, auth))
-	mux.Handle("/v1/", &gateway.Handler{ListModels: store.KeyModels, Admission: admission.New(pool), Attempts: execution.New(pool), Ledger: ledger, Authorize: store.ResolveKey, Client: upstream.Client(), Upstream: upstream.URL + "/v1/chat/completions"})
+	mux.Handle("/v1/", &gateway.Handler{DeviceProof: store.VerifyDeviceRequest, ListModels: store.KeyModels, Admission: admission.New(pool), Attempts: execution.New(pool), Ledger: ledger, Authorize: store.ResolveKey, Client: upstream.Client(), Upstream: upstream.URL + "/v1/chat/completions"})
 	s := httptest.NewServer(mux)
 	t.Cleanup(s.Close)
 	doc, err := openapi3.NewLoader().LoadFromData(openapi.Document)

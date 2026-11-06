@@ -1144,3 +1144,151 @@ test('department costs retain admission snapshot and CSV uses applied historical
     .analyze();
   expect(accessibility.violations.map((v) => v.id)).toEqual([]);
 });
+
+test('device enrollment, required policy, DPoP inference and revocation use real APIs', async ({
+  page,
+  baseURL,
+}) => {
+  const { generateKeyPairSync, createHash, randomUUID, sign } = await import('node:crypto');
+  const pair = generateKeyPairSync('ed25519');
+  const jwk = pair.publicKey.export({ format: 'jwk' });
+  const publicKey = String(jwk.x);
+  const proof = (method: string, path: string, token = '') => {
+    const header = Buffer.from(JSON.stringify({ typ: 'dpop+jwt', alg: 'EdDSA', jwk })).toString(
+      'base64url',
+    );
+    const payload = Buffer.from(
+      JSON.stringify({
+        jti: randomUUID(),
+        htm: method,
+        htu: baseURL! + path,
+        iat: Math.floor(Date.now() / 1000),
+        ...(token ? { ath: createHash('sha256').update(token).digest('base64url') } : {}),
+      }),
+    ).toString('base64url');
+    const data = `${header}.${payload}`;
+    return `${data}.${sign(null, Buffer.from(data), pair.privateKey).toString('base64url')}`;
+  };
+  await page.goto('/');
+  await page.getByRole('link', { name: /使用组织账号登录/ }).click();
+  const session = (await (await page.request.get('/auth/session')).json()) as {
+    csrf_token: string;
+  };
+  const headers = { Origin: baseURL!, 'X-CSRF-Token': session.csrf_token };
+  const orgResponse = await page.request.post('/api/v1/organizations', {
+    headers,
+    data: { name: '终端准入验收', period: '2026-11', currency: 'CNY_MICRO', limit_amount: 10000 },
+  });
+  expect(orgResponse.status()).toBe(201);
+  const org = (await orgResponse.json()) as { id: string };
+  const orgPath = `/api/v1/organizations/${org.id}`;
+  const pr = await page.request.post(`${orgPath}/projects`, {
+    headers,
+    data: { name: '设备调用项目', limit_amount: 5000 },
+  });
+  expect(pr.status()).toBe(201);
+  const project = (await pr.json()) as { id: string };
+  const projectPath = `${orgPath}/projects/${project.id}`;
+  expect(
+    (
+      await page.request.put(`${projectPath}/models`, {
+        headers,
+        data: { models: ['aliyun/fixture'] },
+      })
+    ).status(),
+  ).toBe(204);
+  const issued = await page.request.post(`${projectPath}/keys`, {
+    headers,
+    data: { name: '被准入策略阻断的静态密钥', models: ['aliyun/fixture'], ttl_seconds: 3600 },
+  });
+  expect(issued.status()).toBe(201);
+  const oldKey = (await issued.json()) as { secret: string };
+  await page.goto(`/?org=${org.id}&project=${project.id}&view=devices`);
+  await expect(page.getByRole('heading', { name: '终端基础准入', exact: true })).toBeVisible();
+  await page.getByLabel('设备名称', { exact: true }).fill('Ubuntu 设备');
+  await page.getByLabel('Ed25519 设备公钥', { exact: true }).fill(publicKey);
+  await page.getByRole('button', { name: '登记设备公钥', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: '公钥已登记' })).toBeVisible();
+  await page.getByRole('combobox', { name: '设备操作', exact: true }).selectOption('active');
+  await page.getByLabel('设备操作原因', { exact: true }).fill('合成验收：人工核对公钥');
+  await page
+    .getByLabel('我已核对设备公钥和所属人员，此确认不代表安全体检', { exact: true })
+    .check();
+  await page.getByRole('button', { name: '提交设备操作', exact: true }).click();
+  await expect(page.getByText(/设备编号 .*已确认.*版本 1/)).toBeVisible();
+  const devices = (await (await page.request.get(`${orgPath}/devices`)).json()) as {
+    data: { id: string }[];
+  };
+  expect(devices.data).toHaveLength(1);
+  const device = devices.data[0];
+  const sessionPath = `${projectPath}/devices/${device.id}/sessions`;
+  const tokenResponse = await page.request.post(sessionPath, {
+    headers: { ...headers, DPoP: proof('POST', sessionPath) },
+    data: { models: ['aliyun/fixture'] },
+  });
+  expect(tokenResponse.status()).toBe(201);
+  const deviceToken = (await tokenResponse.json()) as { token: string };
+  await page.getByLabel('要求已确认设备与请求证明', { exact: true }).check();
+  await page.getByLabel('准入策略变更原因', { exact: true }).fill('合成验收：强制终端准入');
+  await page.getByLabel('我确认开启后原项目密钥将被阻断', { exact: true }).check();
+  await page.getByRole('button', { name: '保存项目准入策略', exact: true }).click();
+  await expect(
+    page.getByText('当前状态：强制设备准入 · 策略版本 1', { exact: true }),
+  ).toBeVisible();
+  expect(
+    (
+      await page.request.get('/v1/models', {
+        headers: { Authorization: `Bearer ${oldKey.secret}`, 'X-Device-ID': device.id },
+      })
+    ).status(),
+  ).toBe(403);
+  expect(
+    (
+      await page.request.get('/v1/models', {
+        headers: { Authorization: `Bearer ${deviceToken.token}` },
+      })
+    ).status(),
+  ).toBe(401);
+  const inference = await page.request.post('/v1/chat/completions', {
+    headers: {
+      Authorization: `DPoP ${deviceToken.token}`,
+      DPoP: proof('POST', '/v1/chat/completions', deviceToken.token),
+    },
+    data: {
+      model: 'aliyun/fixture',
+      max_tokens: 8,
+      messages: [{ role: 'user', content: 'synthetic device admission fixture' }],
+    },
+  });
+  expect(inference.status()).toBe(200);
+  const requestID = inference.headers()['x-request-id'];
+  await page.getByRole('button', { name: '刷新设备', exact: true }).click();
+  await page.reload();
+  await page.getByRole('combobox', { name: '选择设备', exact: true }).selectOption(device.id);
+  await expect(page.getByRole('link', { name: requestID, exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const a11y = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(a11y.violations.map((v) => ({ id: v.id, nodes: v.nodes.map((n) => n.target) }))).toEqual(
+    [],
+  );
+  await page.getByRole('combobox', { name: '设备操作', exact: true }).selectOption('revoked');
+  await page.getByLabel('设备操作原因', { exact: true }).fill('合成验收：设备丢失');
+  await page.getByLabel('我确认永久撤销，恢复账号也不会复活此设备', { exact: true }).check();
+  await page.getByRole('button', { name: '提交设备操作', exact: true }).click();
+  await expect(
+    page.getByText('设备已永久撤销。重新接入须生成新密钥并重新登记，不能复用已撤销公钥。', {
+      exact: true,
+    }),
+  ).toBeVisible();
+  expect(
+    (
+      await page.request.get('/v1/models', {
+        headers: {
+          Authorization: `DPoP ${deviceToken.token}`,
+          DPoP: proof('GET', '/v1/models', deviceToken.token),
+        },
+      })
+    ).status(),
+  ).toBe(401);
+});

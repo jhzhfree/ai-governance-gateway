@@ -59,3 +59,5 @@ AI 治理网关：面向团队的统一模型接入、访问控制、预算限�
 部门成本：见 [入账时快照与历史筛选](docs/department-cost-attribution.md)，旧账不回填，移动/重命名不改历史归属，Web/CLI/TUI 与审计 CSV 共用口径。
 
 预算审批：见 [双人调额流程与升级](docs/budget-approvals.md)，所有者可启用策略，禁止自审，批准时重检周期/版本/余额，事务原子留痕。
+
+终端基础准入：见 [设备登记、DPoP 和 Linux SDK 代理](docs/device-admission.md)，管理员人工确认公钥，五分钟凭证与共享防重放，项目可强制启用；不冒充 TPM 或终端安全体检。

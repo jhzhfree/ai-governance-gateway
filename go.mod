@@ -5,6 +5,7 @@ go 1.26.0
 toolchain go1.27.3
 
 require (
+	github.com/go-jose/go-jose/v4 v4.0.5
 	charm.land/bubbletea/v2 v2.1.1
 	charm.land/lipgloss/v2 v2.0.6
 	github.com/charmbracelet/x/ansi v0.11.9
@@ -28,7 +29,6 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/dprotaso/go-yit v0.0.0-20220510233725-9ba8df137936 // indirect
-	github.com/go-jose/go-jose/v4 v4.0.5 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect

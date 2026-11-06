@@ -94,6 +94,12 @@ const (
 	BudgetApprovalStateRejected BudgetApprovalState = "rejected"
 )
 
+// Defines values for ChangeDeviceState.
+const (
+	ChangeDeviceStateActive  ChangeDeviceState = "active"
+	ChangeDeviceStateRevoked ChangeDeviceState = "revoked"
+)
+
 // Defines values for ContentMetaState.
 const (
 	ContentMetaStateCanceled   ContentMetaState = "canceled"
@@ -121,6 +127,13 @@ const (
 	DepartmentGrantRoleAdmin     DepartmentGrantRole = "admin"
 	DepartmentGrantRoleDeveloper DepartmentGrantRole = "developer"
 	DepartmentGrantRoleViewer    DepartmentGrantRole = "viewer"
+)
+
+// Defines values for DeviceState.
+const (
+	DeviceStateActive  DeviceState = "active"
+	DeviceStatePending DeviceState = "pending"
+	DeviceStateRevoked DeviceState = "revoked"
 )
 
 // Defines values for ExecutionAttemptOutcome.
@@ -198,6 +211,11 @@ const (
 	ExecutionUnfinished InspectionItemReasons = "execution_unfinished"
 	MetadataUnrecorded  InspectionItemReasons = "metadata_unrecorded"
 	OpenHold            InspectionItemReasons = "open_hold"
+)
+
+// Defines values for IssuedDeviceSessionTokenType.
+const (
+	DPoP IssuedDeviceSessionTokenType = "DPoP"
 )
 
 // Defines values for KeywordRuleAction.
@@ -706,6 +724,16 @@ type BudgetCycle struct {
 	Revision int64 `json:"revision"`
 }
 
+// ChangeDevice defines model for ChangeDevice.
+type ChangeDevice struct {
+	ExpectedRevision int64             `json:"expected_revision"`
+	Reason           string            `json:"reason"`
+	State            ChangeDeviceState `json:"state"`
+}
+
+// ChangeDeviceState defines model for ChangeDevice.State.
+type ChangeDeviceState string
+
 // ContentAccess defines model for ContentAccess.
 type ContentAccess struct {
 	Actor     BillingActor `json:"actor"`
@@ -906,6 +934,83 @@ type DepartmentVersionPage struct {
 	NextCursor string              `json:"next_cursor"`
 }
 
+// Device defines model for Device.
+type Device struct {
+	CreatedAt time.Time   `json:"created_at"`
+	Id        string      `json:"id"`
+	Name      string      `json:"name"`
+	Owner     Principal   `json:"owner"`
+	PublicKey string      `json:"public_key"`
+	Revision  int64       `json:"revision"`
+	State     DeviceState `json:"state"`
+}
+
+// DeviceState defines model for Device.State.
+type DeviceState string
+
+// DeviceEvent defines model for DeviceEvent.
+type DeviceEvent struct {
+	Actor     Principal `json:"actor"`
+	CreatedAt time.Time `json:"created_at"`
+	Reason    string    `json:"reason"`
+	Revision  int64     `json:"revision"`
+	State     string    `json:"state"`
+}
+
+// DeviceEventPage defines model for DeviceEventPage.
+type DeviceEventPage struct {
+	Data       []DeviceEvent `json:"data"`
+	NextCursor string        `json:"next_cursor"`
+}
+
+// DevicePage defines model for DevicePage.
+type DevicePage struct {
+	Data       []Device `json:"data"`
+	NextCursor string   `json:"next_cursor"`
+}
+
+// DevicePolicy defines model for DevicePolicy.
+type DevicePolicy struct {
+	Available bool  `json:"available"`
+	Required  bool  `json:"required"`
+	Revision  int64 `json:"revision"`
+}
+
+// DeviceReason defines model for DeviceReason.
+type DeviceReason struct {
+	Reason string `json:"reason"`
+}
+
+// DeviceRequest defines model for DeviceRequest.
+type DeviceRequest struct {
+	CreatedAt time.Time `json:"created_at"`
+	ProjectId string    `json:"project_id"`
+	RequestId string    `json:"request_id"`
+	SessionId string    `json:"session_id"`
+}
+
+// DeviceRequestPage defines model for DeviceRequestPage.
+type DeviceRequestPage struct {
+	Data       []DeviceRequest `json:"data"`
+	NextCursor string          `json:"next_cursor"`
+}
+
+// DeviceSession defines model for DeviceSession.
+type DeviceSession struct {
+	DeviceId  string     `json:"device_id"`
+	ExpiresAt time.Time  `json:"expires_at"`
+	Id        string     `json:"id"`
+	Models    []string   `json:"models"`
+	ProjectId string     `json:"project_id"`
+	RevokedAt *time.Time `json:"revoked_at"`
+}
+
+// DeviceSessionPage defines model for DeviceSessionPage.
+type DeviceSessionPage struct {
+	Data       []DeviceSession `json:"data"`
+	NextCursor string          `json:"next_cursor"`
+}
+
 // Error defines model for Error.
 type Error struct {
 	Error struct {
@@ -1068,6 +1173,28 @@ type InstanceMetrics struct {
 	Tracked bool `json:"tracked"`
 }
 
+// IssueDeviceSession defines model for IssueDeviceSession.
+type IssueDeviceSession struct {
+	Models []string `json:"models"`
+}
+
+// IssuedDeviceSession defines model for IssuedDeviceSession.
+type IssuedDeviceSession struct {
+	DeviceId  string     `json:"device_id"`
+	ExpiresAt time.Time  `json:"expires_at"`
+	Id        string     `json:"id"`
+	Models    []string   `json:"models"`
+	ProjectId string     `json:"project_id"`
+	RevokedAt *time.Time `json:"revoked_at"`
+
+	// Token One-time response; never log or persist as plaintext.
+	Token     string                       `json:"token"`
+	TokenType IssuedDeviceSessionTokenType `json:"token_type"`
+}
+
+// IssuedDeviceSessionTokenType defines model for IssuedDeviceSession.TokenType.
+type IssuedDeviceSessionTokenType string
+
 // IssuedKey defines model for IssuedKey.
 type IssuedKey struct {
 	// CanRevoke Whether this caller may revoke the key; authorization is enforced again on DELETE.
@@ -1229,6 +1356,7 @@ type MemberLifecycleEvent struct {
 	RemovedProjectGrants    int64     `json:"removed_project_grants"`
 	Revision                int64     `json:"revision"`
 	RevokedAuditors         int64     `json:"revoked_auditors"`
+	RevokedDevices          int64     `json:"revoked_devices"`
 	RevokedKeys             int64     `json:"revoked_keys"`
 }
 
@@ -1441,6 +1569,12 @@ type PublishProviderConfiguration struct {
 	ExpectedRevision int64                 `json:"expected_revision"`
 }
 
+// RegisterDevice defines model for RegisterDevice.
+type RegisterDevice struct {
+	Name      string `json:"name"`
+	PublicKey string `json:"public_key"`
+}
+
 // RemoveProjectMember defines model for RemoveProjectMember.
 type RemoveProjectMember struct {
 	ExpectedRole RemoveProjectMemberExpectedRole `json:"expected_role"`
@@ -1557,6 +1691,13 @@ type SetBudgetApprovalPolicy struct {
 type SetDepartments struct {
 	Configuration DepartmentConfiguration `json:"configuration"`
 	Reason        string                  `json:"reason"`
+}
+
+// SetDevicePolicy defines model for SetDevicePolicy.
+type SetDevicePolicy struct {
+	ExpectedRevision int64  `json:"expected_revision"`
+	Reason           string `json:"reason"`
+	Required         bool   `json:"required"`
 }
 
 // SetMemberEnabled defines model for SetMemberEnabled.
@@ -1727,6 +1868,26 @@ type ListDepartmentHistoryParams struct {
 	After *string `form:"after,omitempty" json:"after,omitempty"`
 }
 
+// ListDevicesParams defines parameters for ListDevices.
+type ListDevicesParams struct {
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+}
+
+// ListDeviceEventsParams defines parameters for ListDeviceEvents.
+type ListDeviceEventsParams struct {
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+}
+
+// ListDeviceRequestsParams defines parameters for ListDeviceRequests.
+type ListDeviceRequestsParams struct {
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+}
+
+// ListDeviceSessionsParams defines parameters for ListDeviceSessions.
+type ListDeviceSessionsParams struct {
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+}
+
 // ListOrganizationMembersParams defines parameters for ListOrganizationMembers.
 type ListOrganizationMembersParams struct {
 	After *string `form:"after,omitempty" json:"after,omitempty"`
@@ -1823,6 +1984,11 @@ type ExportProjectCostReportParams struct {
 	DepartmentState *string `form:"department_state,omitempty" json:"department_state,omitempty"`
 }
 
+// IssueDeviceSessionParams defines parameters for IssueDeviceSession.
+type IssueDeviceSessionParams struct {
+	DPoP string `json:"DPoP"`
+}
+
 // InspectProjectParams defines parameters for InspectProject.
 type InspectProjectParams struct {
 	After            *string `form:"after,omitempty" json:"after,omitempty"`
@@ -1916,6 +2082,15 @@ type RotateBudgetPeriodJSONRequestBody = RotateBudgetPeriod
 // SetDepartmentsJSONRequestBody defines body for SetDepartments for application/json ContentType.
 type SetDepartmentsJSONRequestBody = SetDepartments
 
+// RegisterDeviceJSONRequestBody defines body for RegisterDevice for application/json ContentType.
+type RegisterDeviceJSONRequestBody = RegisterDevice
+
+// ChangeDeviceJSONRequestBody defines body for ChangeDevice for application/json ContentType.
+type ChangeDeviceJSONRequestBody = ChangeDevice
+
+// RevokeDeviceSessionJSONRequestBody defines body for RevokeDeviceSession for application/json ContentType.
+type RevokeDeviceSessionJSONRequestBody = DeviceReason
+
 // PutOrganizationMemberJSONRequestBody defines body for PutOrganizationMember for application/json ContentType.
 type PutOrganizationMemberJSONRequestBody = Member
 
@@ -1957,6 +2132,12 @@ type SetContentPolicyJSONRequestBody = UpdateContentPolicy
 
 // RevealContentJSONRequestBody defines body for RevealContent for application/json ContentType.
 type RevealContentJSONRequestBody = ContentReveal
+
+// SetDevicePolicyJSONRequestBody defines body for SetDevicePolicy for application/json ContentType.
+type SetDevicePolicyJSONRequestBody = SetDevicePolicy
+
+// IssueDeviceSessionJSONRequestBody defines body for IssueDeviceSession for application/json ContentType.
+type IssueDeviceSessionJSONRequestBody = IssueDeviceSession
 
 // CreateProjectKeyJSONRequestBody defines body for CreateProjectKey for application/json ContentType.
 type CreateProjectKeyJSONRequestBody = CreateKey

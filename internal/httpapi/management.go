@@ -38,6 +38,16 @@ func NewWithSession(store *control.Store, auth identity.Authenticator, session S
 func NewWithRuntime(store *control.Store, auth identity.Authenticator, session SessionAuthenticator, monitor *observe.Registry) http.Handler {
 	h := &Handler{Store: store, Auth: auth, Monitor: monitor}
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/organizations/{org}/devices", h.devices)
+	mux.HandleFunc("POST /api/v1/organizations/{org}/devices", h.devices)
+	mux.HandleFunc("PUT /api/v1/organizations/{org}/devices/{device}", h.changeDevice)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/devices/{device}/sessions", h.deviceSessions)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/devices/{device}/requests", h.deviceRequests)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/devices/{device}/events", h.deviceEvents)
+	mux.HandleFunc("POST /api/v1/organizations/{org}/devices/{device}/sessions/{session}/revoke", h.revokeDeviceSession)
+	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/device-policy", h.devicePolicy)
+	mux.HandleFunc("PUT /api/v1/organizations/{org}/projects/{project}/device-policy", h.devicePolicy)
+	mux.HandleFunc("POST /api/v1/organizations/{org}/projects/{project}/devices/{device}/sessions", h.issueDeviceSession)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/budget/approval-policy/changes", h.approvalPolicyChanges)
 	mux.HandleFunc("GET /api/v1/organizations/{org}/budget/approval-policy", h.approvalPolicy)
 	mux.HandleFunc("PUT /api/v1/organizations/{org}/budget/approval-policy", h.approvalPolicy)

@@ -1581,6 +1581,177 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organizations/{org}/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+            };
+            cookie?: never;
+        };
+        /** @description Device identity admission only: manual administrator confirmation, Ed25519 DPoP proof and 5-minute opaque session. No endpoint posture/TPM/SAC attestation. Current member/project permissions and database revocations checked for every new request. TLS required; proof binds method/path/token, not body or query. */
+        get: operations["listDevices"];
+        put?: never;
+        /** @description Device identity admission only: manual administrator confirmation, Ed25519 DPoP proof and 5-minute opaque session. No endpoint posture/TPM/SAC attestation. Current member/project permissions and database revocations checked for every new request. TLS required; proof binds method/path/token, not body or query. */
+        post: operations["registerDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{org}/devices/{device}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                device: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Device identity admission only: manual administrator confirmation, Ed25519 DPoP proof and 5-minute opaque session. No endpoint posture/TPM/SAC attestation. Current member/project permissions and database revocations checked for every new request. TLS required; proof binds method/path/token, not body or query. */
+        put: operations["changeDevice"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{org}/devices/{device}/sessions": {
+        parameters: {
+            query?: {
+                after?: string;
+            };
+            header?: never;
+            path: {
+                org: string;
+                device: string;
+            };
+            cookie?: never;
+        };
+        /** @description Device identity admission only: manual administrator confirmation, Ed25519 DPoP proof and 5-minute opaque session. No endpoint posture/TPM/SAC attestation. Current member/project permissions and database revocations checked for every new request. TLS required; proof binds method/path/token, not body or query. */
+        get: operations["listDeviceSessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{org}/devices/{device}/requests": {
+        parameters: {
+            query?: {
+                after?: string;
+            };
+            header?: never;
+            path: {
+                org: string;
+                device: string;
+            };
+            cookie?: never;
+        };
+        /** @description Device identity admission only: manual administrator confirmation, Ed25519 DPoP proof and 5-minute opaque session. No endpoint posture/TPM/SAC attestation. Current member/project permissions and database revocations checked for every new request. TLS required; proof binds method/path/token, not body or query. */
+        get: operations["listDeviceRequests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{org}/devices/{device}/events": {
+        parameters: {
+            query?: {
+                after?: string;
+            };
+            header?: never;
+            path: {
+                org: string;
+                device: string;
+            };
+            cookie?: never;
+        };
+        /** @description Device identity admission only: manual administrator confirmation, Ed25519 DPoP proof and 5-minute opaque session. No endpoint posture/TPM/SAC attestation. Current member/project permissions and database revocations checked for every new request. TLS required; proof binds method/path/token, not body or query. */
+        get: operations["listDeviceEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{org}/devices/{device}/sessions/{session}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                device: string;
+                session: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Device identity admission only: manual administrator confirmation, Ed25519 DPoP proof and 5-minute opaque session. No endpoint posture/TPM/SAC attestation. Current member/project permissions and database revocations checked for every new request. TLS required; proof binds method/path/token, not body or query. */
+        post: operations["revokeDeviceSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{org}/projects/{project}/device-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        /** @description Device identity admission only: manual administrator confirmation, Ed25519 DPoP proof and 5-minute opaque session. No endpoint posture/TPM/SAC attestation. Current member/project permissions and database revocations checked for every new request. TLS required; proof binds method/path/token, not body or query. */
+        get: operations["getDevicePolicy"];
+        /** @description Device identity admission only: manual administrator confirmation, Ed25519 DPoP proof and 5-minute opaque session. No endpoint posture/TPM/SAC attestation. Current member/project permissions and database revocations checked for every new request. TLS required; proof binds method/path/token, not body or query. */
+        put: operations["setDevicePolicy"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{org}/projects/{project}/devices/{device}/sessions": {
+        parameters: {
+            query?: never;
+            header: {
+                DPoP: string;
+            };
+            path: {
+                org: string;
+                project: string;
+                device: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Device identity admission only: manual administrator confirmation, Ed25519 DPoP proof and 5-minute opaque session. No endpoint posture/TPM/SAC attestation. Current member/project permissions and database revocations checked for every new request. TLS required; proof binds method/path/token, not body or query. */
+        post: operations["issueDeviceSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2473,6 +2644,8 @@ export interface components {
             canceled_transfers: number;
             /** Format: int64 */
             removed_department_grants: number;
+            /** Format: int64 */
+            revoked_devices: number;
         };
         MemberLifecyclePage: {
             data: components["schemas"]["MemberLifecycleEvent"][];
@@ -2593,6 +2766,103 @@ export interface components {
         BudgetApprovalPolicyChangePage: {
             data: components["schemas"]["BudgetApprovalPolicyChange"][];
             next_cursor: string;
+        };
+        Device: {
+            id: string;
+            owner: components["schemas"]["Principal"];
+            name: string;
+            public_key: string;
+            /** @enum {string} */
+            state: "pending" | "active" | "revoked";
+            /** Format: int64 */
+            revision: number;
+            /** Format: date-time */
+            created_at: string;
+        };
+        RegisterDevice: {
+            name: string;
+            public_key: string;
+        };
+        ChangeDevice: {
+            /** @enum {string} */
+            state: "active" | "revoked";
+            /** Format: int64 */
+            expected_revision: number;
+            reason: string;
+        };
+        DevicePolicy: {
+            required: boolean;
+            /** Format: int64 */
+            revision: number;
+            available: boolean;
+        };
+        SetDevicePolicy: {
+            required: boolean;
+            /** Format: int64 */
+            expected_revision: number;
+            reason: string;
+        };
+        DeviceSession: {
+            id: string;
+            device_id: string;
+            project_id: string;
+            models: string[];
+            /** Format: date-time */
+            expires_at: string;
+            /** Format: date-time */
+            revoked_at: string | null;
+        };
+        IssuedDeviceSession: {
+            id: string;
+            device_id: string;
+            project_id: string;
+            models: string[];
+            /** Format: date-time */
+            expires_at: string;
+            /** Format: date-time */
+            revoked_at: string | null;
+            /** @description One-time response; never log or persist as plaintext. */
+            token: string;
+            /** @enum {string} */
+            token_type: "DPoP";
+        };
+        IssueDeviceSession: {
+            models: string[];
+        };
+        DeviceRequest: {
+            request_id: string;
+            session_id: string;
+            project_id: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        DeviceEvent: {
+            /** Format: int64 */
+            revision: number;
+            state: string;
+            actor: components["schemas"]["Principal"];
+            reason: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        DevicePage: {
+            data: components["schemas"]["Device"][];
+            next_cursor: string;
+        };
+        DeviceSessionPage: {
+            data: components["schemas"]["DeviceSession"][];
+            next_cursor: string;
+        };
+        DeviceRequestPage: {
+            data: components["schemas"]["DeviceRequest"][];
+            next_cursor: string;
+        };
+        DeviceEventPage: {
+            data: components["schemas"]["DeviceEvent"][];
+            next_cursor: string;
+        };
+        DeviceReason: {
+            reason: string;
         };
     };
     responses: never;
@@ -9674,6 +9944,804 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BudgetApprovalPolicyChangePage"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Lifecycle revision or state changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listDevices: {
+        parameters: {
+            query?: {
+                after?: string;
+            };
+            header?: never;
+            path: {
+                org: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DevicePage"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Lifecycle revision or state changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    registerDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterDevice"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Device"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Lifecycle revision or state changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    changeDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                device: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeDevice"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Device"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Lifecycle revision or state changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listDeviceSessions: {
+        parameters: {
+            query?: {
+                after?: string;
+            };
+            header?: never;
+            path: {
+                org: string;
+                device: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceSessionPage"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Lifecycle revision or state changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listDeviceRequests: {
+        parameters: {
+            query?: {
+                after?: string;
+            };
+            header?: never;
+            path: {
+                org: string;
+                device: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceRequestPage"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Lifecycle revision or state changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listDeviceEvents: {
+        parameters: {
+            query?: {
+                after?: string;
+            };
+            header?: never;
+            path: {
+                org: string;
+                device: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceEventPage"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Lifecycle revision or state changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    revokeDeviceSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                device: string;
+                session: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeviceReason"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Lifecycle revision or state changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getDevicePolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DevicePolicy"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Lifecycle revision or state changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    setDevicePolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetDevicePolicy"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DevicePolicy"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Lifecycle revision or state changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    issueDeviceSession: {
+        parameters: {
+            query?: never;
+            header: {
+                DPoP: string;
+            };
+            path: {
+                org: string;
+                project: string;
+                device: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IssueDeviceSession"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssuedDeviceSession"];
                 };
             };
             /** @description Invalid input */

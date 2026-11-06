@@ -38,7 +38,7 @@ func managedSetup(t *testing.T, suppliers ...http.Handler) (fixture, *provider.M
 	}
 	mux := http.NewServeMux()
 	mux.Handle("/api/v1/", httpapi.New(f.store, auth))
-	mux.Handle("/v1/", &gateway.Handler{Keywords: keyword.New(f.pool), Providers: manager, Ledger: budget.New(f.pool), Admission: admission.New(f.pool), Circuits: circuit.New(f.pool), Attempts: execution.New(f.pool), Authorize: f.store.ResolveKey, ListModels: f.store.KeyModels})
+	mux.Handle("/v1/", &gateway.Handler{DeviceProof: f.store.VerifyDeviceRequest, Keywords: keyword.New(f.pool), Providers: manager, Ledger: budget.New(f.pool), Admission: admission.New(f.pool), Circuits: circuit.New(f.pool), Attempts: execution.New(f.pool), Authorize: f.store.ResolveKey, ListModels: f.store.KeyModels})
 	f.server = httptest.NewServer(mux)
 	t.Cleanup(f.server.Close)
 	return f, manager

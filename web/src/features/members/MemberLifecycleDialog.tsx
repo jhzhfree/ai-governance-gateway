@@ -96,9 +96,9 @@ export function MemberLifecycleDialog({
                 </p>
                 <p>{v.reason}</p>
                 <p>
-                  撤销密钥 {v.revoked_keys} · 移除项目授权 {v.removed_project_grants} · 回收部门授权{' '}
-                  {v.removed_department_grants} · 撤销审计员 {v.revoked_auditors} · 取消交接{' '}
-                  {v.canceled_transfers}
+                  撤销设备 {v.revoked_devices} · 撤销密钥 {v.revoked_keys} · 移除项目授权{' '}
+                  {v.removed_project_grants} · 回收部门授权 {v.removed_department_grants} ·
+                  撤销审计员 {v.revoked_auditors} · 取消交接 {v.canceled_transfers}
                 </p>
               </div>
             ))}

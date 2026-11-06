@@ -138,3 +138,7 @@ AIGW_VERIFY_WEB=1 bash scripts/verify.sh
 ### 0022：预算调额审批
 
 新增 `budget_approval_policies`、`budget_approval_requests`、`budget_approval_policy_versions`。默认关闭，不改旧余额或费用；启用后直接调额和非零新建项目被拒绝，须独立审批。先排空旧服务再迁移至 0022 并检查，禁止不识别审批策略的旧版混跑。详见 [预算审批](budget-approvals.md)。
+
+### 0023：终端基础准入
+
+追加设备登记/状态事件、项目准入策略/事件、五分钟设备会话、共享防重放 nonce 和入账设备关联，共 7 张表；成员停用历史增加设备回收数。默认不强制旧项目。排空旧进程后迁移至 0023 并检查，再验证公开地址和代理；禁止不识别策略的旧版本混跑。详见 [基础准入](device-admission.md)。

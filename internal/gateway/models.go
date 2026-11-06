@@ -23,10 +23,15 @@ func (h *Handler) models(w http.ResponseWriter, r *http.Request, id string) {
 		problem(w, 401, "unauthenticated", id)
 		return
 	}
-	token, err := identity.Bearer(r.Header.Get("Authorization"))
+	token, err := inferenceToken(r)
 	if err != nil {
 		w.Header().Set("WWW-Authenticate", `Bearer realm="inference"`)
 		problem(w, 401, "unauthenticated", id)
+		return
+	}
+	var allowedDevice bool
+	r, allowedDevice = h.deviceRequest(w, r, id, token)
+	if !allowedDevice {
 		return
 	}
 	if h.ListModels == nil {
@@ -40,6 +45,8 @@ func (h *Handler) models(w http.ResponseWriter, r *http.Request, id string) {
 		if errors.Is(err, identity.ErrUnauthenticated) {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="inference"`)
 			problem(w, 401, "unauthenticated", id)
+		} else if errors.Is(err, identity.ErrForbidden) {
+			problem(w, 403, "device_or_model_forbidden", id)
 		} else {
 			problem(w, 503, "authorization_unavailable", id)
 		}

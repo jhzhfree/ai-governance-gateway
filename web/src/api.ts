@@ -95,3 +95,9 @@ export type DepartmentVersion = components['schemas']['DepartmentVersion'];
 export type BudgetApproval = components['schemas']['BudgetApproval'];
 export type BudgetApprovalPolicy = components['schemas']['BudgetApprovalPolicy'];
 export type BudgetApprovalPolicyChange = components['schemas']['BudgetApprovalPolicyChange'];
+
+export type Device = components['schemas']['Device'];
+export type DevicePolicy = components['schemas']['DevicePolicy'];
+export type DeviceSession = components['schemas']['DeviceSession'];
+export type DeviceEvent = components['schemas']['DeviceEvent'];
+export type DeviceRequest = components['schemas']['DeviceRequest'];

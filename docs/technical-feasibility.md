@@ -406,6 +406,7 @@ ADR 0011 已用于[模型发现与成员管理](adr/0011-model-discovery-and-mem
 | [0027](adr/0027-department-project-authorization.md) | 部门层级与项目授权（验收见交付跟踪） | 有界配置、继承、停用联动、独立密钥语义 |
 | [0028](adr/0028-admission-department-cost-snapshots.md) | 入账时部门成本（验收见交付跟踪） | 历史快照、状态区分、当前鉴权、金额精度 |
 | [0029](adr/0029-two-person-budget-adjustments.md) | 双人预算调额（验收见交付跟踪） | 防绕过、当前角色、余额复核、原子决定 |
+| [0030](adr/0030-device-possession-admission.md) | 终端基础准入（验收见交付跟踪） | 人工登记、私钥证明、共享防重放、Linux 代理、能力边界 |
 | 0026（建议） | 开源基座与兼容策略 | 借鉴边界、许可证、升级路径 |
 | [0014](adr/0014-encrypted-provider-credentials.md) | 页面供应商凭证（已实现） | 写入授权、加密、轮换、恢复 |
 | [0017](adr/0017-offline-local-identity.md) | 正式离线身份（已实现） | 初始化、密码、会话、恢复 |

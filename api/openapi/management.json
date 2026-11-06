@@ -10182,6 +10182,1141 @@
           }
         ]
       }
+    },
+    "/api/v1/organizations/{org}/devices": {
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      ],
+      "get": {
+        "operationId": "listDevices",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "description": "Device identity admission only: manual administrator confirmation, Ed25519 DPoP proof and 5-minute opaque session. No endpoint posture/TPM/SAC attestation. Current member/project permissions and database revocations checked for every new request. TLS required; proof binds method/path/token, not body or query.",
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle revision or state changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevicePage"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "registerDevice",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "description": "Device identity admission only: manual administrator confirmation, Ed25519 DPoP proof and 5-minute opaque session. No endpoint posture/TPM/SAC attestation. Current member/project permissions and database revocations checked for every new request. TLS required; proof binds method/path/token, not body or query.",
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle revision or state changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Device"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDevice"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{org}/devices/{device}": {
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        {
+          "name": "device",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "put": {
+        "operationId": "changeDevice",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "description": "Device identity admission only: manual administrator confirmation, Ed25519 DPoP proof and 5-minute opaque session. No endpoint posture/TPM/SAC attestation. Current member/project permissions and database revocations checked for every new request. TLS required; proof binds method/path/token, not body or query.",
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle revision or state changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Device"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeDevice"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{org}/devices/{device}/sessions": {
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        {
+          "name": "device",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "after",
+          "in": "query",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "listDeviceSessions",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "description": "Device identity admission only: manual administrator confirmation, Ed25519 DPoP proof and 5-minute opaque session. No endpoint posture/TPM/SAC attestation. Current member/project permissions and database revocations checked for every new request. TLS required; proof binds method/path/token, not body or query.",
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle revision or state changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceSessionPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{org}/devices/{device}/requests": {
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        {
+          "name": "device",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "after",
+          "in": "query",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "listDeviceRequests",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "description": "Device identity admission only: manual administrator confirmation, Ed25519 DPoP proof and 5-minute opaque session. No endpoint posture/TPM/SAC attestation. Current member/project permissions and database revocations checked for every new request. TLS required; proof binds method/path/token, not body or query.",
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle revision or state changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceRequestPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{org}/devices/{device}/events": {
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        {
+          "name": "device",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "after",
+          "in": "query",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "listDeviceEvents",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "description": "Device identity admission only: manual administrator confirmation, Ed25519 DPoP proof and 5-minute opaque session. No endpoint posture/TPM/SAC attestation. Current member/project permissions and database revocations checked for every new request. TLS required; proof binds method/path/token, not body or query.",
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle revision or state changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceEventPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{org}/devices/{device}/sessions/{session}/revoke": {
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        {
+          "name": "device",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "session",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "revokeDeviceSession",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "description": "Device identity admission only: manual administrator confirmation, Ed25519 DPoP proof and 5-minute opaque session. No endpoint posture/TPM/SAC attestation. Current member/project permissions and database revocations checked for every new request. TLS required; proof binds method/path/token, not body or query.",
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle revision or state changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Success"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceReason"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{org}/projects/{project}/device-policy": {
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        {
+          "name": "project",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getDevicePolicy",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "description": "Device identity admission only: manual administrator confirmation, Ed25519 DPoP proof and 5-minute opaque session. No endpoint posture/TPM/SAC attestation. Current member/project permissions and database revocations checked for every new request. TLS required; proof binds method/path/token, not body or query.",
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle revision or state changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevicePolicy"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "setDevicePolicy",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "description": "Device identity admission only: manual administrator confirmation, Ed25519 DPoP proof and 5-minute opaque session. No endpoint posture/TPM/SAC attestation. Current member/project permissions and database revocations checked for every new request. TLS required; proof binds method/path/token, not body or query.",
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle revision or state changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevicePolicy"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetDevicePolicy"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{org}/projects/{project}/devices/{device}/sessions": {
+      "parameters": [
+        {
+          "name": "org",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        {
+          "name": "project",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "device",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "DPoP",
+          "in": "header",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "issueDeviceSession",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "description": "Device identity admission only: manual administrator confirmation, Ed25519 DPoP proof and 5-minute opaque session. No endpoint posture/TPM/SAC attestation. Current member/project permissions and database revocations checked for every new request. TLS required; proof binds method/path/token, not body or query.",
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lifecycle revision or state changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssuedDeviceSession"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueDeviceSession"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -13780,7 +14915,8 @@
           "removed_project_grants",
           "revoked_auditors",
           "canceled_transfers",
-          "removed_department_grants"
+          "removed_department_grants",
+          "revoked_devices"
         ],
         "properties": {
           "revision": {
@@ -13831,6 +14967,12 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          },
+          "revoked_devices": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
           }
         }
       },
@@ -14321,6 +15463,403 @@
             "type": "string"
           }
         }
+      },
+      "Device": {
+        "type": "object",
+        "required": [
+          "id",
+          "owner",
+          "name",
+          "public_key",
+          "state",
+          "revision",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/Principal"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "public_key": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "active",
+              "revoked"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RegisterDevice": {
+        "type": "object",
+        "required": [
+          "name",
+          "public_key"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "public_key": {
+            "type": "string",
+            "minLength": 43,
+            "maxLength": 43
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChangeDevice": {
+        "type": "object",
+        "required": [
+          "state",
+          "expected_revision",
+          "reason"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "revoked"
+            ]
+          },
+          "expected_revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "additionalProperties": false
+      },
+      "DevicePolicy": {
+        "type": "object",
+        "required": [
+          "required",
+          "revision",
+          "available"
+        ],
+        "properties": {
+          "required": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "available": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SetDevicePolicy": {
+        "type": "object",
+        "required": [
+          "required",
+          "expected_revision",
+          "reason"
+        ],
+        "properties": {
+          "required": {
+            "type": "boolean"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeviceSession": {
+        "type": "object",
+        "required": [
+          "id",
+          "device_id",
+          "project_id",
+          "models",
+          "expires_at",
+          "revoked_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "device_id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revoked_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "IssuedDeviceSession": {
+        "type": "object",
+        "required": [
+          "id",
+          "device_id",
+          "project_id",
+          "models",
+          "expires_at",
+          "revoked_at",
+          "token",
+          "token_type"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "device_id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revoked_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "token": {
+            "type": "string",
+            "description": "One-time response; never log or persist as plaintext."
+          },
+          "token_type": {
+            "type": "string",
+            "enum": [
+              "DPoP"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "IssueDeviceSession": {
+        "type": "object",
+        "required": [
+          "models"
+        ],
+        "properties": {
+          "models": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 32,
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeviceRequest": {
+        "type": "object",
+        "required": [
+          "request_id",
+          "session_id",
+          "project_id",
+          "created_at"
+        ],
+        "properties": {
+          "request_id": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeviceEvent": {
+        "type": "object",
+        "required": [
+          "revision",
+          "state",
+          "actor",
+          "reason",
+          "created_at"
+        ],
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "state": {
+            "type": "string"
+          },
+          "actor": {
+            "$ref": "#/components/schemas/Principal"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DevicePage": {
+        "type": "object",
+        "required": [
+          "data",
+          "next_cursor"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Device"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeviceSessionPage": {
+        "type": "object",
+        "required": [
+          "data",
+          "next_cursor"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeviceSession"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeviceRequestPage": {
+        "type": "object",
+        "required": [
+          "data",
+          "next_cursor"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeviceRequest"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeviceEventPage": {
+        "type": "object",
+        "required": [
+          "data",
+          "next_cursor"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeviceEvent"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeviceReason": {
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "additionalProperties": false
       }
     }
   }

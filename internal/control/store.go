@@ -29,6 +29,7 @@ var (
 const MaxAPIAmount int64 = 9007199254740991
 
 type Store struct {
+	deviceOrigin  string
 	localIdentity *localauth.Service
 	providers     *provider.Manager
 	content       *contentaudit.Service
@@ -471,6 +472,17 @@ func (s *Store) ListAudit(ctx context.Context, p identity.Principal, org string,
 // ResolveKey always reads authoritative DB state: revoke/model changes affect new
 // requests immediately after commit. In-flight requests may finish normally.
 func (s *Store) ResolveKey(ctx context.Context, secret, model string) (scope budget.Scope, err error) {
+	if strings.HasPrefix(secret, "aigw_dt_") {
+		scope, _, err = s.resolveDevice(ctx, secret, model)
+		if err != nil {
+			return budget.Scope{}, err
+		}
+		if err = s.EnsureBudgetPeriod(ctx, scope.Organization); err != nil {
+			return budget.Scope{}, err
+		}
+		err = s.pool.QueryRow(ctx, `SELECT period_id FROM organizations WHERE id=$1`, scope.Organization).Scan(&scope.Period)
+		return
+	}
 	if !strings.HasPrefix(secret, "aigw_pk_") || len(secret) > 256 {
 		return scope, identity.ErrUnauthenticated
 	}
@@ -486,6 +498,9 @@ func (s *Store) ResolveKey(ctx context.Context, secret, model string) (scope bud
 	}
 	if err != nil {
 		return budget.Scope{}, fmt.Errorf("resolve key: %w", err)
+	}
+	if err := requireDevice(ctx, s.pool, scope.Organization, scope.Project); err != nil {
+		return budget.Scope{}, err
 	}
 	for _, m := range models {
 		if m == model && allowed {

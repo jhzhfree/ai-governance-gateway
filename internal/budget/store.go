@@ -165,6 +165,9 @@ func (s *Store) Reserve(ctx context.Context, q Quote) (created bool, err error) 
 		if err := captureDepartment(ctx, tx, q); err != nil {
 			return err
 		}
+		if err := captureDevice(ctx, tx, q); err != nil {
+			return err
+		}
 		created = true
 		return event(ctx, tx, q.RequestID, "reserved")
 	})

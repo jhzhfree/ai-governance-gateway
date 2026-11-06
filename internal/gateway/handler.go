@@ -32,18 +32,19 @@ type Ledger interface {
 }
 
 type Handler struct {
-	Keywords   *keyword.Service
-	Content    *contentaudit.Service
-	ListModels func(context.Context, string) ([]provider.InferenceModel, error)
-	Circuits   circuit.Gate
-	Monitor    *observe.Registry
-	Admission  admission.Gate
-	Attempts   execution.Recorder
-	Providers  provider.Routing
-	Ledger     Ledger
-	Authorize  func(context.Context, string, string) (budget.Scope, error)
-	Client     *http.Client
-	Upstream   string // trusted fixture URL, not a client-supplied URL
+	DeviceProof func(context.Context, *http.Request, string) (context.Context, error)
+	Keywords    *keyword.Service
+	Content     *contentaudit.Service
+	ListModels  func(context.Context, string) ([]provider.InferenceModel, error)
+	Circuits    circuit.Gate
+	Monitor     *observe.Registry
+	Admission   admission.Gate
+	Attempts    execution.Recorder
+	Providers   provider.Routing
+	Ledger      Ledger
+	Authorize   func(context.Context, string, string) (budget.Scope, error)
+	Client      *http.Client
+	Upstream    string // trusted fixture URL, not a client-supplied URL
 	// Report receives operational failures without prompts, tokens or raw upstream errors.
 	Report func(requestID, code string)
 }
@@ -101,10 +102,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		problem(w, 401, "unauthenticated", id)
 		return
 	}
-	token, err := identity.Bearer(r.Header.Get("Authorization"))
+	token, err := inferenceToken(r)
 	if err != nil {
 		w.Header().Set("WWW-Authenticate", `Bearer realm="inference"`)
 		problem(w, 401, "unauthenticated", id)
+		return
+	}
+	var allowedDevice bool
+	r, allowedDevice = h.deviceRequest(w, r, id, token)
+	if !allowedDevice {
 		return
 	}
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))

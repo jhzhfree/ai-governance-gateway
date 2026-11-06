@@ -50,6 +50,7 @@ func TestConsoleBrowser(t *testing.T) {
 	mux := http.NewServeMux()
 	server := httptest.NewUnstartedServer(mux)
 	origin := "http://" + server.Listener.Addr().String()
+	store.WithDeviceOrigin(origin)
 	svc, err := browser.New(context.Background(), pool, api, issuer.URL, browser.Config{Origin: origin, ClientID: "web-e2e", AllowLoopbackHTTP: true})
 	if err != nil {
 		t.Fatal(err)
@@ -67,8 +68,8 @@ func TestConsoleBrowser(t *testing.T) {
 	mux.Handle("/api/v1/", httpapi.NewWithRuntime(store, api, svc, monitor))
 	upstream := httptest.NewServer(http.HandlerFunc(mockprovider.Handler))
 	t.Cleanup(upstream.Close)
-	mockGateway := &gateway.Handler{Keywords: keyword.New(pool), Content: content, ListModels: store.KeyModels, Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Ledger: ledger, Authorize: store.ResolveKey, Client: upstream.Client(), Upstream: upstream.URL + "/v1/chat/completions"}
-	realGateway := &gateway.Handler{Keywords: keyword.New(pool), Content: content, ListModels: store.KeyModels, Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Ledger: ledger, Authorize: store.ResolveKey, Providers: catalog}
+	mockGateway := &gateway.Handler{DeviceProof: store.VerifyDeviceRequest, Keywords: keyword.New(pool), Content: content, ListModels: store.KeyModels, Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Ledger: ledger, Authorize: store.ResolveKey, Client: upstream.Client(), Upstream: upstream.URL + "/v1/chat/completions"}
+	realGateway := &gateway.Handler{DeviceProof: store.VerifyDeviceRequest, Keywords: keyword.New(pool), Content: content, ListModels: store.KeyModels, Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Ledger: ledger, Authorize: store.ResolveKey, Providers: catalog}
 	// Mixed mode exists in this synthetic fixture only, to regress the legacy UI.
 	mux.HandleFunc("/v1/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v1/models" {
@@ -131,6 +132,7 @@ func TestLocalConsoleBrowser(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := control.NewWithCatalog(pool, catalog).WithProviderManager(catalog).WithLocalIdentity(local)
+	store.WithDeviceOrigin(origin)
 	content := testutil.ContentAudit(t, pool)
 	store.WithContentAudit(content)
 	sessions, err := browser.NewLocal(pool, local, origin, true)
@@ -148,7 +150,7 @@ func TestLocalConsoleBrowser(t *testing.T) {
 	mux.Handle("/", assets)
 	mux.Handle("/auth/", sessions.Handler())
 	mux.Handle("/api/v1/", httpapi.NewWithSession(store, local, sessions))
-	mux.Handle("/v1/", &gateway.Handler{Content: content, Keywords: keyword.New(pool), Providers: catalog, Ledger: ledger, Admission: admission.New(pool), Circuits: circuit.New(pool), Attempts: execution.New(pool), Authorize: store.ResolveKey, ListModels: store.KeyModels})
+	mux.Handle("/v1/", &gateway.Handler{DeviceProof: store.VerifyDeviceRequest, Content: content, Keywords: keyword.New(pool), Providers: catalog, Ledger: ledger, Admission: admission.New(pool), Circuits: circuit.New(pool), Attempts: execution.New(pool), Authorize: store.ResolveKey, ListModels: store.KeyModels})
 	server.Start()
 	t.Cleanup(server.Close)
 	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)

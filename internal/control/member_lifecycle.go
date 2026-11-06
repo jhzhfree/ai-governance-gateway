@@ -12,6 +12,7 @@ import (
 )
 
 type MemberLifecycleEvent struct {
+	RevokedDevices          int64              `json:"revoked_devices"`
 	Revision                int64              `json:"revision"`
 	Enabled                 bool               `json:"enabled"`
 	PreviousRole            string             `json:"previous_role"`
@@ -69,6 +70,11 @@ func (s *Store) SetMemberEnabled(ctx context.Context, p identity.Principal, org 
 			return err
 		}
 		if !enabled {
+			var deviceErr error
+			v.RevokedDevices, deviceErr = revokeMemberDevices(ctx, tx, p, org, target, reason)
+			if deviceErr != nil {
+				return deviceErr
+			}
 			if err := departmentLock(ctx, tx, org, true); err != nil {
 				return err
 			}
@@ -107,7 +113,7 @@ func (s *Store) SetMemberEnabled(ctx context.Context, p identity.Principal, org 
 				return err
 			}
 		}
-		if err := tx.QueryRow(ctx, `INSERT INTO organization_member_lifecycle(organization_id,issuer,subject,revision,enabled,previous_role,new_role,reason,actor_issuer,actor_subject,revoked_keys,removed_project_grants,revoked_auditors,canceled_transfers,removed_department_grants) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING created_at`, org, target.Issuer, target.Subject, v.Revision, enabled, currentRole, v.NewRole, reason, p.Issuer, p.Subject, v.RevokedKeys, v.RemovedProjectGrants, v.RevokedAuditors, v.CanceledTransfers, v.RemovedDepartmentGrants).Scan(&v.CreatedAt); err != nil {
+		if err := tx.QueryRow(ctx, `INSERT INTO organization_member_lifecycle(organization_id,issuer,subject,revision,enabled,previous_role,new_role,reason,actor_issuer,actor_subject,revoked_keys,removed_project_grants,revoked_auditors,canceled_transfers,removed_department_grants,revoked_devices) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING created_at`, org, target.Issuer, target.Subject, v.Revision, enabled, currentRole, v.NewRole, reason, p.Issuer, p.Subject, v.RevokedKeys, v.RemovedProjectGrants, v.RevokedAuditors, v.CanceledTransfers, v.RemovedDepartmentGrants, v.RevokedDevices).Scan(&v.CreatedAt); err != nil {
 			return err
 		}
 		action := "organization.member_disabled"
@@ -134,14 +140,14 @@ func (s *Store) MemberLifecycle(ctx context.Context, p identity.Principal, org s
 		if !exists {
 			return ErrNotFound
 		}
-		rows, err := tx.Query(ctx, `SELECT revision,enabled,previous_role,new_role,reason,actor_issuer,actor_subject,revoked_keys,removed_project_grants,revoked_auditors,canceled_transfers,created_at,removed_department_grants FROM organization_member_lifecycle WHERE organization_id=$1 AND issuer=$2 AND subject=$3 AND revision>$4 ORDER BY revision LIMIT 51`, org, target.Issuer, target.Subject, after)
+		rows, err := tx.Query(ctx, `SELECT revision,enabled,previous_role,new_role,reason,actor_issuer,actor_subject,revoked_keys,removed_project_grants,revoked_auditors,canceled_transfers,created_at,removed_department_grants,revoked_devices FROM organization_member_lifecycle WHERE organization_id=$1 AND issuer=$2 AND subject=$3 AND revision>$4 ORDER BY revision LIMIT 51`, org, target.Issuer, target.Subject, after)
 		if err != nil {
 			return err
 		}
 		defer rows.Close()
 		for rows.Next() {
 			var v MemberLifecycleEvent
-			if err := rows.Scan(&v.Revision, &v.Enabled, &v.PreviousRole, &v.NewRole, &v.Reason, &v.Actor.Issuer, &v.Actor.Subject, &v.RevokedKeys, &v.RemovedProjectGrants, &v.RevokedAuditors, &v.CanceledTransfers, &v.CreatedAt, &v.RemovedDepartmentGrants); err != nil {
+			if err := rows.Scan(&v.Revision, &v.Enabled, &v.PreviousRole, &v.NewRole, &v.Reason, &v.Actor.Issuer, &v.Actor.Subject, &v.RevokedKeys, &v.RemovedProjectGrants, &v.RevokedAuditors, &v.CanceledTransfers, &v.CreatedAt, &v.RemovedDepartmentGrants, &v.RevokedDevices); err != nil {
 				return err
 			}
 			items = append(items, v)

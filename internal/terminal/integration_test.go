@@ -13,6 +13,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/jackc/pgx/v5/pgxpool"
 	types "github.com/jhzhfree/ai-governance-gateway/api/clienttypes"
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
@@ -23,6 +24,7 @@ import (
 )
 
 type apiFixture struct {
+	pool     *pgxpool.Pool
 	server   *httptest.Server
 	issuer   *testutil.Issuer
 	config   Config
@@ -63,7 +65,7 @@ func fixture(t *testing.T) apiFixture {
 	if err := state.Save(cfg); err != nil {
 		t.Fatal(err)
 	}
-	return apiFixture{server, issuer, cfg, state, org, project, store, ledger, execution.New(pool), issuer.Token(t, "alice", nil)}
+	return apiFixture{pool, server, issuer, cfg, state, org, project, store, ledger, execution.New(pool), issuer.Token(t, "alice", nil)}
 }
 func (f apiFixture) execute(t *testing.T, token string, args ...string) (int, string, string) {
 	t.Helper()

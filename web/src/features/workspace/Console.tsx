@@ -32,6 +32,7 @@ import { BudgetPanel } from '../governance/BudgetPanel';
 import { KeywordPanel } from '../governance/KeywordPanel';
 import { ProviderPanel } from '../providers/ProviderPanel';
 import { OwnershipPanel } from '../members/OwnershipPanel';
+import { DevicePanel } from '../devices/DevicePanel';
 import { DepartmentPanel } from '../departments/DepartmentPanel';
 import { MemberPanel } from '../members/MemberPanel';
 import { AuditPanel } from '../audit/AuditPanel';
@@ -87,6 +88,7 @@ export function Console({ session }: { session: Session }) {
         'operations',
         'members',
         'departments',
+        'devices',
         'content',
         'providers',
         'budget',
@@ -105,6 +107,7 @@ export function Console({ session }: { session: Session }) {
     operations: '流量与核查',
     members: '成员管理',
     departments: '部门管理',
+    devices: '终端准入',
     content: '内容审计',
     providers: '供应商配置',
     budget: '预算管理',
@@ -262,6 +265,7 @@ export function Console({ session }: { session: Session }) {
             ['operations', '⚙', '流量与核查'],
             ['members', '♧', '成员管理'],
             ['departments', '♧', '部门管理'],
+            ['devices', '▣', '终端准入'],
             ['content', '▤', '内容审计'],
             ['providers', '⇄', '供应商配置'],
             ['local', '♙', '本地账号'],
@@ -476,6 +480,7 @@ export function Console({ session }: { session: Session }) {
                 view !== 'audit' &&
                 view !== 'members' &&
                 view !== 'departments' &&
+                view !== 'devices' &&
                 view !== 'budget' &&
                 view !== 'reports' &&
                 view !== 'alerts' &&
@@ -502,9 +507,19 @@ export function Console({ session }: { session: Session }) {
                 view !== 'audit' &&
                 view !== 'members' &&
                 view !== 'departments' &&
+                view !== 'devices' &&
                 view !== 'budget' &&
                 view !== 'reports' && <ErrorBox error={project.error} />}
-              {view === 'departments' ? (
+              {view === 'devices' ? (
+                <DevicePanel
+                  key={orgPath + '/' + projectID}
+                  identity={identity}
+                  orgPath={orgPath}
+                  projectPath={projectID ? projectPath : undefined}
+                  csrf={session.csrf_token}
+                  canManage={canManage}
+                />
+              ) : view === 'departments' ? (
                 <DepartmentPanel
                   key={orgPath}
                   identity={identity}

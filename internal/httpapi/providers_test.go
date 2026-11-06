@@ -47,7 +47,7 @@ func providerSetup(t *testing.T, supplier http.Handler, wrap ...func(gateway.Led
 	if len(wrap) > 0 {
 		ledgerAPI = wrap[0](ledger)
 	}
-	mux.Handle("/v1/", &gateway.Handler{Content: content, ListModels: store.KeyModels, Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Providers: catalog, Ledger: ledgerAPI, Authorize: store.ResolveKey})
+	mux.Handle("/v1/", &gateway.Handler{DeviceProof: store.VerifyDeviceRequest, Content: content, ListModels: store.KeyModels, Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Providers: catalog, Ledger: ledgerAPI, Authorize: store.ResolveKey})
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 	doc, err := openapi3.NewLoader().LoadFromData(openapi.Document)

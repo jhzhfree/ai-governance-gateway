@@ -312,6 +312,9 @@ func (s *Service) revoke(ctx context.Context, tx pgx.Tx, id string) error {
 	if _, err := tx.Exec(ctx, `DELETE FROM local_access_tokens WHERE user_id=$1`, id); err != nil {
 		return err
 	}
+	if _, err := tx.Exec(ctx, `UPDATE device_sessions s SET revoked_at=clock_timestamp() FROM terminal_devices d WHERE s.device_id=d.id AND d.owner_issuer=$1 AND d.owner_subject=$2 AND s.revoked_at IS NULL`, s.issuer, id); err != nil {
+		return err
+	}
 	_, err := tx.Exec(ctx, `DELETE FROM browser_sessions WHERE issuer=$1 AND subject=$2`, s.issuer, id)
 	return err
 }
@@ -346,6 +349,14 @@ func (s *Service) SetUser(ctx context.Context, p identity.Principal, id string, 
 				return err
 			}
 
+			if _, err := tx.Exec(ctx, `WITH changed AS(UPDATE terminal_devices SET state='revoked',revision=revision+1 WHERE owner_issuer=$1 AND owner_subject=$2 AND state<>'revoked' RETURNING id,revision,organization_id),
+ events AS(INSERT INTO device_state_events(device_id,revision,state,actor_issuer,actor_subject,reason) SELECT id,revision,'revoked',$3,$4,'本地账号停用' FROM changed)
+ INSERT INTO audit_events(organization_id,actor_issuer,actor_subject,action,resource_id) SELECT organization_id,$3,$4,'device.revoked',id FROM changed`, s.issuer, id, p.Issuer, p.Subject); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, `UPDATE device_sessions s SET revoked_at=clock_timestamp() FROM terminal_devices d WHERE s.device_id=d.id AND d.owner_issuer=$1 AND d.owner_subject=$2 AND s.revoked_at IS NULL`, s.issuer, id); err != nil {
+				return err
+			}
 			if _, err := tx.Exec(ctx, `WITH revoked AS (UPDATE project_keys SET revoked_at=clock_timestamp() WHERE creator_issuer=$1 AND creator_subject=$2 AND revoked_at IS NULL RETURNING id,organization_id) INSERT INTO audit_events(organization_id,actor_issuer,actor_subject,action,resource_id) SELECT organization_id,$3,$4,'project.key_revoked',id FROM revoked`, s.issuer, id, p.Issuer, p.Subject); err != nil {
 				return err
 			}

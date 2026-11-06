@@ -171,6 +171,9 @@ func run(ctx context.Context, c config) error {
 		defer ticker.Stop()
 		for {
 			jobCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			if err := store.PruneDeviceProofs(jobCtx); err != nil && ctx.Err() == nil {
+				log.Print("device proof maintenance unavailable")
+			}
 			if err := store.RotateDueBudgetPeriods(jobCtx); err != nil && ctx.Err() == nil {
 				log.Print("budget cycle maintenance unavailable")
 			}
@@ -187,7 +190,8 @@ func run(ctx context.Context, c config) error {
 			}
 		}
 	}()
-	mux.Handle("/v1/", &gateway.Handler{Keywords: keyword.New(pool), Content: content, ListModels: store.KeyModels, Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Providers: providers, Ledger: ledger, Authorize: store.ResolveKey, Client: client, Upstream: c.upstream, Report: func(id, code string) { log.Printf("request_id=%s code=%s", id, code) }})
+	store.WithDeviceOrigin(c.browserOrigin)
+	mux.Handle("/v1/", &gateway.Handler{DeviceProof: store.VerifyDeviceRequest, Keywords: keyword.New(pool), Content: content, ListModels: store.KeyModels, Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Providers: providers, Ledger: ledger, Authorize: store.ResolveKey, Client: client, Upstream: c.upstream, Report: func(id, code string) { log.Printf("request_id=%s code=%s", id, code) }})
 	mux.HandleFunc("GET /health/live", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) })
 	dbReady := readiness(pool)
 	mux.HandleFunc("GET /health/ready", func(w http.ResponseWriter, r *http.Request) {
@@ -199,6 +203,13 @@ func run(ctx context.Context, c config) error {
 		auditReady := content.Ready(auditCtx)
 		auditCancel()
 		if !auditReady {
+			w.WriteHeader(503)
+			return
+		}
+		deviceCtx, deviceCancel := context.WithTimeout(r.Context(), 2*time.Second)
+		deviceReady := store.DeviceAdmissionReady(deviceCtx)
+		deviceCancel()
+		if !deviceReady {
 			w.WriteHeader(503)
 			return
 		}
