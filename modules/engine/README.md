@@ -1,8 +1,8 @@
 # V1 执行引擎验证模块
 
-Bifrost Core v1.14.1，独立 Go 模块。来源为本工作区已验证的 M0 代码，现纳入正式仓库版本管理。尚未替换主网关的供应商执行链路，不提供独立对外服务。
+Bifrost Core v1.14.1，独立 Go 模块。来源为本工作区已验证的 M0 代码，现纳入正式仓库版本管理。原生主入口保持默认执行链；现提供共享治理应用的独立 gateway-engine 入口，可显式启用受管执行器。生产部署与外部系统验收尚未完成。
 
-该隔离边界避免在完成协议、计量、审计、生命周期验收前，将 SDK 的依赖升级传播到治理主程序。`adapters/bifrost` 是唯一 SDK 依赖边界；`execution` 提供不含 SDK 类型的公开执行契约。`gatewaybridge` 通过本地模块引用组合主治理 Handler，提供受治理集成验证；主程序尚未启用该桥接器，SDK 依赖仍不进入主程序。
+该隔离边界避免在完成协议、计量、审计、生命周期验收前，将 SDK 的依赖升级传播到治理主程序。`adapters/bifrost` 是唯一 SDK 依赖边界；`execution` 提供不含 SDK 类型的公开执行契约。`gatewaybridge` 通过本地模块引用组合主治理 Handler，提供受治理集成验证；原生入口不含 SDK；独立引擎入口已支持显式启用，参见根 docs/engine-entrypoint.md。
 
 运行 `GO_BIN=/path/to/go bash scripts/verify.sh`，需要 Go 1.27.3 和专用 `TEST_DATABASE_URL`；建议从仓库根运行 `scripts/verify.sh` 自动准备隔离测试库。默认测试仅访问本地合成供应商，不需要模型密钥。根目录的验证脚本同时验证本模块；单独运行根模块 `go test ./...` 不会覆盖嵌套模块。
 
@@ -18,6 +18,8 @@ Bifrost Core v1.14.1，独立 Go 模块。来源为本工作区已验证的 M0 �
 
 第七阶段增加三家大陆供应商固定路径/参数和 SupplierBinding 工厂。凭证快照变化使旧绑定拒绝接纳新快照，但尚无自动轮换和共享池；详见 [ADR 0006](docs/adr/0006-mainland-supplier-bindings.md)。
 
-有界实例池：`gatewaybridge.NewPool` 接受明确实例/并发上限；完整快照通过 `Publish` 原子切换，旧租约排空后回收。调用方仍负责有序发布与退出 Close。数据库发布联动和 main 接入尚未完成；见 [ADR 0007](docs/adr/0007-bounded-execution-pool.md)。
+有界实例池：`gatewaybridge.NewPool` 接受明确实例/并发上限；完整快照通过 `Publish` 原子切换，旧租约排空后回收。调用方仍负责有序发布与退出 Close。该阶段历史记录不包括后续数据库联动与入口接线；见 [ADR 0007](docs/adr/0007-bounded-execution-pool.md)。
 
-受管发布：`NewManaged` 从一致数据库快照刷新路由和实例池，必须作为同一个网关的 Routing 与 Executor 成对安装。同步刷新失败时停止新接纳，已有请求正常排空；事务内模型查询不发布实例。该组件尚未安装到 main，详见 [ADR 0008](docs/adr/0008-managed-snapshot-publication.md)。
+受管发布：`NewManaged` 从一致数据库快照刷新路由和实例池，必须作为同一个网关的 Routing 与 Executor 成对安装。同步刷新失败时停止新接纳，已有请求正常排空；事务内模型查询不发布实例。该组件现可由独立入口显式启用，读取边界详见 [ADR 0008](docs/adr/0008-managed-snapshot-publication.md)。
+
+当前入口与生命周期见 [ADR 0009](docs/adr/0009-explicit-engine-entrypoint.md)。默认仍为 native；独立命令需显式 `--execution-engine=bifrost`。

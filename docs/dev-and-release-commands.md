@@ -313,3 +313,7 @@ WantedBy=multi-user.target
 | `go mod download` 超时 | 直连 `proxy.golang.org` 不可达 | `go env -w GOPROXY=https://goproxy.cn,direct` |
 | `npm ci` 超时或 404 | 直连 `registry.npmjs.org` 不可达 | `npm config set registry https://registry.npmmirror.com` |
 | `apt-get install` 卡住 | 源指向 `archive.ubuntu.com` | 源换成 `mirrors.aliyun.com`，见环境安装文档第 2 节 |
+
+## 独立执行引擎入口
+
+新入口在嵌套模块 `modules/engine/cmd/gateway-engine`，共享 `internal/gatewayapp` 启动逻辑；必须显式选择 `--execution-engine=bifrost`，原生入口不含 SDK。构建、配置限制与关闭窗口见 [受控启用说明](engine-entrypoint.md)。
