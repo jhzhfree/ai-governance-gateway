@@ -118,3 +118,9 @@
 ## 独立引擎入口与生命周期阶段
 
 基线 9946054 远端运行 42306383261 已确认 success。迁移原启动/健康/升级实现与测试至 internal/gatewayapp，保留原命令薄入口；新增独立 gateway-engine 命令和显式 bifrost 选择，默认仍 native。成对安装路由与执行器，readiness 包含真实引擎状态，启动失败清理已建实例，不回退。新增请求关闭门禁、10 秒排空＋超时取消后的 15 秒清理等待、维护任务退出回收。数据库无新增迁移，自动升级保留。详见 [入口说明](engine-entrypoint.md) 与 [ADR 0009](../modules/engine/docs/adr/0009-explicit-engine-entrypoint.md)。完整 `AIGW_VERIFY_WEB=1 GOMAXPROCS=4 bash scripts/verify.sh` 退出码 0：主模块 219 个顶层测试、执行模块 47 个测试，以及 16 个 OIDC＋1 个本地身份浏览器场景通过，无失败或跳过。含真实隔离 PostgreSQL、race/vet、API 契约、模块校验、嵌套入口链接构建、前端冻结安装/类型/Lint/生产构建；httpapi 169.609 秒，浏览器 71.168 秒。最后仅增强测试中资源 context 排空/回收的明确断言，启动/初始化失败/强制关闭三项测试连续 10 轮 race 通过（26.015 秒）。两个实际二进制均构建并验证帮助信息，原生二进制拒绝 bifrost 选择，根命令依赖列表无 Bifrost/engine 模块。日志 `/workspace/.onboarding/logs/entry-verify.log`、`entry-lifecycle-final.log`、`native-entry-rejection.log`、`engine-entry-help-final.log`。没有生产启动、付费上游调用或 V1 发布；新提交远端 CI 需独立核验。
+
+## 故障回归与性能基线阶段
+
+基线 ed44d09 的远程 run 42309539136 已确认 success。本阶段新增两个真实 OS 进程共享 PostgreSQL 的崩溃回归：SIGKILL 后租约及未知费用占额保持，测试推进租约后验证账本/审计恢复，存活进程服务其他项目且无重放；恢复函数由父测试调用，不宣称完整应用维护任务自动接管。新增约 12 秒持续 SSE 回归，验证 24 帧、关联 ID 与最终一次用量确认。新增可重复基准脚本，对照原生/受管执行器、内容审计开关、1/4 工作者，全部检查结算余额及审计链。覆盖和测量数据见 [可靠性说明](engine-reliability.md)。不改变生产实现、Web 或数据库 schema，保留启动自动迁移。
+
+完整根 `AIGW_VERIFY_WEB=0 GOMAXPROCS=4 bash scripts/verify.sh` 退出码 0：主模块 219 个顶层测试、执行模块 49 个测试（32 适配器＋16 桥接＋1 入口）通过，含真实隔离 PostgreSQL、race/vet、API 契约、模块校验及独立入口链接构建，无失败或跳过；httpapi 180.845 秒。随后双进程回归连续 5 轮 race 通过（19.769 秒），包含存活子进程正常退出断言。独立基准脚本 8 组、每组 50 次全部成功（12.121 秒），50 样本尾延迟只用于回归观察，不能当作生产容量。首轮基准末尾与完整测试并行，未采用该轮数值；记录的是门禁结束后的独立重测。日志在 `/workspace/.onboarding/logs/reliability-verify.log`、`cluster-repeat-final.log`、`governance-benchmark-final.log`。Web 未修改，本轮未重复本地浏览器；上一阶段已有浏览器及远端 CI 通过证据。本阶段新提交的远端 CI 需独立核验。无真实模型调用、生产数据库操作或 V1.0 发布。

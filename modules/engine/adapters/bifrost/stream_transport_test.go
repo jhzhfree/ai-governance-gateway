@@ -99,3 +99,57 @@ func TestStrictStreamTLSAndDestinationPolicy(t *testing.T) {
 		})
 	}
 }
+
+// A continuously progressing stream must outlive the 10s response-header
+// deadline. This is a bounded regression, not a 120s soak or capacity test.
+func TestStrictStreamProgressBeyondHeaderDeadline(t *testing.T) {
+	var calls atomic.Int32
+	var terminalSent atomic.Bool
+	e := fixture(t, func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Content-Type", "text/event-stream")
+		controller := http.NewResponseController(w)
+		if err := controller.Flush(); err != nil {
+			return
+		}
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
+		for i := 0; i < 24; i++ {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-ticker.C:
+			}
+			fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"synthetic\"},\"finish_reason\":null}]}\n\n")
+			if err := controller.Flush(); err != nil {
+				return
+			}
+		}
+		fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n")
+		fmt.Fprint(w, "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":24,\"total_tokens\":27}}\n\n")
+		terminalSent.Store(true)
+		fmt.Fprint(w, "data: [DONE]\n\n")
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	started := time.Now()
+	chunks, usages := 0, 0
+	err := e.Execute(ctx, request(strings.TrimSuffix(body, "}")+`,"stream":true}`), func(_ context.Context, event execution.Event) error {
+		if event.RequestID != "request-1" || event.AttemptID != "attempt-1" {
+			t.Error("long stream lost correlation")
+		}
+		if strings.Contains(string(event.Payload), `"content":"synthetic"`) {
+			chunks++
+		}
+		if event.Usage != nil {
+			usages++
+			if !terminalSent.Load() || chunks != 24 || event.Usage.TotalTokens != 27 {
+				t.Error("usage confirmed before complete stream or with wrong counts")
+			}
+		}
+		return nil
+	})
+	if err != nil || chunks != 24 || usages != 1 || calls.Load() != 1 || time.Since(started) < 11*time.Second {
+		t.Fatalf("long stream failed: err=%v chunks=%d usage=%d calls=%d", err, chunks, usages, calls.Load())
+	}
+}
