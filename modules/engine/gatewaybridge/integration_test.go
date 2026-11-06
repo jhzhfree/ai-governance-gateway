@@ -1,4 +1,4 @@
-package gatewaybridge_test
+package gatewaybridge
 
 import (
 	"context"
@@ -23,10 +23,10 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 	"github.com/jhzhfree/ai-governance-gateway/internal/testutil"
 	adapter "github.com/jhzhfree/ai-governance-gateway/modules/engine/adapters/bifrost"
-	"github.com/jhzhfree/ai-governance-gateway/modules/engine/gatewaybridge"
+	"github.com/jhzhfree/ai-governance-gateway/modules/engine/execution"
 )
 
-func TestGovernedBifrostExecution(t *testing.T) {
+func TestGovernedPooledBifrostExecution(t *testing.T) {
 	for _, mode := range []string{"json", "stream", "missing usage", "duplicate usage", "upstream failure", "revoked key", "budget denial", "device denial", "audit unavailable", "small limit", "unauthorized model", "model permission removed", "malformed stream", "oversized stream", "usage then disconnect"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx := context.Background()
@@ -35,7 +35,7 @@ func TestGovernedBifrostExecution(t *testing.T) {
 			for i := range cfg.Models {
 				cfg.Models[i].MaxOutputTokens = 32
 			}
-			catalog, err := provider.New(cfg, func(string) string { return "synthetic-unused-native-key" }, &http.Client{Transport: forbiddenTransport{t}})
+			catalog, err := provider.New(cfg, func(string) string { return "synthetic-route-key" }, &http.Client{Transport: forbiddenTransport{t}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -43,7 +43,7 @@ func TestGovernedBifrostExecution(t *testing.T) {
 			var calls atomic.Int32
 			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calls.Add(1)
-				if r.URL.Path != "/v1/chat/completions" || r.Header.Get("Authorization") != "Bearer synthetic-engine-key" {
+				if r.URL.Path != "/compatible-mode/v1/chat/completions" || r.Header.Get("Authorization") != "Bearer synthetic-route-key" {
 					t.Error("unexpected endpoint or credential")
 				}
 				var wire map[string]json.RawMessage
@@ -84,13 +84,22 @@ func TestGovernedBifrostExecution(t *testing.T) {
 				_, _ = fmt.Fprintf(w, `{"id":"fixture","object":"chat.completion","model":"fixture-model","choices":[{"index":0,"message":{"role":"assistant","content":"synthetic reply"},"finish_reason":"stop"}]%s}`, usage)
 			}))
 			defer upstream.Close()
-			engine, err := adapter.New(ctx, adapter.Config{BaseURL: upstream.URL, APIKey: "synthetic-engine-key", Model: "fixture-model", MaxOutputTokens: 32, TestLoopback: true})
+			enginePool, err := newPool(ctx, PoolConfig{MaxBindings: 2, MaxConcurrent: 4}, func(ctx context.Context, r *provider.Route, n int) (ownedBinding, error) {
+				binding, err := newSupplier(ctx, r, n, func(ctx context.Context, cfg adapter.Config) (execution.Executor, error) {
+					cfg.BaseURL = upstream.URL
+					cfg.TestLoopback = true
+					return adapter.New(ctx, cfg)
+				})
+				if err != nil {
+					return nil, err
+				}
+				return binding, nil
+			})
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer engine.Close()
-			binding, err := gatewaybridge.New(route, engine)
-			if err != nil {
+			defer enginePool.Close()
+			if err := enginePool.Publish(ctx, 1, []*provider.Route{route}); err != nil {
 				t.Fatal(err)
 			}
 			store := control.NewWithCatalog(pool, catalog)
@@ -130,7 +139,7 @@ func TestGovernedBifrostExecution(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
-			h := &gateway.Handler{Providers: catalog, Executor: binding, Ledger: ledger, Authorize: store.ResolveKey, Attempts: recorder.New(pool), Admission: admission.New(pool), Circuits: circuit.New(pool), Content: audit, DeviceProof: store.VerifyDeviceRequest}
+			h := &gateway.Handler{Providers: catalog, Executor: enginePool, Ledger: ledger, Authorize: store.ResolveKey, Attempts: recorder.New(pool), Admission: admission.New(pool), Circuits: circuit.New(pool), Content: audit, DeviceProof: store.VerifyDeviceRequest}
 			if mode == "audit unavailable" {
 				h.Content = contentaudit.New(pool, nil)
 			}
@@ -150,6 +159,9 @@ func TestGovernedBifrostExecution(t *testing.T) {
 			}
 			w := httptest.NewRecorder()
 			h.ServeHTTP(w, r)
+			if enginePool.Stats().Active != 0 {
+				t.Fatal("governance response leaked execution lease")
+			}
 			id := w.Header().Get("X-Request-ID")
 			successful := mode == "json" || mode == "stream"
 			dispatched := successful || mode == "missing usage" || mode == "duplicate usage" || mode == "upstream failure" || mode == "malformed stream" || mode == "oversized stream" || mode == "usage then disconnect"

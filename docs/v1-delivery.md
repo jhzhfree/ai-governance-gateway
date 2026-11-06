@@ -97,6 +97,12 @@
 
 ## DeepSeek 扩展阶段
 
-新增第四家供应商，贯通主网关和候选执行器的固定路由/JSON/SSE、凭证托管、模型授权、attempt、账单导入和控制台。追加迁移 0024 扩充供应商约束，保留自动启动升级。候选模块核验缓存分项总和，不推算缓存优惠/分时价；详情见 [DeepSeek 接入范围](deepseek.md)。完整根脚本中后端 214 个顶层测试、执行模块 36 个顶层测试通过，含真实隔离 PostgreSQL、race/vet、API 生成检查；httpapi 167.579 秒，无跳过。初次浏览器测试有 1 个失败：供应商编辑场景仍使用新增前的第 4 行序号，修正为第 5 行后重新执行冻结安装、Web 契约/类型/Lint/构建和两套浏览器 fixture，最终 16＋1 场景全部通过，退出码 0（浏览器 72.589 秒）。日志 `deepseek-verify.log`、`deepseek-web-final.log` 位于 `/workspace/.onboarding/logs/`；未把第一次失败记作通过。仅合成上游与专用测试库，无真实付费调用。
+新增第四家供应商，贯通主网关和候选执行器的固定路由/JSON/SSE、凭证托管、模型授权、attempt、账单导入和控制台。追加迁移 0024 扩充供应商约束，保留自动启动升级。候选模块核验缓存分项总和，不推算缓存优惠/分时价；详情见 [DeepSeek 接入范围](deepseek.md)。完整根脚本中后端 214 个顶层测试、执行模块 36 个顶层测试通过，含真实隔离 PostgreSQL、race/vet、API 生成检查；httpapi 167.579 秒，无跳过。初次浏览器测试有 1 个失败：供应商编辑场景仍使用新增前的第 4 行序号，修正为第 5 行后重新执行冻结安装、Web 契约/类型/Lint/构建和两套浏览器 fixture，最终 16＋1 场景全部通过，退出码 0（浏览器 72.590 秒）。日志 `deepseek-verify.log`、`deepseek-web-final.log` 位于 `/workspace/.onboarding/logs/`；未把第一次失败记作通过。仅合成上游与专用测试库，无真实付费调用。
 
 基线 4aff9bc 的远端 run 42295834384 已确认 success；该结果仅属于上阶段，DeepSeek 新提交需独立验证。
+
+## 下一轮：有界执行实例池
+
+新增 Pool：完整集合原子发布、单调代次拒绝旧发布、快照复用、新旧实例排空、现用/排空/构建总容量上限和全局请求并发上限。Body EOF/错误/Close/context 取消及打开失败释放租约，Close 取消并等待回收。原 15 个治理集成场景改经池与供应商工厂；初次测试暴露旧 fixture 路径/凭证断言，修正后重验。详见 [ADR 0007](../modules/engine/docs/adr/0007-bounded-execution-pool.md)。数据库自动发布联动、主程序切换与生产容量验收尚未完成，本轮无数据库或 Web 变更。
+
+完整根 `AIGW_VERIFY_WEB=0 GOMAXPROCS=4 bash scripts/verify.sh` 退出码 0：主模块 214 个顶层测试、执行模块当时 42 个顶层测试通过，真实隔离 PostgreSQL、race/vet、API 契约与模块校验通过，无跳过。随后仅执行模块补充排队发布可取消行为，重新运行模块完整脚本退出码 0，最终 43 个顶层测试（31 适配器＋12 桥接）通过，含 15 个治理场景；全部 7 个 Pool 测试另连续 20 轮 race 通过。日志为 `/workspace/.onboarding/logs/pool-verify-final.log`、`pool-engine-final.log`、`pool-lifecycle-final.log`。本轮 Web 未修改；DeepSeek 阶段已有 16＋1 浏览器最终通过证据。推送前 DeepSeek 提交 13166b0 的远端 run 42297449378 仍在运行，远端结果须独立核验。
