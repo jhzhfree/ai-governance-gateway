@@ -58,3 +58,9 @@
 ## 第四阶段：执行接纳与关闭
 
 引擎增加显式并发上限（默认 4，可配置 1—1024）、无排队超载拒绝、停止接纳、取消在途、等待回收、幂等并发关闭。返回明确 ErrOverloaded/ErrClosed，派发数用合成 HTTP 上游核验；不自动重试、结算或退款。2026-11-06 完整验证退出码 0：治理主模块 212 个顶层测试、引擎 20 个顶层测试通过，真实 PostgreSQL/race/vet/模块与 API 契约均通过，无失败或跳过。过载/关闭两个场景额外连续 20 轮 race 验证通过。日志为 `/workspace/.onboarding/logs/v1-stage4-verify.log` 和 `v1-stage4-lifecycle.log`。此阶段仍非主治理链路接入，不能将隔离测试当成生产容量。
+
+## CI 包级超时修复
+
+2026-11-06 核验 f88f78a 的远程 run 42239408967：环境准备成功，internal/httpapi 整包累计 120 秒超时，并非正在运行约 1 秒的所有权测试被证明卡死。此前本地命令覆盖为 600 秒，而 CI 使用脚本的旧默认 120 秒。统一脚本默认值为 600 秒并打印实际配置，保持 race、数据库集成及单操作期限不变，详见 [CI 验证说明](ci-verification.md)。
+
+修复后的本地完整验证主动 unset AIGW_GO_TEST_TIMEOUT，以默认配置运行 AIGW_VERIFY_WEB=1：退出码 0，后端 212 个顶层测试、执行引擎 20 个测试、16 个 OIDC＋1 个本地身份浏览器场景均通过，无失败或跳过；包括 API 契约、vet/race、冻结前端安装、类型/Lint/构建。internal/httpapi 153.986 秒，浏览器 Go fixture 合计 68.416 秒。日志 `/workspace/.onboarding/logs/v1-ci-timeout-fix.log`。该记录是推送前本地证据，新提交远程 CI 需另外核验。

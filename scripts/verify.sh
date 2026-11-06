@@ -58,7 +58,12 @@ fi
 "$go_bin" mod verify
 GO_BIN="$go_bin" bash scripts/check-go-api.sh
 "$go_bin" vet -mod=readonly ./api/... ./cmd/... ./internal/...
-"$go_bin" test -mod=readonly -race -count=1 -timeout="${AIGW_GO_TEST_TIMEOUT:-120s}" -v ./api/... ./cmd/... ./internal/...
+# Go's timeout covers the entire package, not each individual test. The growing
+# PostgreSQL/race HTTP API suite exceeds two minutes in both local and hosted
+# runners. Keep one default for CI and local runs; per-operation deadlines remain.
+test_timeout="${AIGW_GO_TEST_TIMEOUT:-600s}"
+printf 'Backend package timeout: %s (race enabled)\n' "$test_timeout"
+"$go_bin" test -mod=readonly -race -count=1 -timeout="$test_timeout" -v ./api/... ./cmd/... ./internal/...
 
 if [[ "${AIGW_VERIFY_WEB:-0}" == 1 ]]; then
   npm --prefix web ci --no-audit --no-fund
