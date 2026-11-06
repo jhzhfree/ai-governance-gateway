@@ -2,7 +2,11 @@ module github.com/jhzhfree/ai-governance-gateway/modules/engine
 
 go 1.27.3
 
-require github.com/maximhq/bifrost/core v1.14.1
+require (
+	github.com/jackc/pgx/v5 v5.7.6
+	github.com/jhzhfree/ai-governance-gateway v0.0.0
+	github.com/maximhq/bifrost/core v1.14.1
+)
 
 require (
 	cloud.google.com/go v0.123.0 // indirect
@@ -37,10 +41,15 @@ require (
 	github.com/canonical/starlark v0.0.0-20260428155828-9a81051fac39 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
+	github.com/coreos/go-oidc/v3 v3.14.0 // indirect
 	github.com/fasthttp/websocket v1.5.12 // indirect
+	github.com/go-jose/go-jose/v4 v4.0.5 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/jsonschema-go v0.4.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/klauspost/compress v1.20.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
@@ -65,6 +74,9 @@ require (
 	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/net v0.61.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 )
+
+replace github.com/jhzhfree/ai-governance-gateway => ../..

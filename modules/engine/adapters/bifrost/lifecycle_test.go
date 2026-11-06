@@ -13,7 +13,7 @@ import (
 	"time"
 
 	adapter "github.com/jhzhfree/ai-governance-gateway/modules/engine/adapters/bifrost"
-	"github.com/jhzhfree/ai-governance-gateway/modules/engine/internal/execution"
+	"github.com/jhzhfree/ai-governance-gateway/modules/engine/execution"
 )
 
 func liveStream(w http.ResponseWriter, r *http.Request, closed chan<- struct{}) {

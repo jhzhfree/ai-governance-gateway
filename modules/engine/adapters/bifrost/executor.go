@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jhzhfree/ai-governance-gateway/modules/engine/internal/execution"
+	"github.com/jhzhfree/ai-governance-gateway/modules/engine/execution"
 	core "github.com/maximhq/bifrost/core"
 	"github.com/maximhq/bifrost/core/providers/openai"
 	"github.com/maximhq/bifrost/core/schemas"
@@ -105,11 +105,14 @@ func (e *Executor) Execute(ctx context.Context, req execution.Request, emit exec
 	bctx, cancel := schemas.NewBifrostContextWithCancel(ctx)
 	defer cancel()
 	bctx.SetValue(schemas.BifrostContextKeyRequestID, req.AttemptID)
+	// Capture raw provider frames solely for bounded evidence validation. They
+	// are removed before events leave this adapter.
 	converted := wire.ToBifrostChatRequest(bctx)
 	converted.Provider = schemas.OpenAI
 	converted.Model = e.model
 	converted.Fallbacks = nil
 	stream := wire.Stream != nil && *wire.Stream
+	evidence := &usageEvidence{stream: stream}
 	if !stream {
 		resp, upstreamErr := e.client.ChatCompletionRequest(bctx, converted)
 		if upstreamErr != nil {
@@ -118,7 +121,7 @@ func (e *Executor) Execute(ctx context.Context, req execution.Request, emit exec
 		if resp == nil {
 			return execution.ErrUpstream
 		}
-		return deliver(ctx, req, resp, maxOutput, emit)
+		return deliver(ctx, req, resp, maxOutput, evidence, emit)
 	}
 	chunks, upstreamErr := e.client.ChatCompletionStreamRequest(bctx, converted)
 	if upstreamErr != nil {
@@ -133,6 +136,9 @@ func (e *Executor) Execute(ctx context.Context, req execution.Request, emit exec
 			return ctx.Err()
 		case chunk, ok := <-chunks:
 			if !ok {
+				if ctx.Err() == nil && !evidence.finished {
+					return execution.ErrUpstream
+				}
 				return ctx.Err()
 			}
 			if chunk == nil {
@@ -142,7 +148,7 @@ func (e *Executor) Execute(ctx context.Context, req execution.Request, emit exec
 				return classify(ctx)
 			}
 			if chunk.BifrostChatResponse != nil {
-				if err := deliver(ctx, req, chunk.BifrostChatResponse, maxOutput, emit); err != nil {
+				if err := deliver(ctx, req, chunk.BifrostChatResponse, maxOutput, evidence, emit); err != nil {
 					return err
 				}
 			}
@@ -158,34 +164,31 @@ func classify(ctx context.Context) error {
 	return execution.ErrUpstream
 }
 
-func deliver(ctx context.Context, req execution.Request, resp *schemas.BifrostChatResponse, maxOutput int, emit execution.Emit) error {
+func deliver(ctx context.Context, req execution.Request, resp *schemas.BifrostChatResponse, maxOutput int, evidence *usageEvidence, emit execution.Emit) error {
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if err := evidence.observe(resp.ExtraFields.RawResponse, maxOutput); err != nil {
+		return err
+	}
+	// The SDK accepts Chat responses only with HTTP 200. Do not retain raw
+	// request/response content in event payloads or logs.
+	resp.ExtraFields.RawResponse = nil
+	resp.ExtraFields.RawRequest = nil
+	var usage *execution.Usage
+	if u := resp.Usage; u != nil && (u.PromptTokens != 0 || u.CompletionTokens != 0 || u.TotalTokens != 0) {
+		raw := evidence.usage
+		if raw == nil || evidence.emitted || raw.InputTokens != u.PromptTokens || raw.OutputTokens != u.CompletionTokens || raw.TotalTokens != u.TotalTokens {
+			return execution.ErrUpstream
+		}
+		evidence.emitted = true
+		usage = raw
 	}
 	data, err := json.Marshal(resp)
 	if err != nil {
 		return execution.ErrUpstream
 	}
-	var usage *execution.Usage
-	if u := resp.Usage; u != nil {
-		if u.PromptTokens < 0 || u.PromptTokens > 2000000 || u.CompletionTokens < 0 || u.CompletionTokens > maxOutput || u.TotalTokens < 0 {
-			return execution.ErrUpstream
-		}
-		// The pinned SDK synthesizes an all-zero usage object when an upstream
-		// stream omits usage. Without provenance, even a genuine all-zero usage
-		// must remain unknown rather than authorize a zero-cost settlement.
-		if u.PromptTokens != 0 || u.CompletionTokens != 0 || u.TotalTokens != 0 {
-			if u.PromptTokens == 0 || u.TotalTokens != u.PromptTokens+u.CompletionTokens {
-				return execution.ErrUpstream
-			}
-			evidence, err := json.Marshal(u)
-			if err != nil {
-				return execution.ErrUpstream
-			}
-			usage = &execution.Usage{InputTokens: u.PromptTokens, OutputTokens: u.CompletionTokens, TotalTokens: u.TotalTokens, Evidence: evidence}
-		}
-	}
-	return emit(ctx, execution.Event{RequestID: req.RequestID, AttemptID: req.AttemptID, Payload: data, Usage: usage})
+	return emit(ctx, execution.Event{UpstreamStatus: 200, RequestID: req.RequestID, AttemptID: req.AttemptID, Payload: data, Usage: usage})
 }
 
 type account struct{ cfg Config }
@@ -204,6 +207,7 @@ func (a *account) GetConfigForProvider(p schemas.ModelProvider) (*schemas.Provid
 		return nil, fmt.Errorf("provider not configured")
 	}
 	return &schemas.ProviderConfig{
+		SendBackRawResponse:      true,
 		NetworkConfig:            schemas.NetworkConfig{BaseURL: a.cfg.BaseURL, MaxRetries: 0, DefaultRequestTimeoutInSeconds: 10, StreamIdleTimeoutInSeconds: 3, RetryBackoffInitial: time.Millisecond, RetryBackoffMax: time.Millisecond, AllowPrivateNetwork: a.cfg.TestLoopback},
 		ConcurrencyAndBufferSize: schemas.ConcurrencyAndBufferSize{Concurrency: a.cfg.MaxConcurrent, BufferSize: a.cfg.MaxConcurrent * 2},
 	}, nil

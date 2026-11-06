@@ -17,9 +17,6 @@ if [[ -n "$formatting" ]]; then
   exit 1
 fi
 
-# Nested Go modules are not included by the root ./... pattern.
-GO_BIN="$go_bin" bash modules/engine/scripts/verify.sh
-
 container_id=""
 docker_local() {
   env -u DOCKER_HOST -u DOCKER_CONTEXT -u DOCKER_TLS -u DOCKER_TLS_VERIFY -u DOCKER_CERT_PATH \
@@ -54,6 +51,9 @@ if [[ -z "${TEST_DATABASE_URL:-}" ]]; then
   port="${published##*:}"
   export TEST_DATABASE_URL="postgres://postgres@127.0.0.1:${port}/aigw_test?sslmode=disable"
 fi
+
+# Nested Go modules are not included by the root ./... pattern.
+GO_BIN="$go_bin" bash modules/engine/scripts/verify.sh
 
 "$go_bin" mod verify
 GO_BIN="$go_bin" bash scripts/check-go-api.sh

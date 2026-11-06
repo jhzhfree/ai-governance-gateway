@@ -70,3 +70,13 @@
 3ecc453 的远程运行 42245393535 确认后端包级超时修复有效（httpapi 144.353 秒通过），随后在账单/预算通知两个浏览器无障碍场景失败。补充节点诊断后在本地完整回归复现：刷新按钮恢复可用时，组件库仍在对背景做 200ms 色彩过渡，白字瞬时对比度不足。取消按钮颜色过渡，保留阴影和变换；通过 `:root .t-button` 确保应用规则不被后加载的组件基础样式覆盖。
 
 新增逐帧状态切换回归，现有整页 axe 零违规断言不变。中间失败均保留在环境日志，未将失败重试记为首次通过。后端 212 个测试及引擎 20 个测试在完整脚本中通过；最后仅 CSS 优先级修正后重新执行冻结安装、API 契约、类型/Lint/生产构建和两套真实浏览器 fixture，最终 16 个 OIDC＋1 个本地身份场景通过（61.395 秒，退出码 0，`/workspace/.onboarding/logs/v1-ci-contrast-final-web.log`）。浏览器使用与 CI 一致的 Chrome for Testing 156.0.8078.4。新提交远端结果需单独核验，尚不因此宣称 V1 完成。
+
+## 第五阶段：受治理执行桥接
+
+基线 b48aec6 的远程 run 42251492160 已确认 success：httpapi 143.168 秒，16＋1 浏览器场景通过。该证据属于此前 CI 修复，不代替本阶段验证。
+
+本阶段新增主网关 ProviderExecutor 接缝与模块 gatewaybridge.Binding；使用真实 PostgreSQL/项目 Key/准入/熔断/账本/attempt/加密审计，执行本地 Bifrost 上游。公开 execution 契约，SDK 类型仍隔离；现有主程序未切换，路由和凭证轮换未验收。数据库无结构变更，保留启动自动迁移。
+
+联调发现 SDK 聚合重复 usage 且可能修正 total，原实现不能证明费用来源。新增捕获帧校验、无缓冲背压和 Body.Close 回收，并补充拒绝/异常结算测试。SDK 捕获仍存在解析丢弃与队列截断边界，生产切换保持阻塞，不能将本次受控通过扩大为全流完整性已证明。详见 [当前功能盘点](v1-current-status.md) 与 [ADR 0004](../modules/engine/docs/adr/0004-governed-execution-bridge.md)。验证结果见下。
+
+完整本地命令 `source /workspace/.onboarding/env.sh; AIGW_VERIFY_WEB=1 GOMAXPROCS=4 bash scripts/verify.sh` 退出码 0：主模块 212 个顶层测试、执行模块 26 个顶层测试（其中桥接集成含 12 个场景）、16 个 OIDC＋1 个本地身份浏览器场景通过，无失败或跳过。模块校验、Go API 契约、vet/race、真实隔离 PostgreSQL、前端冻结安装/契约/类型/Lint/构建均通过；httpapi 153.686 秒、浏览器 67.465 秒。日志 `/workspace/.onboarding/logs/v1-stage5-verify.log`。仅合成上游、专用测试库；未部署、未操作生产数据库、未调用真实付费模型。远程 CI 需在推送后另外核验。

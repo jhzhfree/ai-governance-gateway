@@ -32,6 +32,10 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 		problem(w, 503, "residency_review_required", id)
 		return
 	}
+	if h.Executor != nil && h.Executor.Validate(route, req) != nil {
+		problem(w, 400, "unsupported_execution_request", id)
+		return
+	}
 	amount, err := route.Bound(req.MaxTokens)
 	if err != nil {
 		problem(w, 400, "unsupported_max_tokens", id)
@@ -130,8 +134,13 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 		cancel()
 	}()
 	outcome = circuit.Failure
-	response, err := route.Open(ctx, req)
-	if err != nil {
+	var response *http.Response
+	if h.Executor == nil {
+		response, err = route.Open(ctx, req)
+	} else {
+		response, err = h.Executor.Open(ctx, route, req, id, trace.id)
+	}
+	if err != nil || response == nil || response.Body == nil {
 		reply(502, "upstream_unavailable")
 		return
 	}

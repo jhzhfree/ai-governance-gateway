@@ -31,7 +31,16 @@ type Ledger interface {
 	Settle(context.Context, string, int64) error
 }
 
+// ProviderExecutor replaces only physical execution. Governance remains in Handler.
+// Validate must not dispatch. Open is called only after durable attempt/dispatch.
+// The caller closes Body on every path; Close must cancel and reclaim execution.
+type ProviderExecutor interface {
+	Validate(*provider.Route, Request) error
+	Open(context.Context, *provider.Route, Request, string, string) (*http.Response, error)
+}
+
 type Handler struct {
+	Executor    ProviderExecutor
 	DeviceProof func(context.Context, *http.Request, string) (context.Context, error)
 	Keywords    *keyword.Service
 	Content     *contentaudit.Service

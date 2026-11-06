@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/jhzhfree/ai-governance-gateway/modules/engine/internal/execution"
+	"github.com/jhzhfree/ai-governance-gateway/modules/engine/execution"
 )
 
 type lifecycle struct {

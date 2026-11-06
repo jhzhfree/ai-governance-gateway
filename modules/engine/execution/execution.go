@@ -1,5 +1,5 @@
-// Package execution defines the engine-independent M0 execution boundary.
-// Authorization and durable accounting must be added before exposing inference.
+// Package execution defines the engine-independent execution boundary.
+// Callers own authorization, durable accounting and audit before exposing inference.
 package execution
 
 import (
@@ -30,10 +30,12 @@ type Usage struct {
 }
 
 type Event struct {
-	RequestID string
-	AttemptID string
-	Payload   json.RawMessage
-	Usage     *Usage
+	// UpstreamStatus is evidence from the adapter, never a synthesized envelope.
+	UpstreamStatus int
+	RequestID      string
+	AttemptID      string
+	Payload        json.RawMessage
+	Usage          *Usage
 }
 
 // Emit is synchronous: callers own backpressure and must honor ctx cancellation.

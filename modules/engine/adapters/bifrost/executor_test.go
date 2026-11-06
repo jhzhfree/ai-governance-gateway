@@ -14,7 +14,7 @@ import (
 	"time"
 
 	adapter "github.com/jhzhfree/ai-governance-gateway/modules/engine/adapters/bifrost"
-	"github.com/jhzhfree/ai-governance-gateway/modules/engine/internal/execution"
+	"github.com/jhzhfree/ai-governance-gateway/modules/engine/execution"
 )
 
 const model = "gpt-4o-mini"
@@ -148,6 +148,7 @@ func TestStreamingTerminalUsage(t *testing.T) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		fmt.Fprint(w, "data: {\"id\":\"s\",\"object\":\"chat.completion.chunk\",\"model\":\"gpt-4o-mini\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hello\"},\"finish_reason\":null}]}\n\n")
 		w.(http.Flusher).Flush()
+		fmt.Fprint(w, "data: {\"id\":\"s\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n")
 		fmt.Fprint(w, "data: {\"id\":\"s\",\"object\":\"chat.completion.chunk\",\"model\":\"gpt-4o-mini\",\"choices\":[],\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":3,\"total_tokens\":10}}\n\ndata: [DONE]\n\n")
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

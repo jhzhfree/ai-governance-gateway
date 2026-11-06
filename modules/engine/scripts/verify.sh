@@ -12,8 +12,12 @@ export GOPATH="${GOPATH:-$PWD/.cache/go}"
 export GOMODCACHE="${GOMODCACHE:-$GOPATH/pkg/mod}"
 export GOCACHE="${GOCACHE:-$PWD/.cache/build}"
 gofmt_bin="$("$go_bin" env GOROOT)/bin/gofmt"
-formatting="$(find adapters internal -name '*.go' -print0 | xargs -0 "$gofmt_bin" -l)"
+formatting="$(find adapters execution gatewaybridge -name '*.go' -print0 | xargs -0 "$gofmt_bin" -l)"
 if [[ -n "$formatting" ]]; then printf 'Formatting required:\n%s\n' "$formatting"; exit 1; fi
+if [[ -z "${TEST_DATABASE_URL:-}" ]]; then
+  echo "TEST_DATABASE_URL required for governed execution integration; use root scripts/verify.sh." >&2
+  exit 1
+fi
 "$go_bin" mod verify
 "$go_bin" vet -mod=readonly ./...
 "$go_bin" test -mod=readonly -race -count=1 -timeout=120s ./...

@@ -251,3 +251,6 @@ type InferenceModel struct {
 	Created int64  `json:"created"`
 	OwnedBy string `json:"owned_by"`
 }
+
+// ExecutionModel exposes only the server-owned model mapping, never credentials.
+func (r *Route) ExecutionModel() (alias, upstream string) { return r.model.ID, r.model.UpstreamModel }
