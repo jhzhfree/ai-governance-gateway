@@ -61,6 +61,26 @@ AIGW_PROVIDER_ADMIN_ISSUER='https://127.0.0.1:9443' AIGW_PROVIDER_ADMIN_SUBJECT=
 ./bin/gateway --listen 127.0.0.1:8080 --web-dir web/dist --allow-loopback-browser-http
 ```
 
+**本机没有外部 IdP？用本地身份模式（`AIGW_AUTH_MODE=local`，0015），完全离线：**
+
+```bash
+# 1. 初始化管理员（12+ 位口令走 stdin；输出里的 subject 之后要绑定发布权）
+AIGW_DATABASE_URL='postgres://aigw:aigw_dev@127.0.0.1:5432/aigw_dev?sslmode=disable' \
+bin/local-admin init --username dev-admin --allow-loopback-http --password-stdin
+
+# 2. 启动（.env 至少配：AIGW_DATABASE_URL、AIGW_AUTH_MODE=local、AIGW_BROWSER_ORIGIN）
+set -a; source .env; set +a
+bin/gateway --listen 127.0.0.1:8080 --web-dir web/dist --allow-loopback-browser-http
+```
+
+要点：
+
+- local 模式**不需要** `AIGW_OIDC_ISSUER/AUDIENCE`，也不需要 `make dev-oidc`；登录、改密、用户管理走 `/auth/local/*`，浏览器同源访问即可（curl 调试必须带 `-H "Origin: <AIGW_BROWSER_ORIGIN>"`，否则 403）。
+- 首次登录强制改密（`must_change_password`），改完才能调用管理 API。
+- 要在控制台发布供应商配置：`AIGW_PROVIDER_ADMIN_ISSUER=<origin>/auth/local`，`AIGW_PROVIDER_ADMIN_SUBJECT` 设为 init 输出的 subject。
+- 供应商凭证加密存储需要 `AIGW_PROVIDER_ENCRYPTION_KEYS`（`{"<key-id>":"<32字节base64>"}`）与 `AIGW_PROVIDER_ENCRYPTION_ACTIVE_KEY`。**注意：`.env` 里的 JSON 值必须用单引号包裹**——`source` 时双引号会被 shell 剥掉，导致页面显示 `credential_storage_ready=false`。
+- 发布配置前 `/health/ready` 为 503、推理全部拒绝，属预期；发布后自动恢复。
+
 浏览器开发（Vite 热更新，`/api` 与 `/auth` 代理到 8080，且保留 `Host` 头——网关会用 `AIGW_BROWSER_ORIGIN` 校验 Host）：
 
 ```bash
