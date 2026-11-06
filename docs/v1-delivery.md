@@ -38,3 +38,11 @@
 首次全量验证失败：云环境的本地 PostgreSQL 未运行，且原 PTY 测试关闭 master 早于读取线程消费终端退出序列。启动已有专用测试库后修正 PTY 测试同步，保留 raw mode 与退出序列断言；该测试额外连续 20 次 race 验证通过，完整后端重跑通过。日志位于云环境 `/workspace/.onboarding/logs/v1-stage1-verify-final.log`，不提交环境日志。
 
 未部署、未做生产迁移、未调用付费模型。
+
+## 第二阶段：请求边界与费用证据加固
+
+已增加文本 Chat/function tools 的显式协议白名单、重复关键字段拒绝、单候选限制、消息/工具大小限制、服务端输出上限和用量算术一致性校验。修复 SDK 会提高过小输出上限的集成风险：小于 16 直接拒绝，并断言 16 的实际派发值不变。未支持的文件 URL/多模态输入不进入 SDK。工具历史传递增加实际 HTTP 检查。详见 `modules/engine/docs/adr/0002-bounded-chat-contract.md`。
+
+2026-11-06 完整根验证再次退出码 0：治理主模块 206 个顶层测试与引擎模块 17 个顶层测试通过，包含 race、真实本地 PostgreSQL 隔离 schema、模块/格式/Go API 契约/vet；无失败和跳过。日志为 `/workspace/.onboarding/logs/v1-stage2-verify.log`。Web 未改动，未重跑浏览器。
+
+仍未接入主治理链路，未声称已完成 V1.0。阶段 1 已推送提交 `72a444c894c3191acc5417b1770c015a6846466b` 并通过远端 ref 校验；GitHub Actions API 查询返回 Forbidden，远端 CI 结果未确认。

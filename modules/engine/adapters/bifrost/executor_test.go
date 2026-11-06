@@ -134,7 +134,7 @@ func TestToolDefinitionReachesProvider(t *testing.T) {
 		}
 		respond(w, true)
 	})
-	payload := `{"model":"gpt-4o-mini","messages":[{"role":"user","content":"x"}],"tools":[{"type":"function","function":{"name":"lookup","parameters":{"type":"object","properties":{"q":{"type":"string"}},"required":["q"]}}}],"tool_choice":"auto"}`
+	payload := `{"model":"gpt-4o-mini","max_tokens":32,"messages":[{"role":"user","content":"x"}],"tools":[{"type":"function","function":{"name":"lookup","parameters":{"type":"object","properties":{"q":{"type":"string"}},"required":["q"]}}}],"tool_choice":"auto"}`
 	if err := e.Execute(context.Background(), request(payload), discard); err != nil {
 		t.Fatal(err)
 	}

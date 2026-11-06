@@ -26,13 +26,17 @@ type Config struct {
 	BaseURL string
 	APIKey  string
 	Model   string
+	// MaxOutputTokens is a server-owned ceiling, never a client override.
+	// Zero selects 4096. Values outside 16..1,000,000 are rejected.
+	MaxOutputTokens int
 	// TestLoopback permits only literal loopback IPs over HTTP for local fixtures.
 	TestLoopback bool
 }
 
 type Executor struct {
-	client *core.Bifrost
-	model  string
+	client          *core.Bifrost
+	model           string
+	maxOutputTokens int
 }
 
 var _ execution.Executor = (*Executor)(nil)
@@ -49,12 +53,18 @@ func New(ctx context.Context, cfg Config) (*Executor, error) {
 	if cfg.Model == "" || strings.Contains(cfg.Model, "/") || cfg.APIKey == "" {
 		return nil, errors.New("model and upstream credential required")
 	}
+	if cfg.MaxOutputTokens == 0 {
+		cfg.MaxOutputTokens = 4096
+	}
+	if cfg.MaxOutputTokens < 16 || cfg.MaxOutputTokens > 1000000 {
+		return nil, errors.New("invalid output token ceiling")
+	}
 	a := &account{cfg: cfg}
 	client, err := core.Init(ctx, schemas.BifrostConfig{Account: a, Logger: core.NewNoOpLogger(), InitialPoolSize: 8, DropExcessRequests: true})
 	if err != nil {
 		return nil, errors.New("execution engine initialization failed")
 	}
-	return &Executor{client: client, model: cfg.Model}, nil
+	return &Executor{client: client, model: cfg.Model, maxOutputTokens: cfg.MaxOutputTokens}, nil
 }
 
 func (e *Executor) Close() { e.client.Shutdown() }
@@ -66,15 +76,9 @@ func (e *Executor) Execute(ctx context.Context, req execution.Request, emit exec
 	if req.RequestID == "" || req.AttemptID == "" || emit == nil || len(req.Body) == 0 || len(req.Body) > MaxRequestBytes {
 		return execution.ErrInvalidRequest
 	}
-	var envelope map[string]json.RawMessage
-	if err := json.Unmarshal(req.Body, &envelope); err != nil || envelope == nil {
+	maxOutput, valid := validateRequest(req.Body, e.model, e.maxOutputTokens)
+	if !valid {
 		return execution.ErrInvalidRequest
-	}
-	// Routing is a server decision. Never honor SDK gateway-specific overrides.
-	for _, field := range []string{"provider", "fallbacks", "api_key", "base_url"} {
-		if _, ok := envelope[field]; ok {
-			return execution.ErrInvalidRequest
-		}
 	}
 	var wire openai.OpenAIChatRequest
 	if err := json.Unmarshal(req.Body, &wire); err != nil || wire.Model != e.model || len(wire.Messages) == 0 {
@@ -96,7 +100,7 @@ func (e *Executor) Execute(ctx context.Context, req execution.Request, emit exec
 		if resp == nil {
 			return execution.ErrUpstream
 		}
-		return deliver(ctx, req, resp, emit)
+		return deliver(ctx, req, resp, maxOutput, emit)
 	}
 	chunks, upstreamErr := e.client.ChatCompletionStreamRequest(bctx, converted)
 	if upstreamErr != nil {
@@ -120,7 +124,7 @@ func (e *Executor) Execute(ctx context.Context, req execution.Request, emit exec
 				return classify(ctx)
 			}
 			if chunk.BifrostChatResponse != nil {
-				if err := deliver(ctx, req, chunk.BifrostChatResponse, emit); err != nil {
+				if err := deliver(ctx, req, chunk.BifrostChatResponse, maxOutput, emit); err != nil {
 					return err
 				}
 			}
@@ -136,7 +140,7 @@ func classify(ctx context.Context) error {
 	return execution.ErrUpstream
 }
 
-func deliver(ctx context.Context, req execution.Request, resp *schemas.BifrostChatResponse, emit execution.Emit) error {
+func deliver(ctx context.Context, req execution.Request, resp *schemas.BifrostChatResponse, maxOutput int, emit execution.Emit) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -146,13 +150,16 @@ func deliver(ctx context.Context, req execution.Request, resp *schemas.BifrostCh
 	}
 	var usage *execution.Usage
 	if u := resp.Usage; u != nil {
-		if u.PromptTokens < 0 || u.CompletionTokens < 0 || u.TotalTokens < 0 {
+		if u.PromptTokens < 0 || u.PromptTokens > 2000000 || u.CompletionTokens < 0 || u.CompletionTokens > maxOutput || u.TotalTokens < 0 {
 			return execution.ErrUpstream
 		}
 		// The pinned SDK synthesizes an all-zero usage object when an upstream
 		// stream omits usage. Without provenance, even a genuine all-zero usage
 		// must remain unknown rather than authorize a zero-cost settlement.
 		if u.PromptTokens != 0 || u.CompletionTokens != 0 || u.TotalTokens != 0 {
+			if u.PromptTokens == 0 || u.TotalTokens != u.PromptTokens+u.CompletionTokens {
+				return execution.ErrUpstream
+			}
 			evidence, err := json.Marshal(u)
 			if err != nil {
 				return execution.ErrUpstream
