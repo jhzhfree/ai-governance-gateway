@@ -47,6 +47,13 @@ p {
 button:disabled {
   cursor: not-allowed;
 }
+
+/* Disabled-to-enabled color interpolation temporarily leaves white labels on
+   a pale background after the control becomes actionable. Switch colors
+   immediately; retain non-color motion and focus/shadow feedback. */
+:root .t-button {
+  transition-property: box-shadow, transform;
+}
 code {
   font-family: 'SFMono-Regular', Consolas, monospace;
   font-size: 12px;

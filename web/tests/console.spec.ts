@@ -375,10 +375,62 @@ test('normalized bill import, duplicate detection and rejection preserve budget'
   await page.reload();
   const table = page.getByRole('region', { name: '项目账单对账表' });
   await expect(table.getByRole('cell', { name: /已驳回/ })).toBeVisible();
+  // Sample the real button styles through the disabled -> enabled transition.
+  // A cloned control keeps this deterministic without issuing another API call.
+  const contrast = await page
+    .getByRole('button', { name: '刷新账单', exact: true })
+    .evaluate(async (element) => {
+      const button = element.cloneNode(true) as HTMLButtonElement;
+      element.parentElement!.append(button);
+      const frame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      const luminance = (color: string) => {
+        const rgb = color
+          .match(/[\d.]+/g)!
+          .slice(0, 3)
+          .map(Number)
+          .map((value) => {
+            const channel = value / 255;
+            return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+          });
+        return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+      };
+      try {
+        button.disabled = true;
+        button.classList.add('t-is-disabled');
+        const disabledAt = performance.now();
+        while (performance.now() - disabledAt < 250) await frame();
+        button.disabled = false;
+        button.removeAttribute('aria-disabled');
+        button.classList.remove('t-is-disabled');
+        const enabledAt = performance.now();
+        let minimum = Infinity;
+        while (performance.now() - enabledAt < 250) {
+          const foreground = luminance(
+            getComputedStyle(button.querySelector('.t-button__text')!).color,
+          );
+          const background = luminance(getComputedStyle(button).backgroundColor);
+          minimum = Math.min(
+            minimum,
+            (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05),
+          );
+          await frame();
+        }
+        return { minimum, transitionProperty: getComputedStyle(button).transitionProperty };
+      } finally {
+        button.remove();
+      }
+    });
+  expect(Number.isFinite(contrast.minimum)).toBe(true);
+  expect(contrast.minimum, JSON.stringify(contrast)).toBeGreaterThanOrEqual(4.5);
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const a11y = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
-  expect(a11y.violations.map((v) => v.id)).toEqual([]);
+  expect(
+    a11y.violations.map((v) => ({
+      id: v.id,
+      nodes: v.nodes.map((n) => ({ target: n.target, failureSummary: n.failureSummary })),
+    })),
+  ).toEqual([]);
   await page.getByRole('button', { name: '项目概览', exact: true }).click();
   await expect(page.getByRole('progressbar', { name: '预算占用比例' })).toHaveAttribute(
     'value',
@@ -439,7 +491,12 @@ test('project-key model discovery and web member grants stay scoped', async ({ p
   await page.screenshot({ path: '/tmp/aigw-members-mobile.png', fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const a11y = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
-  expect(a11y.violations.map((v) => v.id)).toEqual([]);
+  expect(
+    a11y.violations.map((v) => ({
+      id: v.id,
+      nodes: v.nodes.map((n) => ({ target: n.target, failureSummary: n.failureSummary })),
+    })),
+  ).toEqual([]);
 });
 
 test('content audit is opt in, explicitly granted and hidden after viewing', async ({ page }) => {
@@ -510,7 +567,12 @@ test('content audit is opt in, explicitly granted and hidden after viewing', asy
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const a11y = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
-  expect(a11y.violations.map((v) => v.id)).toEqual([]);
+  expect(
+    a11y.violations.map((v) => ({
+      id: v.id,
+      nodes: v.nodes.map((n) => ({ target: n.target, failureSummary: n.failureSummary })),
+    })),
+  ).toEqual([]);
 });
 
 test('platform provider editor publishes a database route used by real inference', async ({
@@ -612,7 +674,12 @@ test('platform provider editor publishes a database route used by real inference
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const a11y = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
-  expect(a11y.violations.map((v) => v.id)).toEqual([]);
+  expect(
+    a11y.violations.map((v) => ({
+      id: v.id,
+      nodes: v.nodes.map((n) => ({ target: n.target, failureSummary: n.failureSummary })),
+    })),
+  ).toEqual([]);
 });
 
 test('budget editing, monthly periods and keyword rules govern real inference', async ({
@@ -731,7 +798,12 @@ test('budget editing, monthly periods and keyword rules govern real inference', 
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const a11y = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
-  expect(a11y.violations.map((v) => v.id)).toEqual([]);
+  expect(
+    a11y.violations.map((v) => ({
+      id: v.id,
+      nodes: v.nodes.map((n) => ({ target: n.target, failureSummary: n.failureSummary })),
+    })),
+  ).toEqual([]);
 });
 
 test('cost report reads real ledger, exports audited CSV and fits mobile', async ({
@@ -903,7 +975,12 @@ test('budget notifications persist short holds and acknowledgment never changes 
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const a11y = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
-  expect(a11y.violations.map((issue) => issue.id)).toEqual([]);
+  expect(
+    a11y.violations.map((issue) => ({
+      id: issue.id,
+      nodes: issue.nodes.map((n) => ({ target: n.target, failureSummary: n.failureSummary })),
+    })),
+  ).toEqual([]);
 });
 
 test('department tree, scoped grants, project assignment and history persist through real API', async ({
