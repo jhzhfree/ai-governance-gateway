@@ -73,15 +73,7 @@ func (m *Manager) read(ctx context.Context) (cfg Config, revision int64, err err
 func (m *Manager) snapshot() *Catalog {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	cfg, rev, err := m.read(ctx)
-	if err != nil || rev == 0 {
-		return nil
-	}
-	getter, _, err := m.credentials(ctx, m.pool)
-	if err != nil {
-		return nil
-	}
-	c, err := New(cfg, getter, m.transport)
+	c, err := m.ExecutionSnapshot(ctx)
 	if err != nil {
 		return nil
 	}

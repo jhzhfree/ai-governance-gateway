@@ -244,6 +244,15 @@ func (p *Pool) Validate(route *provider.Route, req provider.Request) error {
 	return err
 }
 func (p *Pool) Open(ctx context.Context, route *provider.Route, req provider.Request, id, attempt string) (*http.Response, error) {
+	return p.open(ctx, route, req, id, attempt, func() {})
+}
+
+// admitted is called exactly once, after lease acquisition or admission failure.
+func (p *Pool) open(ctx context.Context, route *provider.Route, req provider.Request, id, attempt string, admitted func()) (*http.Response, error) {
+	var admission sync.Once
+	releaseAdmission := func() { admission.Do(admitted) }
+	defer releaseAdmission()
+
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -261,6 +270,7 @@ func (p *Pool) Open(ctx context.Context, route *provider.Route, req provider.Req
 	e.refs++
 	p.leases.Add(1)
 	p.mu.Unlock()
+	releaseAdmission()
 	ctx, cancel := context.WithCancel(ctx)
 	stopPool := context.AfterFunc(p.ctx, cancel)
 	release := func() {

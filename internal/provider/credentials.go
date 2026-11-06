@@ -111,14 +111,13 @@ func (m *Manager) credentials(ctx context.Context, q credentialQuery) (func(stri
 	}
 	for _, p := range Profiles() {
 		if _, ok := metadata[p.ID]; !ok {
-			metadata[p.ID] = credentialMetadata{source: "environment", configured: validCredential(m.getenv(p.KeyEnvironment))}
+			value := m.getenv(p.KeyEnvironment)
+			overrides[p.KeyEnvironment] = value
+			metadata[p.ID] = credentialMetadata{source: "environment", configured: validCredential(value)}
 		}
 	}
 	return func(name string) string {
-		if v, ok := overrides[name]; ok {
-			return v
-		}
-		return m.getenv(name)
+		return overrides[name]
 	}, metadata, nil
 }
 func (m *Manager) SetCredential(ctx context.Context, p identity.Principal, id string, expected int64, secret string) error {

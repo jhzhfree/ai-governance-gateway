@@ -97,6 +97,9 @@ func TestReviewExpiryDisablesRouteAndCatalog(t *testing.T) {
 	timer := time.NewTimer(150 * time.Millisecond)
 	defer timer.Stop()
 	<-timer.C
+	if len(catalog.ExecutionRoutes()) != 4 {
+		t.Fatal("execution snapshot silently omitted expired route")
+	}
 	if route.Ready() || catalog.Ready() || len(catalog.Models()) != 3 {
 		t.Fatal("expired review still enabled")
 	}

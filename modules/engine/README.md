@@ -19,3 +19,5 @@ Bifrost Core v1.14.1，独立 Go 模块。来源为本工作区已验证的 M0 �
 第七阶段增加三家大陆供应商固定路径/参数和 SupplierBinding 工厂。凭证快照变化使旧绑定拒绝接纳新快照，但尚无自动轮换和共享池；详见 [ADR 0006](docs/adr/0006-mainland-supplier-bindings.md)。
 
 有界实例池：`gatewaybridge.NewPool` 接受明确实例/并发上限；完整快照通过 `Publish` 原子切换，旧租约排空后回收。调用方仍负责有序发布与退出 Close。数据库发布联动和 main 接入尚未完成；见 [ADR 0007](docs/adr/0007-bounded-execution-pool.md)。
+
+受管发布：`NewManaged` 从一致数据库快照刷新路由和实例池，必须作为同一个网关的 Routing 与 Executor 成对安装。同步刷新失败时停止新接纳，已有请求正常排空；事务内模型查询不发布实例。该组件尚未安装到 main，详见 [ADR 0008](docs/adr/0008-managed-snapshot-publication.md)。

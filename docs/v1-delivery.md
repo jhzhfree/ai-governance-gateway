@@ -106,3 +106,11 @@
 新增 Pool：完整集合原子发布、单调代次拒绝旧发布、快照复用、新旧实例排空、现用/排空/构建总容量上限和全局请求并发上限。Body EOF/错误/Close/context 取消及打开失败释放租约，Close 取消并等待回收。原 15 个治理集成场景改经池与供应商工厂；初次测试暴露旧 fixture 路径/凭证断言，修正后重验。详见 [ADR 0007](../modules/engine/docs/adr/0007-bounded-execution-pool.md)。数据库自动发布联动、主程序切换与生产容量验收尚未完成，本轮无数据库或 Web 变更。
 
 完整根 `AIGW_VERIFY_WEB=0 GOMAXPROCS=4 bash scripts/verify.sh` 退出码 0：主模块 214 个顶层测试、执行模块当时 42 个顶层测试通过，真实隔离 PostgreSQL、race/vet、API 契约与模块校验通过，无跳过。随后仅执行模块补充排队发布可取消行为，重新运行模块完整脚本退出码 0，最终 43 个顶层测试（31 适配器＋12 桥接）通过，含 15 个治理场景；全部 7 个 Pool 测试另连续 20 轮 race 通过。日志为 `/workspace/.onboarding/logs/pool-verify-final.log`、`pool-engine-final.log`、`pool-lifecycle-final.log`。本轮 Web 未修改；DeepSeek 阶段已有 16＋1 浏览器最终通过证据。推送前 DeepSeek 提交 13166b0 的远端 run 42297449378 仍在运行，远端结果须独立核验。
+
+## 一致快照与受管发布阶段
+
+基线 13166b0、4947841 的远程运行 42297449378、42298576145 均已确认 success。
+
+修复根 Manager 的配置/凭证分开读取，改为 REPEATABLE READ 只读事务；固定环境凭证读取结果。新增 Managed 将一致快照自动发布到池，串行读取＋发布避免迟到覆盖；数据库/解密/容量失败后拒绝缓存接纳，原租约排空，后续有效刷新恢复。同步路由刷新触发，非后台推送；事务内模型查询复用原连接。main 尚未切换，无数据库或 Web 结构变更。详见 [ADR 0008](../modules/engine/docs/adr/0008-managed-snapshot-publication.md)。
+
+根 `AIGW_VERIFY_WEB=0 GOMAXPROCS=4 bash scripts/verify.sh` 退出码 0：主模块 215 个顶层测试、执行模块 46 个测试通过，包含真实隔离 PostgreSQL、race/vet、模块与 API 契约检查，无跳过。最后补充关闭等待源读取及过期路由完整集合边界后，重新运行执行模块完整脚本和 provider 包 race 测试均退出码 0；三个 Managed 测试另连续 20 轮 race 通过。日志在 `/workspace/.onboarding/logs/managed-verify.log`、`managed-engine-final.log`、`managed-provider-final.log`、`managed-race.log`。Web 未修改，本轮未重跑本地浏览器；远端 CI 需单独核验。仅合成上游与专用测试库，无付费上游、生产操作或 V1 发布。
