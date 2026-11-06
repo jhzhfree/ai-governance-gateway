@@ -13,3 +13,5 @@ Bifrost Core v1.14.1，独立 Go 模块。来源为本工作区已验证的 M0 �
 当前增量增加实例并发上限与取消后关闭，共 20 个顶层契约测试。满载不排队派发，关闭停止接纳并回收在途调用；详见 [ADR 0003](docs/adr/0003-execution-lifecycle.md)。尚未完成真实负载容量和长期稳定性验收。
 
 第五阶段增加受治理执行桥接与原始用量证据检查，见 [ADR 0004](docs/adr/0004-governed-execution-bridge.md)。必须保留 SDK 原始帧捕获缺口的生产门禁，不能将本地合成联调等同三家供应商兼容或生产切换完成。
+
+第六阶段：流式 Chat 由适配层直接接收原始 SSE，非流式继续 Bifrost SDK；两种路径互斥且不回退。当前受支持流子集不再依赖 SDK 原始捕获，用量证据到有效 DONE 才输出。契约、代价与剩余门禁见 [ADR 0005](docs/adr/0005-strict-stream-reception.md)。

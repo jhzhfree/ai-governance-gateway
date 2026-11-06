@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -37,10 +38,12 @@ type Config struct {
 }
 
 type Executor struct {
-	client          *core.Bifrost
-	model           string
-	maxOutputTokens int
-	lifecycle       *lifecycle
+	client               *core.Bifrost
+	streamHTTP           *http.Client
+	streamURL, streamKey string
+	model                string
+	maxOutputTokens      int
+	lifecycle            *lifecycle
 }
 
 var _ execution.Executor = (*Executor)(nil)
@@ -56,6 +59,9 @@ func New(ctx context.Context, cfg Config) (*Executor, error) {
 	loopback := net.ParseIP(u.Hostname()) != nil && net.ParseIP(u.Hostname()).IsLoopback()
 	if u.Scheme != "https" && !(cfg.TestLoopback && loopback && u.Scheme == "http") {
 		return nil, errors.New("upstream requires HTTPS; test HTTP requires a literal loopback address")
+	}
+	if cfg.TestLoopback && !loopback {
+		return nil, errors.New("test transport requires literal loopback")
 	}
 	if cfg.Model == "" || strings.Contains(cfg.Model, "/") || cfg.APIKey == "" {
 		return nil, errors.New("model and upstream credential required")
@@ -77,10 +83,12 @@ func New(ctx context.Context, cfg Config) (*Executor, error) {
 	if err != nil {
 		return nil, errors.New("execution engine initialization failed")
 	}
-	return &Executor{client: client, model: cfg.Model, maxOutputTokens: cfg.MaxOutputTokens, lifecycle: newLifecycle(ctx, cfg.MaxConcurrent)}, nil
+	return &Executor{streamHTTP: streamClient(cfg.TestLoopback), streamURL: strings.TrimRight(cfg.BaseURL, "/") + "/v1/chat/completions", streamKey: cfg.APIKey, client: client, model: cfg.Model, maxOutputTokens: cfg.MaxOutputTokens, lifecycle: newLifecycle(ctx, cfg.MaxConcurrent)}, nil
 }
 
-func (e *Executor) Close() { e.lifecycle.close(e.client.Shutdown) }
+func (e *Executor) Close() {
+	e.lifecycle.close(func() { e.streamHTTP.CloseIdleConnections(); e.client.Shutdown() })
+}
 
 func (e *Executor) Execute(ctx context.Context, req execution.Request, emit execution.Emit) error {
 	if err := ctx.Err(); err != nil {
@@ -102,6 +110,9 @@ func (e *Executor) Execute(ctx context.Context, req execution.Request, emit exec
 		return err
 	}
 	defer release()
+	if wire.Stream != nil && *wire.Stream {
+		return e.stream(ctx, req, maxOutput, emit)
+	}
 	bctx, cancel := schemas.NewBifrostContextWithCancel(ctx)
 	defer cancel()
 	bctx.SetValue(schemas.BifrostContextKeyRequestID, req.AttemptID)
@@ -111,49 +122,15 @@ func (e *Executor) Execute(ctx context.Context, req execution.Request, emit exec
 	converted.Provider = schemas.OpenAI
 	converted.Model = e.model
 	converted.Fallbacks = nil
-	stream := wire.Stream != nil && *wire.Stream
-	evidence := &usageEvidence{stream: stream}
-	if !stream {
-		resp, upstreamErr := e.client.ChatCompletionRequest(bctx, converted)
-		if upstreamErr != nil {
-			return classify(ctx)
-		}
-		if resp == nil {
-			return execution.ErrUpstream
-		}
-		return deliver(ctx, req, resp, maxOutput, evidence, emit)
-	}
-	chunks, upstreamErr := e.client.ChatCompletionStreamRequest(bctx, converted)
+	evidence := &usageEvidence{}
+	resp, upstreamErr := e.client.ChatCompletionRequest(bctx, converted)
 	if upstreamErr != nil {
 		return classify(ctx)
 	}
-	if chunks == nil {
+	if resp == nil {
 		return execution.ErrUpstream
 	}
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case chunk, ok := <-chunks:
-			if !ok {
-				if ctx.Err() == nil && !evidence.finished {
-					return execution.ErrUpstream
-				}
-				return ctx.Err()
-			}
-			if chunk == nil {
-				continue
-			}
-			if chunk.BifrostError != nil {
-				return classify(ctx)
-			}
-			if chunk.BifrostChatResponse != nil {
-				if err := deliver(ctx, req, chunk.BifrostChatResponse, maxOutput, evidence, emit); err != nil {
-					return err
-				}
-			}
-		}
-	}
+	return deliver(ctx, req, resp, maxOutput, evidence, emit)
 }
 
 func classify(ctx context.Context) error {

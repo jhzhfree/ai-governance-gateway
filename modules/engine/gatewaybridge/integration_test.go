@@ -27,7 +27,7 @@ import (
 )
 
 func TestGovernedBifrostExecution(t *testing.T) {
-	for _, mode := range []string{"json", "stream", "missing usage", "duplicate usage", "upstream failure", "revoked key", "budget denial", "device denial", "audit unavailable", "small limit", "unauthorized model", "model permission removed"} {
+	for _, mode := range []string{"json", "stream", "missing usage", "duplicate usage", "upstream failure", "revoked key", "budget denial", "device denial", "audit unavailable", "small limit", "unauthorized model", "model permission removed", "malformed stream", "oversized stream", "usage then disconnect"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx := context.Background()
 			pool, ledger, _ := testutil.Database(t)
@@ -59,8 +59,14 @@ func TestGovernedBifrostExecution(t *testing.T) {
 				if mode == "missing usage" {
 					usage = ""
 				}
-				if mode == "stream" || mode == "missing usage" || mode == "duplicate usage" {
+				if mode == "stream" || mode == "missing usage" || mode == "duplicate usage" || mode == "malformed stream" || mode == "oversized stream" || mode == "usage then disconnect" {
 					w.Header().Set("Content-Type", "text/event-stream")
+					if mode == "malformed stream" {
+						_, _ = fmt.Fprint(w, "data: {bad JSON}\n\n")
+					}
+					if mode == "oversized stream" {
+						_, _ = fmt.Fprintf(w, "data: {\"choices\":[],\"hidden\":\"%s\"}\n\n", strings.Repeat("x", (1<<20)+1))
+					}
 					_, _ = fmt.Fprint(w, "data: {\"id\":\"fixture\",\"object\":\"chat.completion.chunk\",\"model\":\"fixture-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"synthetic reply\"},\"finish_reason\":null}]}\n\n")
 					_, _ = fmt.Fprint(w, "data: {\"id\":\"fixture\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n")
 					if usage != "" {
@@ -69,7 +75,9 @@ func TestGovernedBifrostExecution(t *testing.T) {
 					if mode == "duplicate usage" {
 						_, _ = fmt.Fprintf(w, "data: {\"id\":\"fixture\",\"choices\":[]%s}\n\n", usage)
 					}
-					_, _ = fmt.Fprint(w, "data: [DONE]\n\n")
+					if mode != "usage then disconnect" {
+						_, _ = fmt.Fprint(w, "data: [DONE]\n\n")
+					}
 					return
 				}
 				w.Header().Set("Content-Type", "application/json")
@@ -126,7 +134,7 @@ func TestGovernedBifrostExecution(t *testing.T) {
 			if mode == "audit unavailable" {
 				h.Content = contentaudit.New(pool, nil)
 			}
-			stream := mode == "stream" || mode == "missing usage" || mode == "duplicate usage"
+			stream := mode == "stream" || mode == "missing usage" || mode == "duplicate usage" || mode == "malformed stream" || mode == "oversized stream" || mode == "usage then disconnect"
 			maxTokens := 32
 			if mode == "small limit" {
 				maxTokens = 8
@@ -144,7 +152,7 @@ func TestGovernedBifrostExecution(t *testing.T) {
 			h.ServeHTTP(w, r)
 			id := w.Header().Get("X-Request-ID")
 			successful := mode == "json" || mode == "stream"
-			dispatched := successful || mode == "missing usage" || mode == "duplicate usage" || mode == "upstream failure"
+			dispatched := successful || mode == "missing usage" || mode == "duplicate usage" || mode == "upstream failure" || mode == "malformed stream" || mode == "oversized stream" || mode == "usage then disconnect"
 			if dispatched {
 				if calls.Load() != 1 {
 					t.Fatalf("physical attempts = %d", calls.Load())

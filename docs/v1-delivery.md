@@ -14,7 +14,7 @@
 
 | 工作包 | 当前基线 | V1 退出条件 |
 | --- | --- | --- |
-| 执行引擎 | 新增隔离 SDK 与合成契约测试 | 主治理链路接入、协议白名单、工具与流式计量、取消/过载/关闭、真实供应商受控验收 |
+| 执行引擎 | 隔离 SDK、严格 SSE 与治理桥接；main 未切换 | 主治理链路接入、协议白名单、工具与流式计量、取消/过载/关闭、真实供应商受控验收 |
 | Token 与身份 | OIDC、本地身份、项目 Key、权限及撤销已有实现 | 全链路跨租户拒绝、撤销及时性、身份生命周期回归；本地身份不是自建 OIDC Provider |
 | 费用治理 | 两级预算、预留/结算/未知、价格版本、报表/对账已有实现 | 新引擎沿用唯一账本，重复/迟到/缺失 usage 不误结算，崩溃恢复、官方账单样本及差异处置 |
 | 终端管控 | 设备登记、DPoP、短期会话、Linux 代理已有实现 | 新链路不绕过设备策略；明确 Agent 与出口控制边界；真实终端状态接口验收 |
@@ -80,3 +80,11 @@
 联调发现 SDK 聚合重复 usage 且可能修正 total，原实现不能证明费用来源。新增捕获帧校验、无缓冲背压和 Body.Close 回收，并补充拒绝/异常结算测试。SDK 捕获仍存在解析丢弃与队列截断边界，生产切换保持阻塞，不能将本次受控通过扩大为全流完整性已证明。详见 [当前功能盘点](v1-current-status.md) 与 [ADR 0004](../modules/engine/docs/adr/0004-governed-execution-bridge.md)。验证结果见下。
 
 完整本地命令 `source /workspace/.onboarding/env.sh; AIGW_VERIFY_WEB=1 GOMAXPROCS=4 bash scripts/verify.sh` 退出码 0：主模块 212 个顶层测试、执行模块 26 个顶层测试（其中桥接集成含 12 个场景）、16 个 OIDC＋1 个本地身份浏览器场景通过，无失败或跳过。模块校验、Go API 契约、vet/race、真实隔离 PostgreSQL、前端冻结安装/契约/类型/Lint/构建均通过；httpapi 153.686 秒、浏览器 67.465 秒。日志 `/workspace/.onboarding/logs/v1-stage5-verify.log`。仅合成上游、专用测试库；未部署、未操作生产数据库、未调用真实付费模型。远程 CI 需在推送后另外核验。
+
+## 第六阶段：原始 SSE 完整性
+
+新增直接、逐帧、有界的 SSE 接收层，流式请求不再经过可能丢弃/截断事件的 SDK 流解析器；非流式仍用固定 SDK。用量暂存到有效 DONE 后才成为证据。复用 SDK 公开网络防护，保留 TLS/SSRF/代理策略、无重定向/重试、背压及关闭回收。受治理联调增加畸形帧、超大非转发帧、用量后断流，预期均为 uncertain，详见 [ADR 0005](../modules/engine/docs/adr/0005-strict-stream-reception.md)。不改数据库，不开放主程序切换。
+
+本地 `AIGW_VERIFY_WEB=0 GOMAXPROCS=4 bash scripts/verify.sh` 退出码 0：主模块 212 个顶层测试、执行模块 32 个顶层测试（桥接内含 15 个治理场景）通过，含真实隔离 PostgreSQL、race、vet、模块校验和 Go API 契约检查，无失败或跳过。httpapi 159.992 秒。关闭/取消/过载另连续 20 轮 race 通过。日志 `/workspace/.onboarding/logs/v1-stage6-verify.log` 与 `v1-stage6-lifecycle.log`。Web 与主启动路径未修改，本轮未重跑本地浏览器；未调用付费上游或操作生产库。
+
+前一提交 18836df 的远端 run 42291747120 已确认 success：治理桥接 11.642 秒、httpapi 159.688 秒、16＋1 浏览器场景通过，无失败/跳过。该远端证据不代替本次新提交的远端结果。
