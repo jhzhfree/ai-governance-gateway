@@ -16,7 +16,7 @@
 | Docker | 29.1.3（仅备用，见 3.6） |
 | 其他 | gcc 13.3、GNU Make 4.3、Delve 1.27.2、jq |
 | 下载源 | apt/Go 归档/PGDG：`mirrors.aliyun.com`；Go modules：`goproxy.cn`；npm：`registry.npmmirror.com` |
-| 验收 | `go build`/`go vet` 通过；`scripts/verify.sh` 全量 PASS；迁移至 0011；`/health/live`、`/health/ready` 均 204 |
+| 验收 | `go build`/`go vet` 通过；`scripts/verify.sh` 全量 PASS；迁移至 0022；`/health/live`、`/health/ready` 均 204 |
 
 ---
 
