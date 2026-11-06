@@ -11,6 +11,7 @@ AI 治理网关：面向团队的统一模型接入、访问控制、预算限�
 - [Ubuntu 24.04 环境搭建、开发与部署](docs/deployment/ubuntu-24.04.md)
 - [开发环境安装记录（本机实测）](docs/dev-environment-setup.md)
 - [开发调试与构建发布命令](docs/dev-and-release-commands.md)
+- [V1.0 可行性与交付计划](docs/v1.0-feasibility-and-delivery-plan.md)
 - [全局产品说明（开发与发布基线）](docs/product-handbook.md)
 - [深层技术可行性评估（Token 治理 + 内容审计 + 软硬一体）](docs/technical-feasibility.md)
 - [项目密钥模型发现与成员管理](docs/model-discovery-and-members.md)
