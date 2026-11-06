@@ -59,8 +59,12 @@ build-go: ## 仅构建 Go 二进制到 bin/
 build-web: ## 仅构建前端到 web/dist
 	$(NPM) --prefix web run build
 
-run: ## 启动真实网关（需配置 AIGW_DATABASE_URL/OIDC；供应商从页面发布）
-	$(RUN) $(BIN)/gateway --listen $(DEV_LISTEN) --web-dir web/dist
+run: ## 启动真实网关（env 自备，见 .env；供应商从页面发布）
+	@flags=""; \
+	if printf '%s' "$$AIGW_BROWSER_ORIGIN" | grep -qE '^http://(127\.0\.0\.1|\[::1\]|localhost)(:[0-9]+)?/?$$'; then \
+		flags="--allow-loopback-browser-http"; \
+	fi; \
+	$(RUN) $(BIN)/gateway --listen $(DEV_LISTEN) --web-dir web/dist $$flags
 
 test-run: ## 仅测试：前台启动模拟网关（需先 make dev-oidc、make run-mock、make migrate-up）；DEV_BROWSER_ORIGIN 启用控制台
 	@ca=""; [ -f "$(DEV_OIDC_CA)" ] && ca="SSL_CERT_FILE=$(CURDIR)/$(DEV_OIDC_CA)"; \
