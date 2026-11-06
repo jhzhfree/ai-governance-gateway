@@ -28,7 +28,7 @@ GO_TEST_TIMEOUT ?= 600s
 # system libstdc++; drop it when launching long-running binaries or tests.
 RUN := env -u LD_LIBRARY_PATH
 
-.PHONY: help doctor deps build build-go build-web run test-run run-mock dev-oidc dev-token \
+.PHONY: help doctor deps build build-go build-web run test-run run-mock dev-oidc dev-token stop status \
 	web-dev smoke migrate-up migrate-status migrate-check db-init test verify fmt vet \
 	lint clean package package-linux-amd64 package-linux-arm64 debug
 
@@ -95,6 +95,21 @@ web-dev: ## 前台启动 Vite 开发服务器（127.0.0.1:5173）
 
 smoke: ## 检查探针与推理接口的拒绝行为（真实网关未授权请求应拒绝）
 	@for p in health/live health/ready; do printf '%s -> ' $$p; curl -sS -m 5 -o /dev/null -w '%{http_code}\n' http://$(DEV_LISTEN)/$$p; done
+
+stop: ## 停止本机开发进程（gateway/mock-provider/dev-oidc/vite；不动 PostgreSQL）
+	@for pat in '[b]in/gateway' '[b]in/mock-provider' '[d]ev-oidc' '[v]ite'; do \
+		if pkill -f "$$pat" 2>/dev/null; then echo "stopped: $$pat"; fi; \
+	done; \
+	sleep 1; \
+	if ss -ltn 2>/dev/null | grep -qE ':(8080|8091|9443|5173)\b'; then \
+		echo "仍有端口未释放:"; ss -ltnp 2>/dev/null | grep -E ':(8080|8091|9443|5173)\b'; \
+	else \
+		echo "8080/8091/9443/5173 均已释放"; \
+	fi
+
+status: ## 查看本机开发进程与端口占用
+	@pgrep -af 'bin/gateway|bin/mock-provider|dev-oidc|vite' | grep -v pgrep || echo "无相关进程"; \
+	ss -ltnp 2>/dev/null | grep -E ':(8080|8091|9443|5173)\b' || echo "相关端口均未监听"
 	@printf 'unauthorized chat -> '; curl -sS -m 5 -o /dev/null -w '%{http_code}\n' \
 		-X POST http://$(DEV_LISTEN)/v1/chat/completions -H 'Authorization: Bearer invalid' \
 		-d '{"model":"unconfigured/model","messages":[{"role":"user","content":"hi"}],"max_tokens":8}' || true

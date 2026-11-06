@@ -37,6 +37,29 @@ make run               # 终端 C：bin/gateway --listen 127.0.0.1:8080 --web-di
 
 > **注意：** `make run` 自 0012 起是真实网关（供应商从控制台发布到数据库，见 `docs/provider-management.md`），**不再**内置 `--mock-only`；模拟链路改用 `make test-run`。`--mock-only` 现在要求 `AIGW_TEST_MODE=1`（`test-run`/`run-mock` 已自动带上）。`.env` 不会被程序自动加载，需 `set -a; source .env; set +a` 或逐个 export。
 
+### 停止与状态（与启动命令一一对应）
+
+前台终端各自 `Ctrl+C` 即为停止；后台/失联实例用下面的命令统一管理：
+
+```bash
+make status   # 查看开发进程与端口占用（8080 网关 / 8091 模拟供应商 / 9443 开发 IdP / 5173 Vite）
+make stop     # 停止上述四类进程（不动 PostgreSQL；等效逐个 pkill，模式已防自匹配）
+```
+
+对应关系与手动等价命令：
+
+| 进程 | 启动 | 停止 |
+| --- | --- | --- |
+| 网关 8080 | `make run`（或 `test-run`） | `pkill -f '[b]in/gateway'` |
+| 模拟供应商 8091 | `make run-mock` | `pkill -f '[b]in/mock-provider'` |
+| 开发 IdP 9443 | `make dev-oidc` | `pkill -f '[d]ev-oidc'` |
+| Vite 5173 | `make web-dev` | `pkill -f '[v]ite'` |
+
+- `make stop` 不停 PostgreSQL（数据与迁移保留，重启即用）；要连数据库一起停用 `systemctl stop postgresql`（仅整机维护时）。
+- 网关收到 SIGTERM/SIGINT 后有 10 秒优雅停机期，在途请求不丢；`Ctrl+C` 属正常停止，不产生错误日志。
+- 停止后端口应释放：`ss -ltn | grep -E ':(8080|8091|9443|5173)'` 无输出即干净；重复启动报 `gateway listener failed` 见第 9 节故障表。
+- 生产（systemd）以 `systemctl stop aigw-gateway` 为准，见第 8 节。
+
 **为什么要 `make dev-oidc`：** 网关启动即对 `AIGW_OIDC_ISSUER` 做 discovery 并校验 HTTPS，离线机器上没有可达的 IdP 就会报 `OIDC discovery failed`。`cmd/dev-oidc` 是本机回环 IdP（自签 CA、RS256、PKCE、设备码，自动批准），只用于开发，不进入发布包。首次运行会在 `.aigw/dev-oidc/` 生成 `ca.pem`/`server.pem`/`server.key`（0600，已 gitignore）；`make run` 检测到该 CA 会自动注入 `SSL_CERT_FILE`，无需改系统信任库。
 
 模拟链路等价原生命令（便于改参数）：
@@ -115,6 +138,8 @@ curl -H "Authorization: Bearer $(make -s dev-token)" http://127.0.0.1:8080/api/v
 | 模拟网关 | `make test-run` | 仅测试：`--mock-only` + `AIGW_TEST_MODE=1` |
 | 真实网关 | `make run` | 数据库托管供应商；env 自备，见第 1 节 |
 | 断点调试 | `make debug` | Delve headless `127.0.0.1:2345`（真实链路，env 同 `make run`） |
+| 停止进程 | `make stop` | gateway/mock/dev-oidc/vite 一键停止，不动 PostgreSQL |
+| 查看进程 | `make status` | 进程与 8080/8091/9443/5173 端口占用 |
 | 打包 | `make package` | linux/amd64 + linux/arm64 tar.gz + SHA256SUMS |
 | 清理 | `make clean` | 删除 `bin/ dist/ web/dist`，不动数据库 |
 
