@@ -130,3 +130,22 @@ bash scripts/benchmark-newapi.sh
 这些是本地合成供应商的端到端延迟，包含 2 秒固定等待；不能从百分位直接减去 2 秒声称精确网关开销。B/op 是计时控制面进程的分配量，不是 RSS/峰值内存，不包含独立数据面和 PostgreSQL。未测真实 TLS/网络/IdP/设备 Agent、长时间 soak、目标 32 GiB、跨主机故障或真实账单，不据此承诺生产 SLA。后端完整门禁结果另记。
 
 容量扩展提交前再执行 `TEST_NEWAPI_SERVER_BINARY=<600c8a707竞态二进制> AIGW_VERIFY_RESTORE=1 bash scripts/verify.sh`，退出码 0。全部后端 race/vet、模块/格式/API 契约、数据库与双进程故障测试，以及旧版/当前逻辑恢复通过；HTTP API 288.751 秒，恢复 4.917 秒。此阶段未改 Web/公共 API/生产逻辑，未重复浏览器和 SDK；上一细分计费阶段已完成相应完整门禁。开发日志为 `ttl-messages-capacity-smoke.log`、`ttl-messages-capacity20.log`、`ttl-capacity-full-backend.log`。
+
+## Messages 实时流与混合缓存计费：20 并发
+
+生产控制面固定 `6057c5a5ef23b52031e23f8146d6abf85f44e4a6`，数据面固定 `fb0c2251b5489568d1a3e766ce303c7a94e2816c`，使用独立非 race fixture。新增 `messages_stream` 场景：合成 Anthropic 起始普通输入 2、输出 1、缓存读 4、写 5（5 分钟 3、1 小时 2），首段文本后等待 2000ms，最终输出 3。公开端必须恰好收到一个 message_start/message_stop，计数与原始证据一致，无 error 或 Chat DONE。该 benchmark 使用内存响应记录器检查完整输出；首段实时可见性由上一阶段真实 HTTP 阻塞上游测试验证，本基线不报告 TTFT。
+
+仍为 cgroup 4 vCPU／16 GiB，GOMAXPROCS=4/8 是同一物理配额下调度参数。每组 20 workers、100 次计时＋1 次预热，内容审计开/关，共 4 组，76.114 秒通过；先以 5 次、无延迟执行两组冒烟通过。压测期间没有并行启动完整回归。
+
+| 内容审计 | GOMAXPROCS | req/s | p50 ms | p95 ms | p99 ms | 控制面 B/op |
+| --- | --- | --- | --- | --- | --- | --- |
+| 关 | 4 | 9.336 | 2050 | 2389 | 2494 | 119404 |
+| 关 | 8 | 9.319 | 2061 | 2326 | 2415 | 130497 |
+| 开 | 4 | 9.306 | 2058 | 2370 | 2456 | 206440 |
+| 开 | 8 | 9.259 | 2063 | 2402 | 2498 | 225457 |
+
+每组网关／供应商实测峰值均为 20，无错误或重试，101 次物理调用＝101 份持久回执。所有回执 cache_details_version=2、缓存读 4／写 5、5 分钟／1 小时量 3／2，每次费用 39 微人民币，总 spent=3939、held=0；审计开启时 101 份 complete，关闭时零份正文，审计链有效。费用与恢复对账发生于真实独立 new-api 进程和专用 PostgreSQL。
+
+复现参数：`TEST_NEWAPI_SERVER_BINARY=<fb0c2251b非race二进制> AIGW_BENCH_PATTERN='^BenchmarkNewAPIGovernance$/messages_stream/' AIGW_BENCH_CPUS=4,8 AIGW_BENCH_ITERATIONS=100 AIGW_BENCH_CONCURRENCY=20 AIGW_BENCH_UPSTREAM_DELAY_MS=2000 bash scripts/benchmark-newapi.sh`。开发日志 `messages-live-capacity-smoke.log`、`messages-live-capacity20.log`。延迟包含合成 2 秒等待；B/op 不是 RSS，不含独立数据面／数据库；不作为目标 32 GiB、真实 TLS／供应商／长时间 soak 或生产 SLA 验收。完整后端回归结果另记。
+
+容量阶段再次执行固定 fb0c2251b 竞态 fixture 的 `AIGW_VERIFY_RESTORE=1 bash scripts/verify.sh`，退出码 0。完整后端 race/vet、API 契约、数据库自动升级、进程故障与逻辑恢复通过；HTTP API 310.390 秒、bridge 525.493 秒。日志 `messages-live-capacity-backend.log`。本阶段仅 benchmark 与文档变更，不重复上一生产代码提交已通过的 Web／SDK 门禁。

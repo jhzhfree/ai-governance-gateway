@@ -316,7 +316,7 @@ new-api 模式下供应商密钥由数据面管理。客户端继续调用 `/v1/
 
 ### Messages 文本客户端
 
-newapi 执行模式下可调用 `/v1/messages` 文本 JSON 子集。模型目录需审核渠道指纹并配置缓存读写费率，以取得分离的原始计数。项目 Key 放在 `x-api-key` 或 Bearer 中（二选一），版本使用 `anthropic-version: 2023-06-01`。请求包含 model、max_tokens 和字符串内容的 messages；暂不支持 stream、工具、图片、内容块数组或 beta。内容审计与预算仍生效，缺失原始计量不会自动退款。详细范围、终端用法和固定 SDK 验证见 [接入说明](../new-api-integration.md#受控-messages-文本-json)。
+newapi 执行模式下可调用 `/v1/messages` 文本 JSON 子集。模型目录需审核渠道指纹并配置缓存读写费率，以取得分离的原始计数。项目 Key 放在 `x-api-key` 或 Bearer 中（二选一），版本使用 `anthropic-version: 2023-06-01`。请求包含 model、max_tokens 和字符串内容的 messages；工具、图片、内容块数组或 beta 暂不支持；stream 需另外满足下文“Messages 实时流”的审核条件。内容审计与预算仍生效，缺失原始计量不会自动退款。详细范围、终端用法和固定 SDK 验证见 [接入说明](../new-api-integration.md#受控-messages-文本-json)。
 
 ### 缓存写入时长费用
 

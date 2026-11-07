@@ -61,7 +61,7 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 			b.Fatal("synthetic upstream delay must be 0..10000 ms")
 		}
 	}
-	for _, protocol := range []string{"chat", "stream", "embedding", "responses", "responses_stream", "messages", "cache_ttl"} {
+	for _, protocol := range []string{"chat", "stream", "embedding", "responses", "responses_stream", "messages", "cache_ttl", "messages_stream"} {
 		for _, content := range []bool{false, true} {
 			b.Run(fmt.Sprintf("%s/content=%t", protocol, content), func(b *testing.B) {
 				ctx := context.Background()
@@ -78,14 +78,14 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 					}
 
 					credential := r.Header.Get("Authorization")
-					if protocol == "cache_ttl" {
+					if protocol == "cache_ttl" || protocol == "messages_stream" {
 						credential = "Bearer " + r.Header.Get("X-Api-Key")
 					}
 					if credential != "Bearer syntheticvendor" {
 						w.WriteHeader(400)
 						return
 					}
-					if delayMS > 0 && protocol != "stream" && protocol != "responses_stream" {
+					if delayMS > 0 && protocol != "stream" && protocol != "responses_stream" && protocol != "messages_stream" {
 						select {
 						case <-time.After(time.Duration(delayMS) * time.Millisecond):
 						case <-r.Context().Done():
@@ -93,9 +93,35 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 						}
 					}
 					w.Header().Set("Content-Type", "application/json")
-					if protocol == "cache_ttl" {
+					if protocol == "cache_ttl" || protocol == "messages_stream" {
 						if r.URL.Path != "/v1/messages" {
 							w.WriteHeader(400)
+							return
+						}
+						if protocol == "messages_stream" {
+							w.Header().Set("Content-Type", "text/event-stream")
+							for _, frame := range []string{
+								`{"type":"message_start","message":{"id":"msg_synthetic","type":"message","role":"assistant","model":"governance-model","content":[],"usage":{"input_tokens":2,"output_tokens":1,"cache_read_input_tokens":4,"cache_creation_input_tokens":5,"cache_creation":{"ephemeral_5m_input_tokens":3,"ephemeral_1h_input_tokens":2}}}}`,
+								`{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`,
+								`{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"synthetic"}}`,
+							} {
+								fmt.Fprintf(w, "data: %s\n\n", frame)
+							}
+							w.(http.Flusher).Flush()
+							if delayMS > 0 {
+								select {
+								case <-time.After(time.Duration(delayMS) * time.Millisecond):
+								case <-r.Context().Done():
+									return
+								}
+							}
+							for _, frame := range []string{
+								`{"type":"content_block_stop","index":0}`,
+								`{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":3}}`,
+								`{"type":"message_stop"}`,
+							} {
+								fmt.Fprintf(w, "data: %s\n\n", frame)
+							}
 							return
 						}
 						fmt.Fprint(w, `{"id":"msg_synthetic","type":"message","role":"assistant","model":"governance-model","content":[{"type":"text","text":"synthetic"}],"stop_reason":"end_turn","usage":{"input_tokens":2,"output_tokens":3,"cache_read_input_tokens":4,"cache_creation_input_tokens":5,"cache_creation":{"ephemeral_5m_input_tokens":3,"ephemeral_1h_input_tokens":2}}}`)
@@ -128,7 +154,7 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 				b.Cleanup(upstream.Close)
 				root := b.TempDir()
 				nativeProtocol := "openai"
-				if protocol == "cache_ttl" {
+				if protocol == "cache_ttl" || protocol == "messages_stream" {
 					nativeProtocol = "anthropic"
 				}
 				command := exec.Command(binary)
@@ -189,12 +215,13 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 				if protocol != "embedding" {
 					cfg.Models[0].MaxOutputTokens = 32
 				}
-				if protocol == "messages" || protocol == "cache_ttl" {
+				if protocol == "messages" || protocol == "cache_ttl" || protocol == "messages_stream" {
 					cfg.Models[0].CachePricing = &provider.CachePricing{ReadPerMillion: 500000, WritePerMillion: 3000000}
-					if protocol == "cache_ttl" {
+					if protocol == "cache_ttl" || protocol == "messages_stream" {
 						cfg.Models[0].CachePricing.WriteTTL = &provider.CacheWriteTTL{FiveMinutePerMillion: 3000000, OneHourPerMillion: 6000000}
 					}
 				}
+				cfg.Models[0].AllowMessagesStream = protocol == "messages_stream"
 				directory, err := provider.NewGoverned(cfg)
 				if err != nil {
 					b.Fatal(err)
@@ -242,8 +269,12 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 					path = "/v1/messages"
 					cost = 15
 				}
-				if protocol == "cache_ttl" {
+				if protocol == "cache_ttl" || protocol == "messages_stream" {
 					cost = 39
+				}
+				if protocol == "messages_stream" {
+					path = "/v1/messages"
+					payload = `{"model":"zhipu/fixture","stream":true,"max_tokens":32,"messages":[{"role":"user","content":"synthetic"}]}`
 				}
 				if protocol == "stream" {
 					payload = `{"model":"zhipu/fixture","stream":true,"max_tokens":32,"messages":[{"role":"user","content":"synthetic"}]}`
@@ -280,6 +311,10 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 					if protocol == "messages" {
 						var result provider.MessagesResult
 						return json.Unmarshal(w.Body.Bytes(), &result) == nil && result.Type == "message" && result.StopReason == "end_turn" && result.Usage.InputTokens == 1 && result.Usage.CacheReadInputTokens == 1 && result.Usage.CacheCreationInputTokens == 0 && result.Usage.OutputTokens == 3
+					}
+					if protocol == "messages_stream" {
+						body := w.Body.String()
+						return strings.Count(body, "event: message_start\n") == 1 && strings.Count(body, "event: message_stop\n") == 1 && strings.Contains(body, `"input_tokens":2`) && strings.Contains(body, `"cache_read_input_tokens":4`) && strings.Contains(body, `"cache_creation_input_tokens":5`) && strings.Contains(body, `"output_tokens":3`) && !strings.Contains(body, "event: error") && !strings.Contains(body, "[DONE]")
 					}
 					if protocol == "responses_stream" {
 						return strings.Contains(w.Body.String(), `"type":"response.completed"`) && !strings.Contains(w.Body.String(), "[DONE]")
@@ -348,7 +383,7 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 					b.Fatal("missing durable receipts")
 				}
 
-				if protocol == "cache_ttl" {
+				if protocol == "cache_ttl" || protocol == "messages_stream" {
 					var proven int64
 					if err := db.QueryRow(ctx, `SELECT count(*) FROM newapi_execution_receipts WHERE cache_details_version=2 AND cache_read_tokens=4 AND cache_write_tokens=5 AND cache_write_5m_tokens=3 AND cache_write_1h_tokens=2 AND actual=39`).Scan(&proven); err != nil || proven != int64(b.N+1) {
 						b.Fatal("mixed duration evidence missing under load")
