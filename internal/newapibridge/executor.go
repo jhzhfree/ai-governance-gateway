@@ -175,6 +175,9 @@ func (e *Executor) Open(ctx context.Context, route *provider.Route, req gateway.
 		return nil, ErrInvalid
 	}
 	r.Header.Set("Authorization", "Bearer "+e.token)
+	inputLimit := strconv.FormatInt(route.PriceSnapshot().MaxInputTokens, 10)
+	r.Header.Set("X-Aigw-Admission-Version", "2")
+	r.Header.Set("X-Aigw-Max-Input-Tokens", inputLimit)
 	r.Header.Set("Content-Type", "application/json")
 	r.Header.Set("Accept", "application/json")
 	if req.Stream {
@@ -189,7 +192,7 @@ func (e *Executor) Open(ctx context.Context, route *provider.Route, req gateway.
 	// Only the dedicated internal service token is sent; route vendor credentials
 	// and caller Authorization/Cookie/forwarded headers are never copied.
 	if e.journal != nil {
-		digest := sha256.Sum256(append([]byte(strconv.Itoa(e.channels[req.Model])+"\x00"), data...))
+		digest := sha256.Sum256(append([]byte(strconv.Itoa(e.channels[req.Model])+"\x00v2\x00"+inputLimit+"\x00"), data...))
 		if err := e.journal.Bind(call, e.origin, e.models[req.Model], requestID, attemptID, hex.EncodeToString(digest[:]), route, req.MaxTokens); err != nil {
 			release()
 			return nil, ErrUnavailable
@@ -208,7 +211,7 @@ func (e *Executor) Open(ctx context.Context, route *provider.Route, req gateway.
 	} else {
 		version = "1"
 	}
-	for key, want := range map[string]string{"X-Aigw-Evidence-Version": version, "X-Aigw-Request-Id": requestID, "X-Aigw-Attempt-Id": attemptID, "X-Aigw-Usage-Source": "upstream", "X-Aigw-Physical-Attempts": "1"} {
+	for key, want := range map[string]string{"X-Aigw-Admission-Version": "2", "X-Aigw-Input-Limit": inputLimit, "X-Aigw-Evidence-Version": version, "X-Aigw-Request-Id": requestID, "X-Aigw-Attempt-Id": attemptID, "X-Aigw-Usage-Source": "upstream", "X-Aigw-Physical-Attempts": "1"} {
 		values := res.Header.Values(key)
 		valid = valid && len(values) == 1 && values[0] == want
 	}

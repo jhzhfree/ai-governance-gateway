@@ -58,6 +58,7 @@ func TestRecoveryPagesDoNotStarveBehindPoisonEvents(t *testing.T) {
 		}
 		w.Header().Set("X-Aigw-Events-Version", "1")
 		w.Header().Set("X-Aigw-Paging-Version", "1")
+		w.Header().Set("X-Aigw-Admission-Version", "2")
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/internal/governance/v1/events":
@@ -161,6 +162,7 @@ func TestRecoveryWhileInferenceConnectionSaturated(t *testing.T) {
 		case "/internal/governance/v1/events":
 			w.Header().Set("X-Aigw-Events-Version", "1")
 			w.Header().Set("X-Aigw-Paging-Version", "1")
+			w.Header().Set("X-Aigw-Admission-Version", "2")
 			json.NewEncoder(w).Encode([]newapibridge.Event{})
 		default:
 			t.Error("unexpected recovery request")

@@ -30,7 +30,7 @@ func TestGovernedDirectoryAndRecoveryReadiness(t *testing.T) {
 	if _, err := route.Open(context.Background(), request()); err == nil {
 		t.Fatal("credential-free route performed native execution")
 	}
-	var available atomic.Bool
+	var available, admissionV2 atomic.Bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer "+token {
 			t.Error("service credential missing")
@@ -38,6 +38,9 @@ func TestGovernedDirectoryAndRecoveryReadiness(t *testing.T) {
 		if available.Load() {
 			w.Header().Set("X-Aigw-Events-Version", "1")
 			w.Header().Set("X-Aigw-Paging-Version", "1")
+			if admissionV2.Load() {
+				w.Header().Set("X-Aigw-Admission-Version", "2")
+			}
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`[]`))
@@ -49,6 +52,11 @@ func TestGovernedDirectoryAndRecoveryReadiness(t *testing.T) {
 		t.Fatal("unversioned endpoint accepted")
 	}
 	available.Store(true)
+	if old, err := newapibridge.NewRuntime(context.Background(), cfg, directory); err == nil {
+		old.Close()
+		t.Fatal("old data plane without input admission accepted")
+	}
+	admissionV2.Store(true)
 	runtime, err := newapibridge.NewRuntime(context.Background(), cfg, directory)
 	if err != nil {
 		t.Fatal(err)

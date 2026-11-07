@@ -60,7 +60,7 @@ func (e *Executor) ReconcileOnce(ctx context.Context) error {
 		return ErrUnavailable
 	}
 	defer res.Body.Close()
-	if res.StatusCode != 200 || len(res.Header.Values("X-Aigw-Events-Version")) != 1 || res.Header.Get("X-Aigw-Events-Version") != "1" || len(res.Header.Values("X-Aigw-Paging-Version")) != 1 || res.Header.Get("X-Aigw-Paging-Version") != "1" {
+	if res.StatusCode != 200 || len(res.Header.Values("X-Aigw-Admission-Version")) != 1 || res.Header.Get("X-Aigw-Admission-Version") != "2" || len(res.Header.Values("X-Aigw-Events-Version")) != 1 || res.Header.Get("X-Aigw-Events-Version") != "1" || len(res.Header.Values("X-Aigw-Paging-Version")) != 1 || res.Header.Get("X-Aigw-Paging-Version") != "1" {
 		e.recoveryCursor = ""
 		return ErrUnavailable
 	}

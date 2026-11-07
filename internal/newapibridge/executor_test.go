@@ -24,7 +24,7 @@ const token = "synthetic-internal-token"
 const reply = `{"id":"synthetic","object":"chat.completion","model":"backend-model","choices":[{"index":0,"message":{"role":"assistant","content":"synthetic reply"},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5}}`
 
 func evidence(w http.ResponseWriter, r *http.Request) {
-	for k, v := range map[string]string{"X-Aigw-Evidence-Version": "1", "X-Aigw-Request-Id": r.Header.Get("X-Aigw-Request-Id"), "X-Aigw-Attempt-Id": r.Header.Get("X-Aigw-Attempt-Id"), "X-Aigw-Usage-Source": "upstream", "X-Aigw-Physical-Attempts": "1"} {
+	for k, v := range map[string]string{"X-Aigw-Admission-Version": "2", "X-Aigw-Input-Limit": r.Header.Get("X-Aigw-Max-Input-Tokens"), "X-Aigw-Evidence-Version": "1", "X-Aigw-Request-Id": r.Header.Get("X-Aigw-Request-Id"), "X-Aigw-Attempt-Id": r.Header.Get("X-Aigw-Attempt-Id"), "X-Aigw-Usage-Source": "upstream", "X-Aigw-Physical-Attempts": "1"} {
 		w.Header().Set(k, v)
 	}
 }
@@ -49,7 +49,7 @@ func request() gateway.Request {
 	return gateway.Request{Model: "zhipu/fixture", MaxTokens: 8, Messages: []provider.Message{{Role: "user", Content: "synthetic"}}}
 }
 func TestIsolationEvidenceAndNoRedirectRetry(t *testing.T) {
-	for _, mode := range []string{"valid", "missing", "wrong-attempt", "duplicate", "estimated", "retry", "redirect"} {
+	for _, mode := range []string{"valid", "missing", "wrong-attempt", "duplicate", "estimated", "retry", "input-limit", "redirect"} {
 		t.Run(mode, func(t *testing.T) {
 			var calls atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -71,6 +71,8 @@ func TestIsolationEvidenceAndNoRedirectRetry(t *testing.T) {
 					w.Header().Add("X-Aigw-Usage-Source", "upstream")
 				case "estimated":
 					w.Header().Set("X-Aigw-Usage-Source", "estimated")
+				case "input-limit":
+					w.Header().Set("X-Aigw-Input-Limit", "1")
 				case "retry":
 					w.Header().Set("X-Aigw-Physical-Attempts", "2")
 				case "redirect":

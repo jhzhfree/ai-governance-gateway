@@ -55,6 +55,9 @@ func TestNewAPIControlHelper(t *testing.T) {
 		}
 		cfg.Models[i].NewAPIChannelID = 1
 		cfg.Models[i].AllowImages = os.Getenv("AIGW_INTEGRATION_IMAGES") == "1"
+		if os.Getenv("AIGW_INTEGRATION_RICH") == "1" {
+			cfg.Models[i].MaxInputTokens = 1024
+		}
 	}
 	directory, err := provider.NewGoverned(cfg)
 	if err != nil {
@@ -93,6 +96,10 @@ func TestNewAPITwoProcessImages(t *testing.T) {
 	}
 }
 func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images bool) {
+	expectedHeld := int64(288)
+	if tools || images {
+		expectedHeld = 2080
+	}
 	expectedSpent := int64(48)
 	if images {
 		expectedSpent = 108
@@ -320,7 +327,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	child := func() (string, func()) {
 		ready := filepath.Join(t.TempDir(), "ready")
 		command := exec.Command(os.Args[0], "-test.run=^TestNewAPIControlHelper$")
-		command.Env = append(os.Environ(), "AIGW_INTEGRATION_CHILD=1", "AIGW_INTEGRATION_PROTOCOL="+protocol, "AIGW_INTEGRATION_IMAGES="+map[bool]string{true: "1", false: "0"}[images], "AIGW_INTEGRATION_DSN="+isolatedDSN.String(), "AIGW_INTEGRATION_ORIGIN="+faultProxy.URL, "AIGW_INTEGRATION_READY="+ready)
+		command.Env = append(os.Environ(), "AIGW_INTEGRATION_CHILD=1", "AIGW_INTEGRATION_PROTOCOL="+protocol, "AIGW_INTEGRATION_IMAGES="+map[bool]string{true: "1", false: "0"}[images], "AIGW_INTEGRATION_RICH="+map[bool]string{true: "1", false: "0"}[tools || images], "AIGW_INTEGRATION_DSN="+isolatedDSN.String(), "AIGW_INTEGRATION_ORIGIN="+faultProxy.URL, "AIGW_INTEGRATION_READY="+ready)
 		return start(command, ready)
 	}
 	controlURL, stopControl := child()
@@ -453,7 +460,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	if err := pool.QueryRow(context.Background(), `SELECT held,spent FROM budget_accounts WHERE project_id=$1`, scope.Project).Scan(&held, &spent); err != nil {
 		t.Fatal(err)
 	}
-	if uncertain != 1 || held != 288 || spent != expectedSpent || calls.Load() != 4 {
+	if uncertain != 1 || held != expectedHeld || spent != expectedSpent || calls.Load() != 4 {
 		t.Fatalf("unknown outcome was replayed/refunded: uncertain=%d held=%d spent=%d physical=%d", uncertain, held, spent, calls.Load())
 	}
 
@@ -511,7 +518,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	if rejected.StatusCode != 409 || calls.Load() != 4 {
 		t.Fatal("late request bypassed cancelled tombstone")
 	}
-	if err := pool.QueryRow(context.Background(), `SELECT held,spent FROM budget_accounts WHERE project_id=$1`, scope.Project).Scan(&held, &spent); err != nil || held != 288 || spent != expectedSpent {
+	if err := pool.QueryRow(context.Background(), `SELECT held,spent FROM budget_accounts WHERE project_id=$1`, scope.Project).Scan(&held, &spent); err != nil || held != expectedHeld || spent != expectedSpent {
 		t.Fatal("cancellation released an uncertain physical dispatch")
 	}
 
