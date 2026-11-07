@@ -161,7 +161,7 @@ export AIGW_NEWAPI_ORIGIN=https://newapi.internal.example
 - 企业迁移专项验证 v25→v26、连续启动、历史占额保留、失败 DDL/历史回滚和新表漂移阻断。恢复收据插入失败时预算同步回滚，并发重复投递只结算一次。
 - 双进程联调使用实际 new-api 路由/迁移/鉴权/Relay 和企业 Handler/恢复器；授权与模型上游为合成 fixture，不是生产身份/供应商验收。JSON 与 SSE 均通过。控制面在数据面持久完成、成功响应尚被故障代理扣留时被 SIGKILL，重启恢复三笔结算，共 48 微元，物理请求仍为 3 次。
 - 数据面在供应商已观察到第 4 次请求、尚无完成证据时被 SIGKILL；同一 SQLite 数据重启后，保留 1 笔 uncertain、288 微元占额，既有支出仍 48 微元，物理请求仍为 4 次。fixture 显式设置原生重试次数为 3，治理模式仍不重试。
-- CI 固定使用 new-api `773c954a584a1935e9ffc4c3b0b1f5e17f05aac5` 构建进程 fixture，设置 `TEST_NEWAPI_SERVER_BINARY` 才计作完成该联调；不配置时的 skip 不是验收通过。
+- CI 固定使用 new-api `5b324b904d7ad3c91ef4859ebced929c0d2b1435` 构建进程 fixture，设置 `TEST_NEWAPI_SERVER_BINARY` 才计作完成该联调；不配置时的 skip 不是验收通过。
 
 默认执行器仍为 native；本轮没有切换生产流量、发布 V1.0 标签或宣称 AGPL 商业许可问题已解决。实时流式交付、生产容量与跨主机故障、真实 IdP/终端/供应商账号、安装升级和备份恢复的联合验收仍属于发布门禁。后续协议扩展必须逐项提供用量与审计证据，不能直接开放全部原生功能。
 
@@ -177,3 +177,12 @@ export AIGW_NEWAPI_ORIGIN=https://newapi.internal.example
 最终控制面门禁已通过：设置固定 new-api 竞态 fixture 的 `TEST_NEWAPI_SERVER_BINARY`，并执行 `AIGW_VERIFY_RESTORE=1 bash scripts/verify.sh`，退出码 0。覆盖嵌套引擎模块、模块校验、契约生成一致性、vet、全部后端竞态测试、真实 PostgreSQL 迁移/事务与逻辑备份恢复。双进程专项 15.00 秒，恢复演练包 4.801 秒；全套中 `TestNewAPIControlHelper` 在父进程跳过是子进程入口占位，真正的 `TestNewAPITwoProcessRecovery` 已执行并通过，不把该占位 skip 当作验收。
 
 `cmd/gateway` 构建及 `--help` 检查通过，实际发布二进制名为 `aigw-gateway`；`aigw` 是管理 CLI，不应混用启动命令。本地本轮没有重新运行浏览器套件，远端 CI 仍执行既有 Web 与 Linux 候选包门禁；以对应提交的 run 结果为准。
+
+
+### 渠道请求边界补强
+
+数据面 `5b324b904` 在治理请求发送前拒绝参数/请求头覆盖、系统提示词注入、透传、格式/思考内容变换、高级自定义配置及全局 Chat→Responses 转换，避免改变已预留的输出 Token 上限或转发服务凭证。检查使用 Distribute 建立的实际请求上下文，而不是首轮仅含 ID/类型的渠道摘要。普通 new-api 请求不受此限制。渠道模型映射和 endpoint 仍须经独立变更审核。
+
+真实 TokenAuth/Distribute/Relay 回归证明上述被拒配置不会调用供应商，尝试转为 cancelled；治理与模型列表组合竞态测试通过（6.009 秒）。同时修复治理测试未恢复全局模型/分组费率造成的后续模型列表测试污染。此前 native CI 42333217441 的失败属于该污染，不算通过；后续结果以最新提交对应 CI 为准。
+
+渠道边界补强后再次执行固定竞态数据面 fixture 的 `AIGW_VERIFY_RESTORE=1 bash scripts/verify.sh`，退出码 0；包含完整后端、双进程故障恢复和两种版本备份恢复。远端全套 UI/安装包门禁须查看该提交的 Actions 结果。
