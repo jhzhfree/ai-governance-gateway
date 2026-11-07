@@ -99,3 +99,25 @@ new-api 分支已提交并推送 [5edfa3883](https://github.com/jhzhfree/new-api
 - CI 已升级为 controller 完整竞态检查，包超时 15 分钟，任务预算 30 分钟，覆盖原有较慢的密码校验测试。此前 `22623f75a` 的[远端 CI 已通过](https://github.com/jhzhfree/new-api/actions/runs/42325936340)；新的提交须以对应 run 结果为准。
 
 本阶段是执行事实、单次调用保护和测试基础的落地。**整个底座替换尚未完成**：可信入口尚未绑定 guard，持久 attempt/outbox、故障恢复与双进程联调、控制面模型目录和厂商凭证解耦、正式启动配置/readiness/UI 尚待实现。本轮三库计费测试也不替代新增 schema 后必须进行的“旧版本升级、重复启动、数据保留”专项验收。
+
+### 持久派发记录与事务事件（2026-11-07，下一轮改造）
+
+new-api 提交 [18f7df9d2](https://github.com/jhzhfree/new-api/commit/18f7df9d2) 增加主库中的 `GovernanceAttempt` / `GovernanceEvent`，经原生启动迁移创建。它们只保存执行标识、摘要、渠道、模型和计数，不保存请求正文或凭证；独立日志库不参与此事务。
+
+- Prepare 仅允许首次插入。Dispatch 将 prepared 条件更新为 dispatched，成功提交后才允许真实 HTTP 传输；两个独立 guard 竞争同一 attempt，只能有一个派发。持久提交失败或结果不确定时，不允许该 guard 再试。
+- Complete 在一个事务中更新完成状态并插入 outbox；事件写入失败会回滚状态。相同计数重复完成幂等，冲突计数拒绝。计数必须非负、在 int32 范围内且总量一致，但原始用量来源仍须由未来可信调用方核验。
+- Cancel 可撤销 prepared，或为尚未接纳的 attempt 写入取消记录，阻止迟到的 Prepare；dispatched 不允许当作未执行取消。派发提交后、网络调用前的进程崩溃仍然属于未知结果，不能自动退款或重新派发。
+- 查询、拉取和确认事件按稳定服务主体 OwnerID 隔离，不能用可轮换 Token ID 代替主体。待确认事件每次最多 100 条，使用 `(owner_id, acknowledged_at, created_at, attempt_id)` 联合索引。消费方须先提交自身幂等账本，再确认事件；消费服务尚未实现。
+- attempt 记录暂不清理：在加入可验证的接纳有效期之前，删除会使迟到请求重新获准执行。该阶段不宣称完成长期容量和归档设计。
+- 真实传输并发测试发现共享 HTTP Transport 的 TLS 惰性初始化竞争，已改为先 Clone，再检查私有 TLS 配置，竞态回归通过。
+
+升级基线为上游发布版本 [v1.0.0-rc.48](https://github.com/QuantumNous/new-api/releases/tag/v1.0.0-rc.48)，固定提交 `706144769e5bed5a47b78721e3bb11da3cf4c0b9`。fixture 在该版本模块中编译并执行其真实启动迁移，生成停用的合成用户、Token 与哨兵数据；随后当前版本启动迁移三次，验证额度、关联、密钥摘要、唯一约束、派发状态和事件保留。fixture 只接受本地隔离测试目标，不输出凭证。
+
+实际验收（Go 1.27.3）：
+
+- 配置 `TEST_MYSQL_DSN`、`TEST_POSTGRES_DSN`、`TEST_GOVERNANCE_BASELINE_BINARY` 后执行 `go test -json -race ./controller -run TestGovernanceJournalDatabaseMatrix -count=1 -timeout=5m`：SQLite 3.50.4、MySQL 8.4.13、PostgreSQL 17.11 的 fresh / baseline_upgrade 共六个场景全部通过，0 skip、0 fail。PostgreSQL 索引顺序直接检查数据库定义，避免驱动无序元数据造成误判。
+- `go test -json -race ./model ./relay/channel ./relay/common ./service ./controller -count=1 -timeout=15m`：五包通过，controller 503.651 秒。此全包运行早于最后的联合索引调整，之后上述六场景专项已重新通过；全包运行中的可选环境跳过不作为三库验证证据。
+- `go build -mod=readonly -o /workspace/.onboarding/new-api-validation .`：通过。
+- 分支 CI 增加固定发布版本 fixture 构建和 model 竞态检查；CI 默认覆盖 SQLite 全新安装与升级，MySQL/PostgreSQL 的结果来自上述本地真实数据库，不能声称远端 CI 已覆盖三库。
+
+**接入边界仍未切换。** 这些是已接入实际 HTTP 传输调用路径并完成专项验证的内部组件，普通 new-api 请求尚未绑定持久 guard。下一阶段必须实现可信入口身份与请求摘要绑定、原始 usage 完成钩子、控制面幂等事件消费及恢复对账，再完成真实双进程故障联调。目录/凭证解耦、启动模式、readiness 和平台 UI 也尚未完成。new-api 保留原生 master 节点 GORM 迁移机制；没有把它描述为企业控制面已有的编号、校验和与版本拒绝迁移机制。
