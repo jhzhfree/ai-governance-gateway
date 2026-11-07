@@ -1,5 +1,7 @@
 # Web 控制台与浏览器会话
 
+> 版本提示：本文保留早期阶段记录。当前页面操作、技术规格及部署验收请以 [产品文档中心](product/README.md) 为准；旧迁移版本、启动方式及功能缺口不能作为当前版本结论。
+
 本阶段将组织、项目、预算、密钥与审计管理接入真实后端。界面暂用「序衡」作为产品名，技术名称仍是 ai-governance-gateway。采用 React、TypeScript、Vite、TDesign、React Router 与 TanStack Query；不是静态演示页面。模型调用仍使用模拟供应商，真实企业 IdP 尚待外部环境验收。
 
 ## 功能与界面

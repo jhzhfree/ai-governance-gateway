@@ -43,3 +43,5 @@ DeepSeek 能力与计费边界见 [接入说明](deepseek.md)。
 数据库恢复门禁与生产操作顺序见 [备份恢复说明](backup-restore.md)。
 
 原生 Linux 候选发行包的构建、校验与部署衔接见 [候选包说明](linux-package.md)。
+
+面向用户、实施和技术评估的当前 [产品文档中心](product/README.md) 包含 17 个页面操作手册、技术规格及部署验收手册。
