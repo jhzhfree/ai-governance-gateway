@@ -55,7 +55,7 @@ func TestFreshSchemaAndReadOnlyStatus(t *testing.T) {
 	pool := testutil.EmptyDatabase(t)
 	ctx := context.Background()
 	initial := status(t, pool)
-	if initial.Managed || initial.Ready || initial.CurrentVersion != 0 || len(initial.Pending) != 25 {
+	if initial.Managed || initial.Ready || initial.CurrentVersion != 0 || len(initial.Pending) != 26 {
 		t.Fatal("unexpected unmanaged status")
 	}
 	if relation(t, pool, "aigw_schema_migrations") {
@@ -68,7 +68,7 @@ func TestFreshSchemaAndReadOnlyStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := status(t, pool)
-	if !before.Ready || before.CurrentVersion != 25 || len(before.Applied) != 25 {
+	if !before.Ready || before.CurrentVersion != 26 || len(before.Applied) != 26 {
 		t.Fatal("fresh migration incomplete")
 	}
 	for _, a := range before.Applied {
@@ -202,7 +202,7 @@ func TestConcurrentMigrationsRunExactlyOnce(t *testing.T) {
 	close(start)
 	wg.Wait()
 	r := status(t, pool)
-	if len(r.Applied) != 25 || !r.Ready {
+	if len(r.Applied) != 26 || !r.Ready {
 		t.Fatal("concurrent migration history invalid")
 	}
 }
@@ -969,5 +969,40 @@ func TestSystemManagementMigrationUpgradeAndRollback(t *testing.T) {
 	execSQL(t, pool, `ALTER TABLE system_management_events DROP COLUMN reason`)
 	if err := database.Check(ctx, pool); err == nil {
 		t.Fatal("system event schema drift accepted")
+	}
+}
+
+func TestNewAPIUpgradeRollbackAndReadiness(t *testing.T) {
+	pool, ledger, scope := testutil.Database(t)
+	ctx := context.Background()
+	testutil.Accounts(t, ledger, scope, 100, 100)
+	if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "before-newapi", PriceVersion: "old-price", Amount: 10}); err != nil {
+		t.Fatal(err)
+	}
+	testutil.RevertNewAPIMigration(t, pool)
+	execSQL(t, pool, `ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v26 CHECK(version<>26)`)
+	if err := database.Migrate(ctx, pool); err == nil {
+		t.Fatal("failed migration accepted")
+	}
+	var exists bool
+	if err := pool.QueryRow(ctx, `SELECT to_regclass('newapi_execution_bindings') IS NOT NULL`).Scan(&exists); err != nil || exists {
+		t.Fatal("DDL did not roll back")
+	}
+	execSQL(t, pool, `ALTER TABLE aigw_schema_migrations DROP CONSTRAINT reject_v26`)
+	for range 2 {
+		if err := database.Migrate(ctx, pool); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := database.Check(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	reservation, err := ledger.Get(ctx, "before-newapi")
+	if err != nil || reservation.Amount != 10 || reservation.State != "reserved" {
+		t.Fatal("upgrade changed historical hold")
+	}
+	execSQL(t, pool, `ALTER TABLE newapi_execution_receipts DROP COLUMN actual`)
+	if err := database.Check(ctx, pool); err == nil {
+		t.Fatal("receipt schema drift accepted")
 	}
 }

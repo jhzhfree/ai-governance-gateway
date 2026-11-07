@@ -5,20 +5,21 @@
 - 企业工程：`feature/newapi-foundation-validation`，从 `f3db909` 创建。
 - new-api fork：`feature/enterprise-governance-integration`，从 `e03439033238722c0b8d4437a052445f3aeeed83` 创建；第一阶段未修改该仓库，后续原始用量事实实现见下方阶段进展。
 - 路线：企业入口保留身份、项目、预算、终端与审计；new-api 承接协议/渠道执行，通过明确的用量和物理尝试契约对接。
-- 本阶段新增实验性 `internal/newapibridge`，实现 `gateway.ProviderExecutor`。**没有接入生产启动参数，没有切换默认执行器，也没有宣称普通 new-api 已满足下述契约。**
+- 当前已提供显式 `--execution-engine=newapi`、可信入口、持久派发/outbox、不可变价格/渠道绑定、恢复消费、自动迁移 0026 和 readiness。默认执行器未切换。仅经验证的 OpenAI 兼容 Chat Completions 可用，SSE 有界缓冲至完成；部署配置和验收见后文“已接通”章节。
+- 本文保留历史阶段证据；历史章节中的待办不代表当前状态。生产发布门禁（实时流式、容量、跨主机/真实账号联合验收等）尚未全部完成。
 
 ## 已落地的接入边界
 
 1. 仅使用独立内部服务 Token；不复制用户 Authorization、Cookie 或 route 中的厂商秘密。
-2. 固定 origin 和 `/v1/chat/completions` 路径，模型由网关别名映射到经配置的后端模型名。没有 URL 参数/用户信息/子路径支持；HTTPS 默认必需，仅显式测试选项允许 loopback IP HTTP。
+2. 固定 origin 和 `/internal/governance/v1/chat/completions` 路径，模型由网关别名映射到经配置的后端模型名。没有 URL 参数/用户信息/子路径支持；HTTPS 默认必需，仅显式测试选项允许 loopback IP HTTP。
 3. 配置中的 Token 不进入 JSON 或常用格式化输出。模型映射在创建时复制，调用者不能事后修改映射。
 4. Validate 不发请求；Open 仍由原治理链在预算预留、attempt 和 dispatch 记录后调用。认证、模型授权和预算并未搬到客户端。
 5. HTTP 不跟随重定向，不做应用层自动重试；响应头上限 16 KiB，连接/响应时间有界；并发持有到 Body 关闭/结束，Close 取消并回收在途流。
 6. JSON/SSE 正文继续经过现有严格解析、内容治理和结算链。响应头通过不替代完整 usage 和流结束检查。
 
-## 待 new-api 实现的证据契约（草案 v1）
+## 当前证据契约 v1
 
-企业入口发送 `X-Aigw-Request-Id` 和 `X-Aigw-Attempt-Id`。后端成功响应必须各出现一次：
+企业入口发送 `X-Aigw-Request-Id`、`X-Aigw-Attempt-Id` 与审核过的 `X-Aigw-Channel-Id`。后端成功响应必须各出现一次：
 
 | 响应头 | 初期要求 |
 | --- | --- |
@@ -28,11 +29,11 @@
 | X-Aigw-Usage-Source | `upstream`，不允许将估算结果作为实际用量 |
 | X-Aigw-Physical-Attempts | `1`，首期不允许透明内部重试 |
 
-这些头是我们拟定的内部协议，**不是 stock new-api 的已存在功能**。当前普通兼容响应没有该证据时，实验适配器明确失败，派发后的企业费用保持 uncertain，而非退款或当成零消费。
+这些头是 fork 内部协议，**不是 stock new-api 的已存在功能**。普通兼容响应没有该证据时，适配器明确失败，派发后的企业费用保持 uncertain，而非退款或当成零消费。
 
-响应头本身不是密码学证明或持久账单，不能由反向代理无条件补齐，也不能透传上游/用户伪造值。第二阶段需要在 new-api 内部、基于实际执行事实生成，并配合可信服务身份、持久事件、严格原始用量来源与回归验证。流式 header 的声明只有在最终正文证据完整时才可用于结算；它不能提前证明流会完成。
+响应头本身不是密码学证明或持久账单，不能由反向代理无条件补齐，也不能透传上游/用户伪造值。本分支已在 new-api 内部基于实际执行事实生成，并配合可信服务身份、持久事件、严格原始用量来源与回归验证。流式 header 的声明只有在最终正文证据完整时才可用于结算；它不能提前证明流会完成。
 
-## 目前测试证据及限制
+## 第一阶段测试证据及限制（历史）
 
 新增五个顶层回归，测试用专用合成 HTTP 服务模拟未来契约，不伪装为 new-api 实机联调：
 
@@ -44,7 +45,7 @@
 
 实际 new-api checkout 本轮已 `go build -mod=readonly` 成功并通过 `--help` 启动检查。使用当前云环境 Go 1.27.3 编译（源码声明最低 1.26.10），不是该项目固定发布工具链/完整测试矩阵的验证。没有启动对外 HTTP 管理端、没有配置真实凭证、没有进行真实模型调用；未运行 new-api 的 SQLite/MySQL/PostgreSQL 完整测试矩阵。
 
-## 下一阶段顺序与完成条件
+## 最初实施顺序与完成条件（历史计划）
 
 1. **后端证据与尝试约束**：在 new-api 验证分支实现仅可信内部入口可用的模式；固定路由版本、关闭内部重试/跨组回退；禁止估算回填被标成原始用量。不能只添加静态 header。
 2. **持久事件契约**：在物理派发前记录 attempt；完成/失败、用量来源和重复投递通过 outbox/幂等消费与恢复核验。控制面数据库失败时不能丢失已经产生的费用。
@@ -121,3 +122,58 @@ new-api 提交 [18f7df9d2](https://github.com/jhzhfree/new-api/commit/18f7df9d2)
 - 分支 CI 增加固定发布版本 fixture 构建和 model 竞态检查；CI 默认覆盖 SQLite 全新安装与升级，MySQL/PostgreSQL 的结果来自上述本地真实数据库，不能声称远端 CI 已覆盖三库。
 
 **接入边界仍未切换。** 这些是已接入实际 HTTP 传输调用路径并完成专项验证的内部组件，普通 new-api 请求尚未绑定持久 guard。下一阶段必须实现可信入口身份与请求摘要绑定、原始 usage 完成钩子、控制面幂等事件消费及恢复对账，再完成真实双进程故障联调。目录/凭证解耦、启动模式、readiness 和平台 UI 也尚未完成。new-api 保留原生 master 节点 GORM 迁移机制；没有把它描述为企业控制面已有的编号、校验和与版本拒绝迁移机制。
+
+### 已接通：可信入口、恢复消费与显式启动
+
+数据面提交 [d914f98b6](https://github.com/jhzhfree/new-api/commit/d914f98b64e40a9f7c255e0055ce51266286dc51) 及 [9d3a35f15](https://github.com/jhzhfree/new-api/commit/9d3a35f1551b6f021aae2cb2a53eee23326954ea) 接通实际路由、原生 TokenAuth、渠道选择和 Relay。此前“入口尚未绑定”的阶段状态已由本节替代。
+
+- 入口为 `POST /internal/governance/v1/chat/completions`。仅部署配置的专用服务用户可访问；令牌验证、停用、过期、模型/IP 限制沿用原生机制。身份不从请求 JSON 推导。拒绝 Cookie、query 凭证、多个 Authorization、通过令牌后缀指定渠道及伪造的转发 TLS 头。
+- 指定 `GOVERNANCE_SERVICE_USER_ID` 后注册内部路由；未配置则不注册。服务账户应专用于一个企业控制面集群，不使用管理员个人凭证。专用服务 Token 在普通 `/v1` 等推理入口被拒绝，避免绕过持久治理链。轮换 Token 时保留同一个服务用户；原生服务账户额度也须监控，耗尽或停用会阻止执行及恢复访问。
+- 治理入口校验实际 TLS 连接。new-api 新增 `SERVER_TLS_CERT_FILE` / `SERVER_TLS_KEY_FILE`，成对配置以启用直接 TLS，最低 TLS 1.2；配置错误阻止启动。`GOVERNANCE_ALLOW_LOOPBACK_HTTP=true` 只允许实际 loopback 对端的明文测试连接，不信任 `X-Forwarded-Proto`。
+- 本版仅允许 **OpenAI 兼容渠道类型** 的 Chat Completions；其他原生适配器在执行前拒绝。管理员可在 new-api 维护兼容厂商的 endpoint、模型映射与真实密钥。不能把原生支持的全部协议视为已经过企业治理验收。
+- 请求正文上限 1 MiB；治理入口最多同时处理 32 个请求；响应上限 4 MiB。只接收 model/messages/max_tokens/stream/stream_options，进一步协议约束沿用控制面和原生校验。
+- 完成钩子核对实际原始计数与返回 JSON/SSE；缺失、重复、冲突、估算、异常结束不发可信证据。成功时先提交状态/outbox，再发送正文和证据头。**当前 SSE 有界缓冲至完成，因此没有实时首 Token 延迟保证**；不要将它作为最终流式性能方案。容量、延迟和跨主机故障仍须在目标部署验收。
+- `GET /internal/governance/v1/events` 返回当前服务主体最多 100 个未确认事件，带 `X-Aigw-Events-Version: 1`；`POST /internal/governance/v1/events/:id/ack` 幂等确认；`POST /internal/governance/v1/attempts/:id/cancel` 只允许取消尚未派发的匹配尝试。事件包含执行元数据与计数，不包含正文和可用凭证。
+
+控制面新增编号迁移 `0026_newapi_execution.sql`，仍由启动自动升级及既有事务锁、校验和、漂移检查保护：
+
+1. 发起网络请求前，将 attempt/request/backend/model/channel 绑定到不可变价格、输入上限和本次输出上限。相同 attempt 不允许重新取得派发权；目录不再要求控制面持有厂商密钥。
+2. 每五秒按认证内部接口拉取事件。完成/取消证据必须与本地绑定匹配；按持久价格快照计价，不读取重启后的新价格。
+3. 恢复收据与预算结算同一 PostgreSQL 事务提交，再向数据面确认。重复事件不重复扣费；写收据失败会回滚账本。无法验证的事件保留，不自动确认；恢复失败使 readiness 失败。
+4. 本地绑定超过三分钟、仍无收据时，按有界批次请求数据面取消。只有数据面原子证明不存在/尚未派发并写入取消事件后，才结算零费用；已派发则拒绝取消。轮询时间戳轮转批次，避免旧的未知请求长期占据前 100 条。迟到请求被永久取消记录拒绝。
+5. 接收失败但数据面已经持久完成的请求可补记费用。数据面已派发却没有完成凭据时继续保留占额；崩溃或超时不等于未执行，不自动退款/重新请求。
+
+显式启动示例（所有实际密钥从部署秘密管理注入，不放入命令行或 Git）：
+
+```sh
+# 企业进程还需要既有数据库、身份、审计加密和 HTTPS 部署配置。
+export AIGW_NEWAPI_ORIGIN=https://newapi.internal.example
+# AIGW_NEWAPI_SERVICE_TOKEN 由秘密管理系统注入，使用原生 sk- Token。
+./aigw-gateway --execution-engine=newapi --providers=/etc/aigw/reviewed-models.json
+```
+
+`reviewed-models.json` 沿用现有 provider.Config：保留明确价格、上下文/输出上限和驻留依据；`upstream_model` 表示 new-api 中可选择的模型名称；每项还必须填写正整数 `newapi_channel_id`，绑定审核过的实际渠道。渠道选择不匹配时派发前拒绝，恢复事件也须匹配该 ID。渠道 ID 纳入价格/路由指纹；同名模型不能自动切换到另一个渠道。渠道内部 endpoint、映射、覆盖参数和账号的变更仍须按变更管理重新审核，建议新建渠道 ID 后更新审核目录；不能把 ID 相同当作第三方驻留证明。原生直连方法禁止使用这种无厂商凭证目录。首版目录以文件发布，修改后受控重启；供应商配置页不会代替 new-api 渠道管理。项目模型授权、Token、预算、终端准入、关键词和内容审计仍走原有企业 Handler。
+
+### 本轮验收与尚未完成的发布门禁
+
+- new-api 相关 controller/common/relay/channel/router 竞态回归通过；全 controller 本轮运行 592.003 秒。最后的治理专项与 TLS 专项再次通过；完整回归的可选数据库 skip 不视作三库证据。
+- 完整配置三库及发布 fixture 后，治理专项再次覆盖 SQLite 3.50.4、MySQL 8.4.13、PostgreSQL 17.11 六个 fresh/upgrade 场景，无跳过。真实原生 TokenAuth/Distribute/Relay 验证无效与停用 Token、重复 attempt、未支持渠道不调用上游。
+- 企业迁移专项验证 v25→v26、连续启动、历史占额保留、失败 DDL/历史回滚和新表漂移阻断。恢复收据插入失败时预算同步回滚，并发重复投递只结算一次。
+- 双进程联调使用实际 new-api 路由/迁移/鉴权/Relay 和企业 Handler/恢复器；授权与模型上游为合成 fixture，不是生产身份/供应商验收。JSON 与 SSE 均通过。控制面在数据面持久完成、成功响应尚被故障代理扣留时被 SIGKILL，重启恢复三笔结算，共 48 微元，物理请求仍为 3 次。
+- 数据面在供应商已观察到第 4 次请求、尚无完成证据时被 SIGKILL；同一 SQLite 数据重启后，保留 1 笔 uncertain、288 微元占额，既有支出仍 48 微元，物理请求仍为 4 次。fixture 显式设置原生重试次数为 3，治理模式仍不重试。
+- CI 固定使用 new-api `773c954a584a1935e9ffc4c3b0b1f5e17f05aac5` 构建进程 fixture，设置 `TEST_NEWAPI_SERVER_BINARY` 才计作完成该联调；不配置时的 skip 不是验收通过。
+
+默认执行器仍为 native；本轮没有切换生产流量、发布 V1.0 标签或宣称 AGPL 商业许可问题已解决。实时流式交付、生产容量与跨主机故障、真实 IdP/终端/供应商账号、安装升级和备份恢复的联合验收仍属于发布门禁。后续协议扩展必须逐项提供用量与审计证据，不能直接开放全部原生功能。
+
+鉴权设计参考 [OWASP Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html) 与 [Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)，采用服务器身份校验、真实 TLS、拒绝 Cookie 与替代凭证入口、状态验证和通用错误响应。本轮未进行完整 ASVS 合规认证。
+
+取消证明的新增回归包括三库上 Cancel/Dispatch 并发竞争不可能同时成功，以及双进程中“控制面记录超期、数据面尚未接纳”的取消与迟到重放拒绝。已派发的未知请求占额保持不变。恢复扫描使用未完成绑定的部分索引，完成收据提交后退出扫描集合。
+
+安全参考版本为 [OWASP ASVS 5.0.0](https://asvs.owasp.org/)；上述控制是本轮具体实现与测试范围，不代表完整标准认证。
+
+最终数据面契约还包括 [11f8ee659](https://github.com/jhzhfree/new-api/commit/11f8ee659cc40190e3a10b7cfdfda6e4ee7f88a3) 的渠道绑定/取消证明，以及 [773c954a5](https://github.com/jhzhfree/new-api/commit/773c954a584a1935e9ffc4c3b0b1f5e17f05aac5) 的专用服务凭证入口约束。后者 middleware 全包竞态回归通过（10.059 秒）；取消/派发并发、真实原生 Relay 与三库升级专项通过。最终联调为两个带竞态检测的独立进程，恢复演练还包含缺席尝试的零费用结算和迟到重放拒绝。
+
+
+最终控制面门禁已通过：设置固定 new-api 竞态 fixture 的 `TEST_NEWAPI_SERVER_BINARY`，并执行 `AIGW_VERIFY_RESTORE=1 bash scripts/verify.sh`，退出码 0。覆盖嵌套引擎模块、模块校验、契约生成一致性、vet、全部后端竞态测试、真实 PostgreSQL 迁移/事务与逻辑备份恢复。双进程专项 15.00 秒，恢复演练包 4.801 秒；全套中 `TestNewAPIControlHelper` 在父进程跳过是子进程入口占位，真正的 `TestNewAPITwoProcessRecovery` 已执行并通过，不把该占位 skip 当作验收。
+
+`cmd/gateway` 构建及 `--help` 检查通过，实际发布二进制名为 `aigw-gateway`；`aigw` 是管理 CLI，不应混用启动命令。本地本轮没有重新运行浏览器套件，远端 CI 仍执行既有 Web 与 Linux 候选包门禁；以对应提交的 run 结果为准。

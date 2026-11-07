@@ -53,6 +53,7 @@ func (r Residency) valid(now time.Time) bool {
 }
 
 type Model struct {
+	NewAPIChannelID  int       `json:"newapi_channel_id,omitempty"`
 	ID               string    `json:"id"`
 	Provider         string    `json:"provider"`
 	UpstreamModel    string    `json:"upstream_model"`
@@ -119,6 +120,16 @@ func ReadConfig(path string) (Config, error) {
 	return DecodeConfig(data)
 }
 func New(cfg Config, getenv func(string) string, transport *http.Client) (*Catalog, error) {
+	return newCatalog(cfg, getenv, transport, true)
+}
+
+// NewGoverned creates a price/residency directory whose vendor credentials and
+// physical transport live exclusively in the new-api data plane.
+func NewGoverned(cfg Config) (*Catalog, error) {
+	return newCatalog(cfg, func(string) string { return "" }, nil, false)
+}
+func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, requireCredential bool) (*Catalog, error) {
+
 	if cfg.Version != 1 || !cfg.DeploymentResidency.valid(time.Now()) || len(cfg.Models) < 1 || len(cfg.Models) > 32 || getenv == nil {
 		return nil, errors.New("provider configuration requires current mainland deployment/storage residency evidence and 1–32 models")
 	}
@@ -133,6 +144,9 @@ func New(cfg Config, getenv func(string) string, transport *http.Client) (*Catal
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	catalog := &Catalog{routes: map[string]*Route{}}
 	for _, m := range cfg.Models {
+		if (!requireCredential && m.NewAPIChannelID <= 0) || (requireCredential && m.NewAPIChannelID != 0) {
+			return nil, errors.New("newapi directory requires an explicit approved channel; native directories cannot specify one")
+		}
 		p, ok := profiles[m.Provider]
 		if !ok || !strings.HasPrefix(m.ID, m.Provider+"/") || !modelPattern.MatchString(m.ID) || !upstreamPattern.MatchString(m.UpstreamModel) || !pricePattern.MatchString(m.PriceVersion) || !m.Residency.valid(time.Now()) || m.MaxInputTokens < 1 || m.MaxInputTokens > 2000000 || m.MaxOutputTokens < 1 || m.MaxOutputTokens > 1000000 || m.InputPerMillion <= 0 || m.OutputPerMillion <= 0 || m.InputPerMillion > MaxAmount || m.OutputPerMillion > MaxAmount {
 			return nil, errors.New("model requires a supported mainland supplier, explicit prices, token bounds and current residency evidence")
@@ -141,7 +155,7 @@ func New(cfg Config, getenv func(string) string, transport *http.Client) (*Catal
 			return nil, errors.New("duplicate model alias")
 		}
 		key := getenv(p.KeyEnvironment)
-		if strings.TrimSpace(key) == "" || len(key) > 8192 || strings.IndexFunc(key, func(r rune) bool { return r < 33 || r > 126 }) >= 0 {
+		if requireCredential && (strings.TrimSpace(key) == "" || len(key) > 8192 || strings.IndexFunc(key, func(r rune) bool { return r < 33 || r > 126 }) >= 0) {
 			return nil, errors.New("required supplier credential unavailable or invalid: " + p.KeyEnvironment)
 		}
 		// Exclude residency review dates from the immutable price/route identity.
@@ -149,6 +163,10 @@ func New(cfg Config, getenv func(string) string, transport *http.Client) (*Catal
 			ID, Provider, Model, Version, Endpoint, Region, Currency string
 			Input, Output, MaxInput, MaxOutput                       int64
 		}{m.ID, m.Provider, m.UpstreamModel, m.PriceVersion, p.Endpoint, p.Region, Currency, m.InputPerMillion, m.OutputPerMillion, m.MaxInputTokens, m.MaxOutputTokens})
+		if !requireCredential {
+			channelBinding, _ := json.Marshal(m.NewAPIChannelID)
+			canonical = append(append(canonical, '\n'), channelBinding...)
+		}
 		digest := sha256.Sum256(canonical)
 		route := &Route{m, p, key, client, cfg.DeploymentResidency, m.ID + "@" + m.PriceVersion + "#" + hex.EncodeToString(digest[:])}
 		if _, err := route.Bound(int(m.MaxOutputTokens)); err != nil {

@@ -24,3 +24,12 @@ func (r *Route) ExecutionSettings() ExecutionSettings {
 func (r *Route) ExecutionIdentity() [32]byte {
 	return sha256.Sum256([]byte(r.fingerprint + "\x00" + r.key))
 }
+
+// PriceSnapshot is immutable non-secret accounting input for durable execution.
+func (r *Route) PriceSnapshot() ModelInfo {
+	m := r.model
+	return ModelInfo{ID: m.ID, Provider: m.Provider, Currency: Currency, Region: r.profile.Region, PriceVersion: r.fingerprint, InputPerMillion: m.InputPerMillion, OutputPerMillion: m.OutputPerMillion, MaxInputTokens: m.MaxInputTokens, MaxOutputTokens: m.MaxOutputTokens}
+}
+
+// GovernanceChannelID identifies the reviewed new-api channel for this route.
+func (r *Route) GovernanceChannelID() int { return r.model.NewAPIChannelID }

@@ -65,6 +65,12 @@ func TestLogicalBackupRestore(t *testing.T) {
 			} else {
 				execSQL(t, pool, `INSERT INTO system_management_events(operation_id,node,actor_issuer,actor_subject,action,phase,reason,payload) VALUES('fixture-operation','fixture-node','fixture-issuer','fixture-subject','apply','requested','restore rehearsal','{"fixture":true}')`)
 			}
+
+			if !previous {
+				execSQL(t, pool, `INSERT INTO inference_attempts(attempt_id,request_id,model,provider,region,stream) VALUES('restore_attempt_12345','settled','zhipu/fixture','zhipu','cn-mainland',false)`)
+				execSQL(t, pool, `INSERT INTO newapi_execution_bindings(attempt_id,request_id,backend,model,channel_id,fingerprint,price_version,input_price,output_price,max_input,max_output,recovery_complete) VALUES('restore_attempt_12345','settled','https://synthetic.invalid','fixture-model',1,repeat('a',64),'synthetic-v1',2000000,4000000,128,8,true)`)
+				execSQL(t, pool, `INSERT INTO newapi_execution_receipts(attempt_id,state,input_tokens,output_tokens,actual) VALUES('restore_attempt_12345','completed',4,8,40)`)
+			}
 			var schema string
 			if err := pool.QueryRow(ctx, "SELECT current_schema()").Scan(&schema); err != nil {
 				t.Fatal(err)

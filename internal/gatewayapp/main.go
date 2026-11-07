@@ -31,6 +31,7 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
 	"github.com/jhzhfree/ai-governance-gateway/internal/keyword"
 	"github.com/jhzhfree/ai-governance-gateway/internal/localauth"
+	"github.com/jhzhfree/ai-governance-gateway/internal/newapibridge"
 	"github.com/jhzhfree/ai-governance-gateway/internal/observe"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 	"github.com/jhzhfree/ai-governance-gateway/internal/systemhost"
@@ -60,11 +61,15 @@ type config struct {
 }
 
 func (c config) validate() error {
-	if c.executionEngine != "" && c.executionEngine != "native" && c.executionEngine != "bifrost" {
-		return errors.New("execution engine must be native or bifrost")
+	if c.executionEngine != "" && c.executionEngine != "native" && c.executionEngine != "bifrost" && c.executionEngine != "newapi" {
+		return errors.New("execution engine must be native, bifrost or newapi")
 	}
 	if c.executionEngine == "bifrost" && (c.mockOnly || c.providerConfig != "" || c.engineLimits.MaxBindings < 1 || c.engineLimits.MaxBindings > 256 || c.engineLimits.MaxConcurrent < 1 || c.engineLimits.MaxConcurrent > 1024) {
 		return errors.New("bifrost requires managed providers and valid execution pool limits")
+	}
+
+	if c.executionEngine == "newapi" && (c.mockOnly || c.providerConfig == "" || c.engineLimits.MaxConcurrent < 1 || c.engineLimits.MaxConcurrent > 1024) {
+		return errors.New("newapi requires an explicit credential-free provider directory and valid concurrency limit")
 	}
 
 	if c.schemaMode != "" && c.schemaMode != "auto" && c.schemaMode != "check" {
@@ -142,7 +147,21 @@ func run(ctx context.Context, c config, factory EngineFactory, listener net.List
 		if err != nil {
 			return err
 		}
-		providers, err = provider.New(cfg, os.Getenv, nil)
+		if c.executionEngine == "newapi" {
+			var directory *provider.Catalog
+			directory, err = provider.NewGoverned(cfg)
+			if err != nil {
+				return err
+			}
+			selected, err = newapibridge.NewRuntime(resources, newapibridge.Config{Origin: os.Getenv("AIGW_NEWAPI_ORIGIN"), ServiceToken: os.Getenv("AIGW_NEWAPI_SERVICE_TOKEN"), MaxConcurrent: c.engineLimits.MaxConcurrent, AllowLoopbackHTTP: os.Getenv("AIGW_NEWAPI_ALLOW_LOOPBACK_HTTP") == "true", Journal: newapibridge.NewJournal(pool)}, directory)
+			if err != nil {
+				return err
+			}
+			defer func() { cancelResources(); selected.Close() }()
+			providers = selected
+		} else {
+			providers, err = provider.New(cfg, os.Getenv, nil)
+		}
 		if err != nil {
 			return err
 		}
@@ -341,7 +360,7 @@ func Run(ctx context.Context, args []string, factory EngineFactory) error {
 	flags.StringVar(&c.providerConfig, "providers", "", "explicit mainland provider configuration file; mutually exclusive with --mock-only")
 	flags.StringVar(&c.webDir, "web-dir", "web/dist", "built console assets directory")
 	flags.BoolVar(&c.allowLoopbackHTTP, "allow-loopback-browser-http", false, "allow non-secure browser cookies only on an explicit loopback HTTP origin")
-	flags.StringVar(&c.executionEngine, "execution-engine", "native", "native (default) or explicitly selected bifrost in the engine binary")
+	flags.StringVar(&c.executionEngine, "execution-engine", "native", "native (default), newapi, or bifrost in the engine binary")
 	flags.IntVar(&c.engineLimits.MaxBindings, "engine-max-bindings", 64, "total current, draining and building execution instances")
 	flags.IntVar(&c.engineLimits.MaxConcurrent, "engine-max-concurrent", 32, "global execution concurrency including response bodies")
 	if err := flags.Parse(args); err != nil {

@@ -25,6 +25,14 @@ jobs:
       - run: npm --prefix web ci --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
         working-directory: web
+      - name: Build pinned new-api process fixture
+        run: |
+          git init "$RUNNER_TEMP/new-api-fixture"
+          git -C "$RUNNER_TEMP/new-api-fixture" fetch --depth=1 https://github.com/jhzhfree/new-api.git 773c954a584a1935e9ffc4c3b0b1f5e17f05aac5
+          git -C "$RUNNER_TEMP/new-api-fixture" checkout --detach FETCH_HEAD
+          cd "$RUNNER_TEMP/new-api-fixture"
+          go build -race -mod=readonly -o "$RUNNER_TEMP/newapi-governance-server" ./scripts/testdata/governance_server
+          echo "TEST_NEWAPI_SERVER_BINARY=$RUNNER_TEMP/newapi-governance-server" >> "$GITHUB_ENV"
       - run: bash scripts/verify.sh
         env:
           AIGW_VERIFY_WEB: '1'

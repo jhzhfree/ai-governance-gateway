@@ -54,7 +54,7 @@ func TestIsolationEvidenceAndNoRedirectRetry(t *testing.T) {
 			var calls atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calls.Add(1)
-				if r.URL.Path != "/v1/chat/completions" || r.Header.Get("Authorization") != "Bearer "+token || r.Header.Get("Cookie") != "" {
+				if r.URL.Path != "/internal/governance/v1/chat/completions" || r.Header.Get("Authorization") != "Bearer "+token || r.Header.Get("Cookie") != "" {
 					t.Error("credential or path isolation failed")
 				}
 				var body provider.Request

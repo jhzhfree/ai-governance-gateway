@@ -1,10 +1,12 @@
-// Package newapibridge implements an opt-in experimental execution boundary.
-// No application entrypoint enables it until new-api emits the evidence contract.
+// Package newapibridge implements the explicit newapi execution mode.
+// Missing authenticated execution evidence always retains uncertain funds.
 package newapibridge
 
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -12,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -29,7 +32,9 @@ type Config struct {
 	Origin            string
 	ServiceToken      string `json:"-"`
 	Models            map[string]string
+	Channels          map[string]int
 	MaxConcurrent     int
+	Journal           *Journal `json:"-"`
 	AllowLoopbackHTTP bool
 }
 
@@ -38,7 +43,9 @@ func (Config) GoString() string { return "[new-api configuration; credentials re
 
 type Executor struct {
 	origin, token string
+	journal       *Journal
 	models        map[string]string
+	channels      map[string]int
 	client        *http.Client
 	transport     *http.Transport
 	root          context.Context
@@ -74,19 +81,23 @@ func New(cfg Config) (*Executor, error) {
 		}
 	}
 	models := map[string]string{}
+	channels := map[string]int{}
 	for alias, model := range cfg.Models {
 		if !modelPattern.MatchString(alias) || !modelPattern.MatchString(model) {
 			return nil, ErrInvalid
 		}
 		models[alias] = model
+		if cfg.Channels[alias] > 0 {
+			channels[alias] = cfg.Channels[alias]
+		}
 	}
 	root, cancel := context.WithCancel(context.Background())
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.DisableCompression = true
 	transport.MaxResponseHeaderBytes = 16 << 10
 	transport.MaxConnsPerHost = cfg.MaxConcurrent
-	transport.ResponseHeaderTimeout = 15 * time.Second
-	return &Executor{origin: strings.TrimSuffix(cfg.Origin, "/"), token: cfg.ServiceToken, models: models, root: root, cancel: cancel, slots: make(chan struct{}, cfg.MaxConcurrent), transport: transport, client: &http.Client{Transport: transport, Timeout: 120 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
+	transport.ResponseHeaderTimeout = 120 * time.Second
+	return &Executor{journal: cfg.Journal, origin: strings.TrimSuffix(cfg.Origin, "/"), token: cfg.ServiceToken, models: models, channels: channels, root: root, cancel: cancel, slots: make(chan struct{}, cfg.MaxConcurrent), transport: transport, client: &http.Client{Transport: transport, Timeout: 120 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
 }
 func (e *Executor) Validate(route *provider.Route, req gateway.Request) error {
 	if route == nil || !route.Ready() || e.models[req.Model] == "" || !provider.ValidateRequest(req) {
@@ -139,7 +150,7 @@ func (e *Executor) Open(ctx context.Context, route *provider.Route, req gateway.
 		release()
 		return nil, ErrInvalid
 	}
-	r, err := http.NewRequestWithContext(call, http.MethodPost, e.origin+"/v1/chat/completions", bytes.NewReader(data))
+	r, err := http.NewRequestWithContext(call, http.MethodPost, e.origin+"/internal/governance/v1/chat/completions", bytes.NewReader(data))
 	if err != nil {
 		release()
 		return nil, ErrInvalid
@@ -150,10 +161,20 @@ func (e *Executor) Open(ctx context.Context, route *provider.Route, req gateway.
 	if req.Stream {
 		r.Header.Set("Accept", "text/event-stream")
 	}
+	if channelID := e.channels[req.Model]; channelID > 0 {
+		r.Header.Set("X-Aigw-Channel-Id", strconv.Itoa(channelID))
+	}
 	r.Header.Set("X-Aigw-Request-Id", requestID)
 	r.Header.Set("X-Aigw-Attempt-Id", attemptID)
 	// Only the dedicated internal service token is sent; route vendor credentials
 	// and caller Authorization/Cookie/forwarded headers are never copied.
+	if e.journal != nil {
+		digest := sha256.Sum256(append([]byte(strconv.Itoa(e.channels[req.Model])+"\x00"), data...))
+		if err := e.journal.Bind(call, e.origin, e.models[req.Model], requestID, attemptID, hex.EncodeToString(digest[:]), route, req.MaxTokens); err != nil {
+			release()
+			return nil, ErrUnavailable
+		}
+	}
 	res, err := e.client.Do(r)
 	if err != nil {
 		release()

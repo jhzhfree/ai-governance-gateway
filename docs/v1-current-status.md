@@ -49,3 +49,5 @@ DeepSeek 能力与计费边界见 [接入说明](deepseek.md)。
 ## new-api 专项验证分支
 
 `feature/newapi-foundation-validation` 已启动，第一阶段为实验性接入契约与治理回归；尚未切换生产入口。详见 [new-api 落地进度](new-api-integration.md)。
+
+new-api 专项已推进到显式 `--execution-engine=newapi`：可信内部入口、原始计数完成钩子、事务 outbox、控制面价格快照/恢复收据、自动迁移 v26、readiness 和双进程 SIGKILL 联调已落地。当前仅开放经验证的 OpenAI 兼容 Chat Completions，SSE 仍有界缓冲至完成；详细限制、配置和验证证据以 [接入文档最新章节](new-api-integration.md#已接通可信入口恢复消费与显式启动) 为准。默认入口及 V1.0 发布门禁未改变。
