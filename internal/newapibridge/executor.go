@@ -160,6 +160,7 @@ func (e *Executor) Open(ctx context.Context, route *provider.Route, req gateway.
 	r.Header.Set("Accept", "application/json")
 	if req.Stream {
 		r.Header.Set("Accept", "text/event-stream")
+		r.Header.Set("X-Aigw-Stream-Version", "2")
 	}
 	if channelID := e.channels[req.Model]; channelID > 0 {
 		r.Header.Set("X-Aigw-Channel-Id", strconv.Itoa(channelID))
@@ -180,8 +181,15 @@ func (e *Executor) Open(ctx context.Context, route *provider.Route, req gateway.
 		release()
 		return nil, ErrUnavailable
 	}
+	version := res.Header.Get("X-Aigw-Evidence-Version")
+	live := req.Stream && version == "2"
 	valid := res.StatusCode == http.StatusOK
-	for key, want := range map[string]string{"X-Aigw-Evidence-Version": "1", "X-Aigw-Request-Id": requestID, "X-Aigw-Attempt-Id": attemptID, "X-Aigw-Usage-Source": "upstream", "X-Aigw-Physical-Attempts": "1"} {
+	if live {
+		valid = valid && strings.HasPrefix(res.Header.Get("Content-Type"), "text/event-stream")
+	} else {
+		version = "1"
+	}
+	for key, want := range map[string]string{"X-Aigw-Evidence-Version": version, "X-Aigw-Request-Id": requestID, "X-Aigw-Attempt-Id": attemptID, "X-Aigw-Usage-Source": "upstream", "X-Aigw-Physical-Attempts": "1"} {
 		values := res.Header.Values(key)
 		valid = valid && len(values) == 1 && values[0] == want
 	}
@@ -192,7 +200,11 @@ func (e *Executor) Open(ctx context.Context, route *provider.Route, req gateway.
 		release()
 		return nil, ErrUnavailable
 	}
-	body := &ownedBody{ReadCloser: res.Body, release: release}
+	var responseBody io.ReadCloser = res.Body
+	if live {
+		responseBody = newVerifiedStream(res)
+	}
+	body := &ownedBody{ReadCloser: responseBody, release: release}
 	context.AfterFunc(call, func() { body.Close() })
 	res.Body = body
 	return res, nil

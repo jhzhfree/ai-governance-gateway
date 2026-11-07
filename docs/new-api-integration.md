@@ -5,7 +5,7 @@
 - 企业工程：`feature/newapi-foundation-validation`，从 `f3db909` 创建。
 - new-api fork：`feature/enterprise-governance-integration`，从 `e03439033238722c0b8d4437a052445f3aeeed83` 创建；第一阶段未修改该仓库，后续原始用量事实实现见下方阶段进展。
 - 路线：企业入口保留身份、项目、预算、终端与审计；new-api 承接协议/渠道执行，通过明确的用量和物理尝试契约对接。
-- 当前已提供显式 `--execution-engine=newapi`、可信入口、持久派发/outbox、不可变价格/渠道绑定、恢复消费、自动迁移 0026 和 readiness。默认执行器未切换。仅经验证的 OpenAI 兼容 Chat Completions 可用，SSE 有界缓冲至完成；部署配置和验收见后文“已接通”章节。
+- 当前已提供显式 `--execution-engine=newapi`、可信入口、持久派发/outbox、不可变价格/渠道绑定、恢复消费、自动迁移 0026 和 readiness。默认执行器未切换。仅经验证的 OpenAI 兼容 Chat Completions 可用，SSE 通过 v2 完成证明实时返回内容；部署配置和验收见后文“已接通”章节。
 - 本文保留历史阶段证据；历史章节中的待办不代表当前状态。生产发布门禁（实时流式、容量、跨主机/真实账号联合验收等）尚未全部完成。
 
 ## 已落地的接入边界
@@ -132,7 +132,7 @@ new-api 提交 [18f7df9d2](https://github.com/jhzhfree/new-api/commit/18f7df9d2)
 - 治理入口校验实际 TLS 连接。new-api 新增 `SERVER_TLS_CERT_FILE` / `SERVER_TLS_KEY_FILE`，成对配置以启用直接 TLS，最低 TLS 1.2；配置错误阻止启动。`GOVERNANCE_ALLOW_LOOPBACK_HTTP=true` 只允许实际 loopback 对端的明文测试连接，不信任 `X-Forwarded-Proto`。
 - 本版仅允许 **OpenAI 兼容渠道类型** 的 Chat Completions；其他原生适配器在执行前拒绝。管理员可在 new-api 维护兼容厂商的 endpoint、模型映射与真实密钥。不能把原生支持的全部协议视为已经过企业治理验收。
 - 请求正文上限 1 MiB；治理入口最多同时处理 32 个请求；响应上限 4 MiB。只接收 model/messages/max_tokens/stream/stream_options，进一步协议约束沿用控制面和原生校验。
-- 完成钩子核对实际原始计数与返回 JSON/SSE；缺失、重复、冲突、估算、异常结束不发可信证据。成功时先提交状态/outbox，再发送正文和证据头。**当前 SSE 有界缓冲至完成，因此没有实时首 Token 延迟保证**；不要将它作为最终流式性能方案。容量、延迟和跨主机故障仍须在目标部署验收。
+- 完成钩子核对实际原始计数与返回 JSON/SSE；缺失、重复、冲突、估算、异常结束不发可信证据。非流式成功时先提交状态/outbox，再发送正文和证据头。SSE v2 提前传输内容，完成标记与 trailer 必须等待持久提交；旧 v1 保留缓冲兼容路径。容量、延迟和跨主机故障仍须在目标部署验收。
 - `GET /internal/governance/v1/events` 返回当前服务主体最多 100 个未确认事件，带 `X-Aigw-Events-Version: 1`；`POST /internal/governance/v1/events/:id/ack` 幂等确认；`POST /internal/governance/v1/attempts/:id/cancel` 只允许取消尚未派发的匹配尝试。事件包含执行元数据与计数，不包含正文和可用凭证。
 
 控制面新增编号迁移 `0026_newapi_execution.sql`，仍由启动自动升级及既有事务锁、校验和、漂移检查保护：
@@ -161,9 +161,9 @@ export AIGW_NEWAPI_ORIGIN=https://newapi.internal.example
 - 企业迁移专项验证 v25→v26、连续启动、历史占额保留、失败 DDL/历史回滚和新表漂移阻断。恢复收据插入失败时预算同步回滚，并发重复投递只结算一次。
 - 双进程联调使用实际 new-api 路由/迁移/鉴权/Relay 和企业 Handler/恢复器；授权与模型上游为合成 fixture，不是生产身份/供应商验收。JSON 与 SSE 均通过。控制面在数据面持久完成、成功响应尚被故障代理扣留时被 SIGKILL，重启恢复三笔结算，共 48 微元，物理请求仍为 3 次。
 - 数据面在供应商已观察到第 4 次请求、尚无完成证据时被 SIGKILL；同一 SQLite 数据重启后，保留 1 笔 uncertain、288 微元占额，既有支出仍 48 微元，物理请求仍为 4 次。fixture 显式设置原生重试次数为 3，治理模式仍不重试。
-- CI 固定使用 new-api `5b324b904d7ad3c91ef4859ebced929c0d2b1435` 构建进程 fixture，设置 `TEST_NEWAPI_SERVER_BINARY` 才计作完成该联调；不配置时的 skip 不是验收通过。
+- CI 固定使用 new-api `bc2e37a4aa8ba9f7f083888a5dce920ff6c05679` 构建进程 fixture，设置 `TEST_NEWAPI_SERVER_BINARY` 才计作完成该联调；不配置时的 skip 不是验收通过。
 
-默认执行器仍为 native；本轮没有切换生产流量、发布 V1.0 标签或宣称 AGPL 商业许可问题已解决。实时流式交付、生产容量与跨主机故障、真实 IdP/终端/供应商账号、安装升级和备份恢复的联合验收仍属于发布门禁。后续协议扩展必须逐项提供用量与审计证据，不能直接开放全部原生功能。
+默认执行器仍为 native；本轮没有切换生产流量、发布 V1.0 标签或宣称 AGPL 商业许可问题已解决。目标部署实时流式延迟验收、生产容量与跨主机故障、真实 IdP/终端/供应商账号、安装升级和备份恢复的联合验收仍属于发布门禁。后续协议扩展必须逐项提供用量与审计证据，不能直接开放全部原生功能。
 
 鉴权设计参考 [OWASP Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html) 与 [Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)，采用服务器身份校验、真实 TLS、拒绝 Cookie 与替代凭证入口、状态验证和通用错误响应。本轮未进行完整 ASVS 合规认证。
 
@@ -186,3 +186,14 @@ export AIGW_NEWAPI_ORIGIN=https://newapi.internal.example
 真实 TokenAuth/Distribute/Relay 回归证明上述被拒配置不会调用供应商，尝试转为 cancelled；治理与模型列表组合竞态测试通过（6.009 秒）。同时修复治理测试未恢复全局模型/分组费率造成的后续模型列表测试污染。此前 native CI 42333217441 的失败属于该污染，不算通过；后续结果以最新提交对应 CI 为准。
 
 渠道边界补强后再次执行固定竞态数据面 fixture 的 `AIGW_VERIFY_RESTORE=1 bash scripts/verify.sh`，退出码 0；包含完整后端、双进程故障恢复和两种版本备份恢复。远端全套 UI/安装包门禁须查看该提交的 Actions 结果。
+
+
+### 实时 SSE v2
+
+控制面以 `X-Aigw-Stream-Version: 2` 请求实时流。数据面先发送内容块，保持 4 MiB 总量和 64 KiB 行边界；先前的完整响应核验仍保留。只有原始用量匹配且完成状态/outbox 已持久提交，才发送 `[DONE]` 和 `X-Aigw-Completion: completed` HTTP trailer。错误、取消、截断或提交失败不产生成功结束标记。控制面逐块经过既有解析、关键词策略与内容审计，但扣留 `[DONE]`，直到 EOF 及唯一正确 trailer 验证成功后才允许结算成功。
+
+不支持 trailer 的代理会使成功终态校验失败，费用由持久事件恢复核对；不能去掉该校验来兼容代理。旧数据面 v1 已完成后缓冲响应仍可接收。控制面未向用户承诺 trailer，客户端看到的仍是标准 Chat SSE。实时输出无法撤回已发内容；要求全篇阻断/脱敏的策略仍遵循现有流式拒绝边界。
+
+真实双进程故障测试新增上游完成屏障：客户端收到内容时只允许前一笔请求已结算，释放屏障后才收到 `[DONE]`；原有 SIGKILL 恢复、未知派发保留占额、迟到重放拒绝继续通过。专项分别验证缺失/重复/失败/正文伪造 trailer、异常尾部及截断，均不能放行 DONE。首块测试是同步顺序断言，不虚构生产 TTFT 或吞吐数据。
+
+实时 SSE 阶段验证：完整 `AIGW_VERIFY_RESTORE=1 bash scripts/verify.sh` 退出码 0；覆盖全部后端 race/vet、契约和逻辑恢复，固定 new-api 竞态 fixture 的双进程测试实际执行。数据面另外禁用治理请求的后台 ping，保证输出 writer 独占；最新 fixture 的 bridge 全包竞态检查再次执行。原始迁移 0026 未修改。

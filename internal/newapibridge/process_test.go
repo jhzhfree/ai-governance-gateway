@@ -1,6 +1,7 @@
 package newapibridge_test
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -83,6 +84,10 @@ func TestNewAPITwoProcessRecovery(t *testing.T) {
 	var block atomic.Bool
 	arrived := make(chan struct{})
 	blockedRelease := make(chan struct{})
+	streamRelease := make(chan struct{})
+	var streamOnce sync.Once
+	releaseStream := func() { streamOnce.Do(func() { close(streamRelease) }) }
+	defer releaseStream()
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
 		if block.Load() {
@@ -102,13 +107,19 @@ func TestNewAPITwoProcessRecovery(t *testing.T) {
 			w.Header().Set("Content-Type", "text/event-stream")
 			io.WriteString(w, "data: {\"id\":\"synthetic\",\"model\":\"governance-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"synthetic\"},\"finish_reason\":null}]}\n\n")
 			io.WriteString(w, "data: {\"id\":\"synthetic\",\"model\":\"governance-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n")
+			w.(http.Flusher).Flush()
+			select {
+			case <-streamRelease:
+			case <-r.Context().Done():
+				return
+			}
 			io.WriteString(w, "data: {\"id\":\"synthetic\",\"model\":\"governance-model\",\"choices\":[],\"usage\":{\"prompt_tokens\":2,\"completion_tokens\":3,\"total_tokens\":5}}\n\ndata: [DONE]\n\n")
 		} else {
 			w.Header().Set("Content-Type", "application/json")
 			io.WriteString(w, reply)
 		}
 	}))
-	defer upstream.Close()
+	defer func() { releaseStream(); upstream.Close() }()
 	defer close(blockedRelease)
 	start := func(command *exec.Cmd, ready string) (string, func()) {
 		t.Helper()
@@ -207,6 +218,25 @@ func TestNewAPITwoProcessRecovery(t *testing.T) {
 			return 0, nil
 		}
 		defer res.Body.Close()
+		if stream {
+			reader := bufio.NewReader(res.Body)
+			first, readErr := reader.ReadString('\n')
+			if readErr != nil || !strings.Contains(first, "synthetic") {
+				releaseStream()
+				t.Fatal("stream content did not precede upstream completion")
+			}
+			var settledBefore int
+			if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM budget_reservations WHERE state='settled'`).Scan(&settledBefore); err != nil || settledBefore != 1 {
+				releaseStream()
+				t.Fatal("stream settled before completion")
+			}
+			releaseStream()
+			tail, readErr := io.ReadAll(reader)
+			if readErr != nil || !strings.Contains(string(tail), "[DONE]") {
+				t.Fatalf("verified stream did not finish: %v", readErr)
+			}
+			return res.StatusCode, append([]byte(first), tail...)
+		}
 		body, _ := io.ReadAll(res.Body)
 		return res.StatusCode, body
 	}
