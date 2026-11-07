@@ -69,6 +69,43 @@ class ArchiveBoundary(unittest.TestCase):
                     with self.assertRaises(ValueError): verifier.verify(archive, "b" * 40 if case == "wrong_commit" else None)
                 self.assertFalse((pathlib.Path(directory).parent / "escape").exists())
 
+    def test_control_plane_declaration_and_delivery_materials(self):
+        declaration = dict(source_repository="jhzhfree/new-api", validated_commit="b" * 40, bundled=False)
+        docs = {"docs/new-api-deployment.md", "docs/new-api-integration.md", "docs/product/user-guide.md",
+                "docs/product/technical-specification.md", "docs/product/deployment-acceptance.md", "api/openapi/management.json"}
+        names = {"bin/aigw", "bin/aigw-gateway", "bin/aigw-migrate", "bin/aigw-local-admin",
+                 "bin/aigw-content-audit", "bin/aigw-host-agent", "web/index.html",
+                 "config.env.example", "go-modules.json", "go.sum", "package-lock.json"} | docs
+        for case in ("valid", "missing_doc", "missing_descriptor", "mismatch", "bad_pin", "bundled", "bad_modes", "missing_modes"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                files = {name: b"synthetic" for name in names}
+                manifest = dict(format_version=1, engine="native", os="linux", arch="amd64",
+                    release_status="development_candidate", source_commit="a" * 40,
+                    execution_engines=["native", "newapi"], newapi=declaration.copy())
+                files["deploy/newapi-compatibility.json"] = json.dumps(declaration).encode()
+                if case == "missing_doc": del files["docs/new-api-deployment.md"]
+                if case == "missing_descriptor": del files["deploy/newapi-compatibility.json"]
+                if case == "mismatch": files["deploy/newapi-compatibility.json"] = json.dumps({**declaration,"validated_commit":"c"*40}).encode()
+                if case == "bad_pin": manifest["newapi"]["validated_commit"] = "main"
+                if case == "bundled": manifest["newapi"]["bundled"] = True
+                if case == "bad_modes": manifest["execution_engines"] = ["native", "bifrost", "newapi"]
+                if case == "missing_modes": del manifest["execution_engines"]
+                files["manifest.json"] = json.dumps(manifest).encode()
+                # Recompute all hashes so rejection proves semantic validation,
+                # rather than merely noticing a stale inventory.
+                files["SHA256SUMS"] = "".join(hashlib.sha256(data).hexdigest()+"  "+name+"\n" for name,data in files.items()).encode()
+                archive = pathlib.Path(directory)/"candidate.tar.gz"
+                with tarfile.open(archive,"w:gz") as output:
+                    for name,data in files.items():
+                        item=tarfile.TarInfo(name); item.size=len(data)
+                        item.mode=0o755 if name.startswith("bin/") else 0o644
+                        output.addfile(item,io.BytesIO(data))
+                if case == "valid":
+                    with contextlib.redirect_stdout(io.StringIO()): result=verifier.verify(archive,"a"*40)
+                    self.assertEqual(result["newapi"],declaration)
+                else:
+                    with self.assertRaises(ValueError): verifier.verify(archive,"a"*40)
+
 
 if __name__ == "__main__":
     unittest.main()

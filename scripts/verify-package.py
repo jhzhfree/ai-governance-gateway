@@ -44,7 +44,7 @@ def verify(filename, expected_commit=None):
                 raise ValueError("archive exceeds 1 GiB limit")
             stream = archive.extractfile(member)
             digest = hashlib.sha256()
-            data = bytearray() if name in ("SHA256SUMS", "manifest.json") else None
+            data = bytearray() if name in ("SHA256SUMS", "manifest.json", "deploy/newapi-compatibility.json") else None
             while block := stream.read(65536):
                 digest.update(block)
                 if data is not None:
@@ -75,6 +75,23 @@ def verify(filename, expected_commit=None):
     required = {"bin/aigw", "bin/aigw-gateway", "bin/aigw-migrate", "bin/aigw-local-admin",
                 "bin/aigw-content-audit", "bin/aigw-host-agent", "web/index.html",
                 "config.env.example", "go-modules.json", "go.sum", "package-lock.json"}
+    # Legacy format-1 native candidates remain readable. New candidates declare
+    # their actual execution modes and the separately deployed data-plane pin.
+    if "execution_engines" in manifest or "newapi" in manifest:
+        newapi = manifest.get("newapi")
+        if (manifest.get("execution_engines") != ["native", "newapi"]
+                or not isinstance(newapi, dict) or set(newapi) != {"bundled", "source_repository", "validated_commit"}
+                or newapi.get("bundled") is not False
+                or newapi.get("source_repository") != "jhzhfree/new-api"
+                or not isinstance(newapi.get("validated_commit"), str)
+                or not re.fullmatch(r"[0-9a-f]{40}", newapi["validated_commit"])):
+            raise ValueError("unsupported data-plane declaration")
+        required |= {"deploy/newapi-compatibility.json", "api/openapi/management.json",
+                     "docs/new-api-deployment.md", "docs/new-api-integration.md",
+                     "docs/product/user-guide.md", "docs/product/technical-specification.md",
+                     "docs/product/deployment-acceptance.md"}
+        if "deploy/newapi-compatibility.json" not in contents or json.loads(contents["deploy/newapi-compatibility.json"][1]) != newapi:
+            raise ValueError("data-plane declaration mismatch")
     if not required <= set(contents):
         raise ValueError("required package component missing")
     print("Verified candidate", manifest["source_commit"], manifest["arch"], len(checks), "files")

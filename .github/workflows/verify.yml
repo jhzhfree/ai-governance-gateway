@@ -27,8 +27,9 @@ jobs:
         working-directory: web
       - name: Build pinned new-api process fixture
         run: |
+          newapi_commit="$(python3 -c 'import json,re; v=json.load(open("deploy/newapi-compatibility.json"))["validated_commit"]; assert re.fullmatch("[0-9a-f]{40}",v); print(v)')"
           git init "$RUNNER_TEMP/new-api-fixture"
-          git -C "$RUNNER_TEMP/new-api-fixture" fetch --depth=1 https://github.com/jhzhfree/new-api.git fb0c2251b5489568d1a3e766ce303c7a94e2816c
+          git -C "$RUNNER_TEMP/new-api-fixture" fetch --depth=1 https://github.com/jhzhfree/new-api.git "$newapi_commit"
           git -C "$RUNNER_TEMP/new-api-fixture" checkout --detach FETCH_HEAD
           cd "$RUNNER_TEMP/new-api-fixture"
           go build -race -mod=readonly -o "$RUNNER_TEMP/newapi-governance-server" ./scripts/testdata/governance_server
@@ -51,7 +52,7 @@ jobs:
           AIGW_VERIFY_WEB: '1'
           AIGW_VERIFY_SDK: '1'
   package:
-    name: Verify native Linux candidate
+    name: Verify control-plane Linux candidate
     needs: prototype
     runs-on: ubuntu-latest
     timeout-minutes: 15

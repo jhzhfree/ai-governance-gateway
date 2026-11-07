@@ -38,7 +38,10 @@ npm --prefix web run api:check
 npm --prefix web run build
 cp -R web/dist/. "$bundle/web/"
 cp .env.example "$bundle/config.env.example"
-cp docs/engine-entrypoint.md docs/system-management.md docs/backup-restore.md "$bundle/docs/"
+cp -R docs/. "$bundle/docs/"
+mkdir -p "$bundle/api/openapi"
+cp api/openapi/management.json "$bundle/api/openapi/"
+cp deploy/newapi-compatibility.json "$bundle/deploy/"
 cp deploy/systemd/aigw-host-agent.service "$bundle/deploy/"
 "$go_bin" list -m -json all > "$work/modules.json"
 cp go.sum web/package-lock.json "$bundle/"
@@ -46,7 +49,8 @@ cp go.sum web/package-lock.json "$bundle/"
 python3 - "$bundle" "$commit" "$arch" "$("$go_bin" env GOVERSION)" "$(node --version)" <<'PY'
 import hashlib,json,pathlib,sys
 root=pathlib.Path(sys.argv[1])
-metadata=dict(format_version=1,source_commit=sys.argv[2],os='linux',arch=sys.argv[3],go=sys.argv[4],node=sys.argv[5],engine='native',release_status='development_candidate')
+newapi=json.loads((root/'deploy/newapi-compatibility.json').read_text())
+metadata=dict(format_version=1,execution_engines=['native','newapi'],newapi=newapi,source_commit=sys.argv[2],os='linux',arch=sys.argv[3],go=sys.argv[4],node=sys.argv[5],engine='native',release_status='development_candidate')
 (root/'manifest.json').write_text(json.dumps(metadata,indent=2)+'\n')
 raw=(root.parent/'modules.json').read_text()
 decoder=json.JSONDecoder(); modules=[]
@@ -66,4 +70,4 @@ tar -czf "$work/candidate.tar.gz" -C "$bundle" .
 python3 "$repo/scripts/verify-package.py" "$work/candidate.tar.gz"
 ln "$work/candidate.tar.gz" "$output"
 sha256sum "$output"
-printf 'Packaged committed source %s (native Linux %s); no services installed.\n' "$commit" "$arch"
+printf 'Packaged committed source %s (control-plane Linux %s; native default, explicit newapi); no services installed.\n' "$commit" "$arch"
