@@ -579,3 +579,14 @@ Messages 实时流完整门禁退出码 0：固定 fb0c2251b 竞态数据面 fix
 定向验证包括结构与总文本边界、嵌套未审核字段在供应商派发前拒绝，结构化输入的 OpenAPI、预算、关键词拒绝／输出脱敏、审计查看，以及固定 OpenAI Python SDK 3.46.0 流事件解析。独立进程 Responses 恢复用例改用结构化文本，涵盖派发后故障、完成事件接管和持久回执。具体结果与完整门禁另记。本地 SDK 生成类型仅用作字段形态参考，不代表支持其全部协议；无真实供应商或生产操作。
 
 Responses 结构化输入定向结果：provider 1.066 秒、HTTP 16.720 秒、固定 SDK 8.232 秒、三类上游独立进程恢复 55.234 秒通过；补充的跨块关键词匹配专项 3.667 秒通过。完整 `AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 AIGW_VERIFY_SDK=1 bash scripts/verify.sh`（固定 fb0c2251b 竞态 fixture）退出码 0：HTTP 315.666 秒、bridge 525.478 秒、17 项 OIDC＋1 项本地账号浏览器 75.297 秒、当前／旧版恢复 5.102 秒、最终 SDK／协议 59.807 秒。race/vet、生成 Go/TS 契约、Web 冻结依赖／类型／Lint／构建通过。第一次生成脚本引用不存在的 schema 名称后停止，改为已有 ResponsesCreateRequest 并重新生成及通过一致性检查；没有手改生成文件。日志 `responses-input-contract.log`、`responses-input-process.log`、`responses-input-sdk.log`、`responses-input-split-policy.log`、`responses-input-full-gates.log`。上一 Messages 流提交 6057c5a 的远端 CI 42366262420 已全部 success（含安装包）；本次提交的 CI 仍需独立核对。
+
+
+### Messages 有界纯文本块
+
+Messages content（user／assistant）及可选 system 增加字符串或 1–16 个纯 text 块的输入，按顺序拼接，每条／system 合计最多 16 KiB，仍受 64 KiB 公共请求与规范化大小限制。最后一条 user，不支持 assistant prefill。严格嵌套解码拒绝 cache_control、citations、工具结果、图片和未知字段；原有空字符串 system 保持兼容，null 和空块数组不接受。不会把未映射语义静默送入 Chat。
+
+JSON 和审核后的实时 SSE 共用该转换；项目权限、设备证明、预算、输入关键词、审计及原始计量仍沿用已验收链。跨块词在拼接后检查，审计保存规范化角色／文本，不保存文本块分段。未开放缓存创建参数，费率与 schema v30 不变。固定 Anthropic SDK 的低层和高级 stream 改用文本块；独立进程 Messages JSON／SSE 故障恢复也使用文本块。定向与完整结果另记。
+
+Messages 文本块阶段结果：provider 1.028 秒、HTTP／Anthropic SDK 42.533 秒、独立进程 JSON／SSE 与恢复 74.023 秒通过。完整 `AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 AIGW_VERIFY_SDK=1 bash scripts/verify.sh`（固定 fb0c2251b 竞态 fixture）退出码 0：HTTP 311.647 秒、bridge 523.747 秒、17 项 OIDC＋1 项本地身份浏览器 79.327 秒、当前／旧版恢复 4.886 秒、最终 SDK／协议 58.405 秒。模块、race/vet、生成 Go/TS 契约、Web 冻结依赖／类型／Lint／构建均通过。日志 `messages-blocks-unit.log`、`messages-blocks-contract-sdk.log`、`messages-blocks-process.log`、`messages-blocks-full-gates.log`。容量提交 909a375 的远端 CI 42367256608 已 success；本次提交 CI 单独跟踪。
+
+2026-11-07 用户确认先以现有四类受控 API 完成 V1 验收。具体范围已同步至 [V1 交付跟踪](v1-delivery.md#当前确认的-v1-公共协议范围)，本轮不扩展图像生成、音视频或其他原生协议，不将“受控子集”标为完整上游兼容。

@@ -328,9 +328,19 @@ const (
 	MemberRecordRoleViewer    MemberRecordRole = "viewer"
 )
 
+// Defines values for MessagesCreateRequestSystem1Type.
+const (
+	MessagesCreateRequestSystem1TypeText MessagesCreateRequestSystem1Type = "text"
+)
+
 // Defines values for MessagesErrorType.
 const (
 	MessagesErrorTypeError MessagesErrorType = "error"
+)
+
+// Defines values for MessagesInputContent1Type.
+const (
+	MessagesInputContent1TypeText MessagesInputContent1Type = "text"
 )
 
 // Defines values for MessagesInputRole.
@@ -1780,8 +1790,27 @@ type MessagesCreateRequest struct {
 	Model     string          `json:"model"`
 
 	// Stream Requires reviewed model streaming capability; unsupported models reject before dispatch.
-	Stream *bool   `json:"stream,omitempty"`
-	System *string `json:"system,omitempty"`
+	Stream *bool `json:"stream,omitempty"`
+
+	// System Optional pure text system instructions; joined blocks at most 16 KiB.
+	System *MessagesCreateRequest_System `json:"system,omitempty"`
+}
+
+// MessagesCreateRequestSystem0 defines model for .
+type MessagesCreateRequestSystem0 = string
+
+// MessagesCreateRequestSystem1 defines model for .
+type MessagesCreateRequestSystem1 = []struct {
+	Text string                           `json:"text"`
+	Type MessagesCreateRequestSystem1Type `json:"type"`
+}
+
+// MessagesCreateRequestSystem1Type defines model for MessagesCreateRequest.System.1.Type.
+type MessagesCreateRequestSystem1Type string
+
+// MessagesCreateRequest_System Optional pure text system instructions; joined blocks at most 16 KiB.
+type MessagesCreateRequest_System struct {
+	union json.RawMessage
 }
 
 // MessagesError defines model for MessagesError.
@@ -1799,8 +1828,26 @@ type MessagesErrorType string
 
 // MessagesInput defines model for MessagesInput.
 type MessagesInput struct {
-	Content string            `json:"content"`
-	Role    MessagesInputRole `json:"role"`
+	// Content Pure text only; blocks concatenate in order to at most 16 KiB. Cache control, citations, tools and media are rejected.
+	Content MessagesInput_Content `json:"content"`
+	Role    MessagesInputRole     `json:"role"`
+}
+
+// MessagesInputContent0 defines model for .
+type MessagesInputContent0 = string
+
+// MessagesInputContent1 defines model for .
+type MessagesInputContent1 = []struct {
+	Text string                    `json:"text"`
+	Type MessagesInputContent1Type `json:"type"`
+}
+
+// MessagesInputContent1Type defines model for MessagesInput.Content.1.Type.
+type MessagesInputContent1Type string
+
+// MessagesInput_Content Pure text only; blocks concatenate in order to at most 16 KiB. Cache control, citations, tools and media are rejected.
+type MessagesInput_Content struct {
+	union json.RawMessage
 }
 
 // MessagesInputRole defines model for MessagesInput.Role.
@@ -3078,6 +3125,130 @@ func (t InferenceRequest_Messages_Content) MarshalJSON() ([]byte, error) {
 }
 
 func (t *InferenceRequest_Messages_Content) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsMessagesCreateRequestSystem0 returns the union data inside the MessagesCreateRequest_System as a MessagesCreateRequestSystem0
+func (t MessagesCreateRequest_System) AsMessagesCreateRequestSystem0() (MessagesCreateRequestSystem0, error) {
+	var body MessagesCreateRequestSystem0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromMessagesCreateRequestSystem0 overwrites any union data inside the MessagesCreateRequest_System as the provided MessagesCreateRequestSystem0
+func (t *MessagesCreateRequest_System) FromMessagesCreateRequestSystem0(v MessagesCreateRequestSystem0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeMessagesCreateRequestSystem0 performs a merge with any union data inside the MessagesCreateRequest_System, using the provided MessagesCreateRequestSystem0
+func (t *MessagesCreateRequest_System) MergeMessagesCreateRequestSystem0(v MessagesCreateRequestSystem0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsMessagesCreateRequestSystem1 returns the union data inside the MessagesCreateRequest_System as a MessagesCreateRequestSystem1
+func (t MessagesCreateRequest_System) AsMessagesCreateRequestSystem1() (MessagesCreateRequestSystem1, error) {
+	var body MessagesCreateRequestSystem1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromMessagesCreateRequestSystem1 overwrites any union data inside the MessagesCreateRequest_System as the provided MessagesCreateRequestSystem1
+func (t *MessagesCreateRequest_System) FromMessagesCreateRequestSystem1(v MessagesCreateRequestSystem1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeMessagesCreateRequestSystem1 performs a merge with any union data inside the MessagesCreateRequest_System, using the provided MessagesCreateRequestSystem1
+func (t *MessagesCreateRequest_System) MergeMessagesCreateRequestSystem1(v MessagesCreateRequestSystem1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t MessagesCreateRequest_System) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *MessagesCreateRequest_System) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsMessagesInputContent0 returns the union data inside the MessagesInput_Content as a MessagesInputContent0
+func (t MessagesInput_Content) AsMessagesInputContent0() (MessagesInputContent0, error) {
+	var body MessagesInputContent0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromMessagesInputContent0 overwrites any union data inside the MessagesInput_Content as the provided MessagesInputContent0
+func (t *MessagesInput_Content) FromMessagesInputContent0(v MessagesInputContent0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeMessagesInputContent0 performs a merge with any union data inside the MessagesInput_Content, using the provided MessagesInputContent0
+func (t *MessagesInput_Content) MergeMessagesInputContent0(v MessagesInputContent0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsMessagesInputContent1 returns the union data inside the MessagesInput_Content as a MessagesInputContent1
+func (t MessagesInput_Content) AsMessagesInputContent1() (MessagesInputContent1, error) {
+	var body MessagesInputContent1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromMessagesInputContent1 overwrites any union data inside the MessagesInput_Content as the provided MessagesInputContent1
+func (t *MessagesInput_Content) FromMessagesInputContent1(v MessagesInputContent1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeMessagesInputContent1 performs a merge with any union data inside the MessagesInput_Content, using the provided MessagesInputContent1
+func (t *MessagesInput_Content) MergeMessagesInputContent1(v MessagesInputContent1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t MessagesInput_Content) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *MessagesInput_Content) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

@@ -33,7 +33,7 @@ assert response.usage.input_tokens == 2 and response.usage.output_tokens == 3
 assert response.usage.cache_read_input_tokens == 4 and response.usage.cache_creation_input_tokens == 5
 assert response.stop_sequence is None and response.id.startswith("msg_")
 try:
-    client.messages.create(model="zhipu/fixture", max_tokens=8, messages=[{"role":"user", "content":"synthetic"}], stream=True)
+    client.messages.create(model="zhipu/fixture", max_tokens=8, messages=[{"role":"user", "content":[{"type":"text","text":"synthetic"}]}], stream=True)
 except anthropic.BadRequestError as error:
     assert error.body["error"]["type"] == "invalid_request_error"
 else:
@@ -67,7 +67,7 @@ func TestMessagesPythonSDKStreaming(t *testing.T) {
 import os,sys,anthropic
 sys.excepthook = lambda typ,value,tb: sys.stderr.write("SDK_DIAGNOSTIC:"+typ.__name__+"\n")
 client=anthropic.Anthropic(api_key=os.environ["AIGW_SDK_KEY"],base_url=os.environ["AIGW_SDK_URL"],max_retries=0,default_headers={"anthropic-version":"2023-06-01"})
-kwargs=dict(model="zhipu/fixture",max_tokens=8,messages=[{"role":"user","content":"synthetic"}])
+kwargs=dict(model="zhipu/fixture",max_tokens=8,messages=[{"role":"user","content":[{"type":"text","text":"synthetic"}]}])
 if os.environ["MISSING"]=="1":
     try:
         with client.messages.stream(**kwargs) as stream:

@@ -316,7 +316,7 @@ new-api 模式下供应商密钥由数据面管理。客户端继续调用 `/v1/
 
 ### Messages 文本客户端
 
-newapi 执行模式下可调用 `/v1/messages` 文本 JSON 子集。模型目录需审核渠道指纹并配置缓存读写费率，以取得分离的原始计数。项目 Key 放在 `x-api-key` 或 Bearer 中（二选一），版本使用 `anthropic-version: 2023-06-01`。请求包含 model、max_tokens 和字符串内容的 messages；工具、图片、内容块数组或 beta 暂不支持；stream 需另外满足下文“Messages 实时流”的审核条件。内容审计与预算仍生效，缺失原始计量不会自动退款。详细范围、终端用法和固定 SDK 验证见 [接入说明](../new-api-integration.md#受控-messages-文本-json)。
+newapi 执行模式下可调用 `/v1/messages` 文本 JSON 子集。模型目录需审核渠道指纹并配置缓存读写费率，以取得分离的原始计数。项目 Key 放在 `x-api-key` 或 Bearer 中（二选一），版本使用 `anthropic-version: 2023-06-01`。请求包含 model、max_tokens 和纯文本 messages；内容可用字符串或下文的纯 text 块，工具、图片、带附加语义的内容块或 beta 暂不支持；stream 需另外满足下文“Messages 实时流”的审核条件。内容审计与预算仍生效，缺失原始计量不会自动退款。详细范围、终端用法和固定 SDK 验证见 [接入说明](../new-api-integration.md#受控-messages-文本-json)。
 
 ### 缓存写入时长费用
 
@@ -336,3 +336,10 @@ newapi 执行模式下可调用 `/v1/messages` 文本 JSON 子集。模型目录
 `input` 可使用原有字符串，或 1–63 条按顺序排列的 `system`／`assistant`／`user` 消息，最后一条必须为 user。每条 content 可为非空字符串；system/user 还可使用 1–16 个 `{"type":"input_text","text":"..."}`，按顺序直接拼接，每条合计不超过 16 KiB。instructions 会作为首条 system 指令，整个请求仍不超过 64 KiB。assistant 目前只接受字符串，不接受输出消息对象或块数组。
 
 例如 `input:[{"role":"assistant","content":"上一轮文字"},{"role":"user","content":[{"type":"input_text","text":"继续说明"}]}]`；仍必须设置 `store:false`。这只是客户端提供的文本历史，不提供服务端会话或历史响应检索。developer、phase、消息 ID、工具结果、媒体和缓存控制字段都会明确拒绝。审计保存规范化角色／文本，不保留原有文本块的分段方式；关键词检查在拼接后执行，不能通过拆分文本块绕过规则。
+
+
+### Messages 纯文本块输入
+
+messages 中 user／assistant 的 content，以及可选 system，均可使用字符串或 1–16 个 `{"type":"text","text":"..."}`。每块必须非空，按顺序直接拼接后每条最多 16 KiB，整个请求仍最多 64 KiB。消息最后一条必须为 user，暂不支持 assistant prefill。
+
+文本块分段不会绕过关键词策略；内容审计记录规范化角色和拼接后的文本，原始分段方式不保留。不要附加 `cache_control`、`citations`、工具、图片或其他字段，这些会被明确拒绝，而不是静默丢弃。此扩展不主动创建供应商缓存；已有缓存计费仍依据供应商原始实际计数。JSON／审核实时流使用相同输入校验。

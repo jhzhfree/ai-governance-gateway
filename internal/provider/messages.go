@@ -13,33 +13,69 @@ import (
 type MessagesRequest struct {
 	Model     string          `json:"model"`
 	Messages  []MessagesInput `json:"messages"`
-	System    string          `json:"system,omitempty"`
+	System    json.RawMessage `json:"system,omitempty"`
 	MaxTokens int             `json:"max_tokens"`
 	Stream    bool            `json:"stream,omitempty"`
 }
 type MessagesInput struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string          `json:"role"`
+	Content json.RawMessage `json:"content"`
 }
 
 func (r MessagesRequest) Request() (Request, error) {
-	if r.MaxTokens < 1 || len(r.Messages) == 0 || len(r.Messages) > 63 || len(r.System) > 16<<10 || r.Messages[len(r.Messages)-1].Role != "user" {
+	if r.MaxTokens < 1 || len(r.Messages) == 0 || len(r.Messages) > 63 || r.Messages[len(r.Messages)-1].Role != "user" {
 		return Request{}, errors.New("unsupported messages request")
 	}
 	req := Request{Model: r.Model, MaxTokens: r.MaxTokens, Stream: r.Stream, MessagesStream: r.Stream}
-	if r.System != "" {
-		req.Messages = append(req.Messages, Message{Role: "system", Content: r.System})
+	if len(r.System) > 0 {
+		system, err := messagesTextContent(r.System, true)
+		if err != nil {
+			return Request{}, err
+		}
+		if system != "" {
+			req.Messages = append(req.Messages, Message{Role: "system", Content: system})
+		}
 	}
 	for _, m := range r.Messages {
-		if (m.Role != "user" && m.Role != "assistant") || len(m.Content) == 0 || len(m.Content) > 16<<10 {
+		content, err := messagesTextContent(m.Content, false)
+		if (m.Role != "user" && m.Role != "assistant") || err != nil {
 			return Request{}, errors.New("unsupported messages content")
 		}
-		req.Messages = append(req.Messages, Message{Role: m.Role, Content: m.Content})
+		req.Messages = append(req.Messages, Message{Role: m.Role, Content: content})
 	}
 	if !ValidateRequest(req) {
 		return Request{}, errors.New("invalid messages request")
 	}
 	return req, nil
+}
+
+// Text blocks are flattened only after rejecting semantic fields that cannot be
+// represented by the governed Chat contract, such as cache_control/citations.
+func messagesTextContent(raw json.RawMessage, allowEmpty bool) (string, error) {
+	invalid := errors.New("unsupported Messages text content")
+	if len(raw) == 0 || len(raw) > 64<<10 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return "", invalid
+	}
+	var content string
+	if json.Unmarshal(raw, &content) == nil {
+		if len(content) > 16<<10 || (len(content) == 0 && !allowEmpty) {
+			return "", invalid
+		}
+		return content, nil
+	}
+	var parts []MessagesText
+	d := json.NewDecoder(bytes.NewReader(raw))
+	d.DisallowUnknownFields()
+	if d.Decode(&parts) != nil || d.Decode(&struct{}{}) != io.EOF || len(parts) == 0 || len(parts) > 16 {
+		return "", invalid
+	}
+	for _, part := range parts {
+		if part.Type != "text" || len(part.Text) == 0 || len(part.Text) > (16<<10)-len(content) {
+			return "", invalid
+		}
+		content += part.Text
+	}
+	return content, nil
 }
 
 type MessagesText struct {

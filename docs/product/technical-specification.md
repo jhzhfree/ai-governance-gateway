@@ -122,7 +122,7 @@ CPU、内存、磁盘的生产最小配置、最大 QPS、并发数、P99、RPO/
 
 必须继续完成：真实企业 IdP、四家实际模型和账单样本、终端代理联调及出口策略、NM 专用虚拟机、实际密钥恢复、跨主机故障与容量、依赖授权与正式发行来源核验。完整证据及 CI 状态应逐提交核验，不能用历史绿色运行代替新版本验收。
 
-new-api 显式执行模式提供独立数据面、经审核的模型/渠道绑定、原始用量校验、持久派发记录与事务恢复收据。客户端为受限 Chat Completions（文本、审核客户端函数与内联图片），上游已验证 OpenAI 兼容、DeepSeek 原生渠道和 Anthropic Messages 协议，SSE 通过 v2 完成证明实时返回内容，配置和未完成的发布门禁见 [接入说明](../new-api-integration.md)。
+new-api 显式执行模式提供独立数据面、经审核的模型/渠道绑定、原始用量校验、持久派发记录与事务恢复收据。公共入口为受控 Chat Completions（文本、审核客户端函数与内联图片）、文本 Embeddings、无状态文本 Responses 及 Messages 子集，上游已验证 OpenAI 兼容、DeepSeek 原生渠道和 Anthropic Messages 协议，SSE 通过 v2 完成证明实时返回内容，配置和未完成的发布门禁见 [接入说明](../new-api-integration.md)。
 
 客户端函数调用的具体边界、原始费用证据及审计语义见 [工具治理说明](../new-api-integration.md#客户端函数调用与审计)。工具由客户端执行，目录级名称准入已实现，用户/业务动作级工具授权与供应商托管工具尚未实现。
 
@@ -139,3 +139,5 @@ new-api 显式执行模式提供独立数据面、经审核的模型/渠道绑�
 Responses 公共入口当前提供显式 `store:false` 的无状态文本 JSON/实时 SSE 子集，以审核 Chat 契约执行；不开放会话、历史检索、后台任务、工具或媒体。输出使用 Responses 形状与原始 token 事实，未知细分不估算；同一权限、设备证明、预算、关键词和内容审计链仍生效。具体请求约束与后续兼容边界见 [集成说明](../new-api-integration.md#无状态文本-responses-公共协议)。
 
 Messages 公共协议已提供文本 JSON 及显式审核的实时 SSE 子集。实时模式只支持能提供原始早期用量的 Anthropic 渠道，需要 `allow_messages_stream:true` 与缓存费率；不支持工具、媒体、thinking、beta 或托管状态。早期计数仅用于起始事件，最终费用仍依赖原始完成证明和持久回执；结束事件等待预算结算及审计封存。实时输出策略限字面量告警，阻断／脱敏策略在派发前拒绝。数据库保持 schema v30，未改变默认启动模式或生产发布门禁。
+
+Responses input 支持字符串或有界文本消息列表，system/user 可使用 input_text 块，assistant 仅字符串；Messages content/system 支持字符串或有界 text 块。均按顺序规范化，在拼接后进行关键词检查和内容审计；严格拒绝未实现的嵌套语义，不表示支持完整上游协议。详细数量、大小与字段限制以 OpenAPI 及接入文档为准。

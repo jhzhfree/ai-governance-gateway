@@ -22,7 +22,7 @@ func TestMessagesGovernanceCacheAuditAndHeaders(t *testing.T) {
 	f, calls := responsesFixture(t, responsesFixtureOptions{cacheEvidence: true})
 	o, p, key := providerProject(f)
 	enableContent(f, o, p, 65536)
-	payload := map[string]any{"model": "zhipu/fixture", "max_tokens": 8, "messages": []any{map[string]any{"role": "user", "content": "synthetic messages input"}}}
+	payload := map[string]any{"model": "zhipu/fixture", "max_tokens": 8, "messages": []any{map[string]any{"role": "user", "content": []map[string]string{{"type": "text", "text": "syn"}, {"type": "text", "text": "thetic messages input"}}}}}
 	encoded, _ := json.Marshal(payload)
 	req, _ := http.NewRequest("POST", f.server.URL+"/v1/messages", bytes.NewReader(encoded))
 	req.Header.Set("X-Api-Key", key.Secret)
@@ -64,7 +64,7 @@ func TestMessagesGovernanceCacheAuditAndHeaders(t *testing.T) {
 	}
 	grantAuditor(f, o, p, "auditor", true)
 	detail := parse[contentaudit.Detail](t, f.request(f.token("auditor"), "POST", base+"/records/"+id+"/reveal", map[string]string{"reason": "verify public messages audit"}, 200))
-	if !strings.Contains(detail.Request.Content, `"protocol":"messages"`) || detail.Response == nil || !strings.Contains(detail.Response.Content, `"cache_creation_input_tokens":5`) {
+	if !strings.Contains(detail.Request.Content, `"protocol":"messages"`) || !strings.Contains(detail.Request.Content, "synthetic messages input") || detail.Response == nil || !strings.Contains(detail.Response.Content, `"cache_creation_input_tokens":5`) {
 		t.Fatal("public messages not auditable")
 	}
 	// Ambiguous credentials, unreviewed versions and beta features must not dispatch.
@@ -83,7 +83,7 @@ func TestMessagesGovernanceCacheAuditAndHeaders(t *testing.T) {
 			t.Fatal("unsafe header accepted or wrong error envelope")
 		}
 	}
-	for _, extra := range []map[string]any{{"stream": true}, {"tools": []any{}}, {"thinking": map[string]any{"type": "enabled"}}, {"messages": []any{map[string]any{"role": "user", "content": []any{map[string]string{"type": "text", "text": "unsupported block"}}}}}} {
+	for _, extra := range []map[string]any{{"stream": true}, {"tools": []any{}}, {"thinking": map[string]any{"type": "enabled"}}, {"messages": []any{map[string]any{"role": "user", "content": []any{map[string]string{"type": "image", "text": "unsupported block"}}}}}} {
 		copy := map[string]any{}
 		for k, v := range payload {
 			copy[k] = v
@@ -91,6 +91,21 @@ func TestMessagesGovernanceCacheAuditAndHeaders(t *testing.T) {
 		for k, v := range extra {
 			copy[k] = v
 		}
+		f.request(key.Secret, "POST", "/v1/messages", copy, 400)
+	}
+	for _, raw := range []string{
+		`[{"type":"text","text":"x","cache_control":{"type":"ephemeral"}}]`,
+		`[{"type":"text","text":"x","citations":[]}]`,
+		`[{"type":"tool_result","text":"x"}]`,
+	} {
+		copy := map[string]any{}
+		for k, v := range payload {
+			copy[k] = v
+		}
+		copy["messages"] = []map[string]any{{"role": "user", "content": json.RawMessage(raw)}}
+		f.request(key.Secret, "POST", "/v1/messages", copy, 400)
+		copy["messages"] = payload["messages"]
+		copy["system"] = json.RawMessage(raw)
 		f.request(key.Secret, "POST", "/v1/messages", copy, 400)
 	}
 	f.request("invalid", "POST", "/v1/messages", payload, 401)
@@ -104,7 +119,7 @@ func TestMessagesGovernanceCacheAuditAndHeaders(t *testing.T) {
 	if !strings.Contains(string(redacted), "[REDACTED]") || strings.Contains(string(redacted), "synthetic response text") {
 		t.Fatal("messages output bypassed policy")
 	}
-	f.request(f.token("alice"), "PUT", policyPath, map[string]any{"expected_revision": 1, "rules": []keyword.Rule{{ID: "deny", Kind: "literal", Pattern: "synthetic", Direction: "input", Action: "block"}}}, 200)
+	f.request(f.token("alice"), "PUT", policyPath, map[string]any{"expected_revision": 1, "rules": []keyword.Rule{{ID: "deny", Kind: "literal", Pattern: "synthetic messages", Direction: "input", Action: "block"}}}, 200)
 	denied := f.request(key.Secret, "POST", "/v1/messages", payload, 403)
 	if !strings.Contains(string(denied), `"type":"permission_error"`) {
 		t.Fatal("policy error protocol lost")

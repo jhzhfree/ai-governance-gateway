@@ -1875,7 +1875,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Reviewed Messages 2023-06-01 text JSON and optional real-time SSE. Streaming requires an explicitly approved allow_messages_stream model and Anthropic original initial counters. No tools, media, beta, sampling, thinking or server state. Completion requires durable final evidence, settlement and audit sealing. Same enterprise authentication, device proof, budgets and keywords apply; no retry. */
+        /** @description Reviewed Messages 2023-06-01 text JSON and optional real-time SSE. Streaming requires an explicitly approved allow_messages_stream model and Anthropic original initial counters. No tools, media, beta, sampling, thinking or server state. Completion requires durable final evidence, settlement and audit sealing. Same enterprise authentication, device proof, budgets and keywords apply; no retry. Message content and system accept strings or 1–16 pure text blocks joined in order, at most 16 KiB per message/system. Unknown nested fields, cache_control and citations are rejected rather than discarded. */
         post: operations["createGovernedTextMessage"];
         delete?: never;
         options?: never;
@@ -3296,12 +3296,22 @@ export interface components {
         MessagesInput: {
             /** @enum {string} */
             role: "user" | "assistant";
-            content: string;
+            /** @description Pure text only; blocks concatenate in order to at most 16 KiB. Cache control, citations, tools and media are rejected. */
+            content: string | {
+                /** @enum {string} */
+                type: "text";
+                text: string;
+            }[];
         };
         MessagesCreateRequest: {
             model: string;
             messages: components["schemas"]["MessagesInput"][];
-            system?: string;
+            /** @description Optional pure text system instructions; joined blocks at most 16 KiB. */
+            system?: string | {
+                /** @enum {string} */
+                type: "text";
+                text: string;
+            }[];
             max_tokens: number;
             /**
              * @description Requires reviewed model streaming capability; unsupported models reject before dispatch.

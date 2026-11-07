@@ -88,3 +88,8 @@ new-api 已增加可复现的 [治理链性能基线](new-api-performance.md)，
 ## Responses 文本输入扩展
 
 补充客户端有界文本历史和 input_text 数组，保持角色顺序、输入关键词拼接检查与规范化审计。继续显式拒绝 developer、phase、输出对象、工具、媒体、缓存控制和服务端状态；字符串输入兼容。验收结果见接入文档。
+
+
+## Messages 纯文本块扩展
+
+messages 的 user／assistant content 和 system 增加有界 text 块输入，JSON／审核 SSE 共用；跨块关键词、规范化审计及故障恢复仍受原治理链控制。cache_control、citations、工具和媒体块继续拒绝，不以兼容纯文本块声称兼容全部 Messages／Claude Code。

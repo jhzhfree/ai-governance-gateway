@@ -535,7 +535,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 		}
 		if option.messages {
 			path = "/v1/messages"
-			data, _ = json.Marshal(map[string]any{"model": req.Model, "max_tokens": 8, "stream": stream, "messages": []map[string]string{{"role": "user", "content": "synthetic messages input"}}})
+			data, _ = json.Marshal(map[string]any{"model": req.Model, "max_tokens": 8, "stream": stream, "messages": []map[string]any{{"role": "user", "content": []map[string]string{{"type": "text", "text": "synthetic messages input"}}}}})
 		}
 		r, _ := http.NewRequest("POST", origin+path, bytes.NewReader(data))
 		r.Header.Set("Authorization", "Bearer synthetic-project-key")
