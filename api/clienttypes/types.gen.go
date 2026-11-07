@@ -93,6 +93,16 @@ const (
 	ChangeDeviceStateRevoked ChangeDeviceState = "revoked"
 )
 
+// Defines values for ClientToolType.
+const (
+	ClientToolTypeFunction ClientToolType = "function"
+)
+
+// Defines values for ClientToolCallType.
+const (
+	ClientToolCallTypeFunction ClientToolCallType = "function"
+)
+
 // Defines values for ContentMetaState.
 const (
 	ContentMetaStateCanceled   ContentMetaState = "canceled"
@@ -146,8 +156,8 @@ const (
 
 // Defines values for HostIPv4Method.
 const (
-	Auto   HostIPv4Method = "auto"
-	Manual HostIPv4Method = "manual"
+	HostIPv4MethodAuto   HostIPv4Method = "auto"
+	HostIPv4MethodManual HostIPv4Method = "manual"
 )
 
 // Defines values for InferenceModelObject.
@@ -173,7 +183,15 @@ const (
 const (
 	InferenceRequestMessagesRoleAssistant InferenceRequestMessagesRole = "assistant"
 	InferenceRequestMessagesRoleSystem    InferenceRequestMessagesRole = "system"
+	InferenceRequestMessagesRoleTool      InferenceRequestMessagesRole = "tool"
 	InferenceRequestMessagesRoleUser      InferenceRequestMessagesRole = "user"
+)
+
+// Defines values for InferenceRequestToolChoice.
+const (
+	InferenceRequestToolChoiceAuto     InferenceRequestToolChoice = "auto"
+	InferenceRequestToolChoiceNone     InferenceRequestToolChoice = "none"
+	InferenceRequestToolChoiceRequired InferenceRequestToolChoice = "required"
 )
 
 // Defines values for InferenceResponseChoicesFinishReason.
@@ -709,6 +727,35 @@ type ChangeDevice struct {
 // ChangeDeviceState defines model for ChangeDevice.State.
 type ChangeDeviceState string
 
+// ClientTool defines model for ClientTool.
+type ClientTool struct {
+	Function struct {
+		Description *string `json:"description,omitempty"`
+		Name        string  `json:"name"`
+
+		// Parameters JSON Schema object. The client must validate arguments against its schema before execution.
+		Parameters map[string]interface{} `json:"parameters"`
+	} `json:"function"`
+	Type ClientToolType `json:"type"`
+}
+
+// ClientToolType defines model for ClientTool.Type.
+type ClientToolType string
+
+// ClientToolCall defines model for ClientToolCall.
+type ClientToolCall struct {
+	Function struct {
+		// Arguments JSON object encoded as a string; only declared function names are allowed.
+		Arguments string `json:"arguments"`
+		Name      string `json:"name"`
+	} `json:"function"`
+	Id   string             `json:"id"`
+	Type ClientToolCallType `json:"type"`
+}
+
+// ClientToolCallType defines model for ClientToolCall.Type.
+type ClientToolCallType string
+
 // ContentAccess defines model for ContentAccess.
 type ContentAccess struct {
 	Actor     BillingActor `json:"actor"`
@@ -1136,15 +1183,24 @@ type InferenceModelListObject string
 type InferenceRequest struct {
 	MaxTokens int64 `json:"max_tokens"`
 	Messages  []struct {
-		Content string                       `json:"content"`
-		Role    InferenceRequestMessagesRole `json:"role"`
+		Content    *string                      `json:"content"`
+		Role       InferenceRequestMessagesRole `json:"role"`
+		ToolCallId *string                      `json:"tool_call_id,omitempty"`
+		ToolCalls  *[]ClientToolCall            `json:"tool_calls,omitempty"`
 	} `json:"messages"`
-	Model  string `json:"model"`
-	Stream *bool  `json:"stream,omitempty"`
+	Model      string                      `json:"model"`
+	Stream     *bool                       `json:"stream,omitempty"`
+	ToolChoice *InferenceRequestToolChoice `json:"tool_choice,omitempty"`
+
+	// Tools newapi mode only. Client-side functions; gateway does not execute tools.
+	Tools *[]ClientTool `json:"tools,omitempty"`
 }
 
 // InferenceRequestMessagesRole defines model for InferenceRequest.Messages.Role.
 type InferenceRequestMessagesRole string
+
+// InferenceRequestToolChoice defines model for InferenceRequest.ToolChoice.
+type InferenceRequestToolChoice string
 
 // InferenceResponse defines model for InferenceResponse.
 type InferenceResponse struct {

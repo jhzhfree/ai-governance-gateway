@@ -314,3 +314,42 @@ func TestContentCheckpointCommitsBeforeSSEAndMidstreamFailureSuppressesDone(t *t
 		t.Fatal("failed checkpoint delivered uncommitted bytes or completion")
 	}
 }
+
+func TestClientToolsAuditPreservesDeclarationsArgumentsAndResults(t *testing.T) {
+	f := clientToolFixture(t)
+	o, p, key := providerProject(f)
+	enableContent(f, o, p, 65536)
+	payload := clientToolPayload()
+	payload["messages"] = []map[string]any{
+		{"role": "user", "content": "synthetic query"},
+		{"role": "assistant", "content": nil, "tool_calls": []map[string]any{{"id": "call_old", "type": "function", "function": map[string]string{"name": "lookup", "arguments": `{"q":"prior"}`}}}},
+		{"role": "tool", "tool_call_id": "call_old", "content": "synthetic result"},
+	}
+	response := string(f.request(key.Secret, "POST", "/v1/chat/completions", payload, 200))
+	if !strings.Contains(response, "call_new") || !strings.Contains(response, "synthetic secret") {
+		t.Fatal("client tool response lost")
+	}
+	base := projectPath(o, p) + "/content-audit"
+	page := parse[contentPage](t, f.request(f.token("alice"), "GET", base+"/records", nil, 200))
+	if len(page.Data) != 1 || page.Data[0].State != "complete" {
+		t.Fatal("tool audit incomplete")
+	}
+	grantAuditor(f, o, p, "auditor", true)
+	detail := parse[contentaudit.Detail](t, f.request(f.token("auditor"), "POST", base+"/records/"+page.Data[0].RequestID+"/reveal", map[string]string{"reason": "verify synthetic client-tool audit"}, 200))
+	for _, text := range []string{"tools", "parameters", "call_old", "tool_call_id", "synthetic result"} {
+		if !strings.Contains(detail.Request.Content, text) {
+			t.Fatalf("tool request audit lost %s", text)
+		}
+	}
+	if detail.Response == nil || !strings.Contains(detail.Response.Content, "call_new") || !strings.Contains(detail.Response.Content, "synthetic secret") {
+		t.Fatal("tool response arguments absent from encrypted audit")
+	}
+	var plaintext bool
+	if err := f.pool.QueryRow(context.Background(), `SELECT bool_or(position('synthetic'::bytea in ciphertext)>0) FROM content_audit_payloads WHERE request_id=$1`, page.Data[0].RequestID).Scan(&plaintext); err != nil || plaintext {
+		t.Fatal("tool audit stored plaintext")
+	}
+	usage := parse[control.Usage](t, f.request(f.token("alice"), "GET", projectPath(o, p)+"/usage", nil, 200))
+	if usage.Spent != 16 || usage.Held != 0 {
+		t.Fatal("tool billing did not use verified token evidence")
+	}
+}

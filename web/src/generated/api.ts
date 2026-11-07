@@ -218,7 +218,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Explicit MOCK SSE-only mode, or reviewed mainland provider text mode (JSON or SSE). Only plain text system/user/assistant messages and max_tokens are supported. Provider currency must match project; usage and finish marker must be validated before durable settlement. */
+        /** @description Reviewed JSON/SSE Chat. Text supported by existing executors; newapi additionally supports up to eight client function tools with linked tool-result history. Tool arguments are buffered until complete and validated before release. No server-side tools, multimodal content or automatic tool execution. Verified token usage and durable completion remain required for settlement. */
         post: operations["streamMockChat"];
         delete?: never;
         options?: never;
@@ -490,7 +490,7 @@ export interface paths {
         };
         /**
          * List ready models allowed by this active project key; no inference or reservation
-         * @description Explicit MOCK SSE-only mode, or reviewed mainland provider text mode (JSON or SSE). Only plain text system/user/assistant messages and max_tokens are supported. Provider currency must match project; usage and finish marker must be validated before durable settlement.
+         * @description Model directory filtered by project authorization. Model availability does not imply all provider-native protocols or capabilities are exposed.
          */
         get: operations["listInferenceModels"];
         put?: never;
@@ -1973,9 +1973,15 @@ export interface components {
             max_tokens: number;
             messages: {
                 /** @enum {string} */
-                role: "user" | "system" | "assistant";
-                content: string;
+                role: "user" | "system" | "assistant" | "tool";
+                content?: string | null;
+                tool_calls?: components["schemas"]["ClientToolCall"][];
+                tool_call_id?: string;
             }[];
+            /** @description newapi mode only. Client-side functions; gateway does not execute tools. */
+            tools?: components["schemas"]["ClientTool"][];
+            /** @enum {string} */
+            tool_choice?: "auto" | "none" | "required";
         };
         OrganizationPage: {
             data: components["schemas"]["Organization"][];
@@ -3038,6 +3044,28 @@ export interface components {
         SystemFinish: {
             node: string;
             reason: string;
+        };
+        ClientTool: {
+            /** @enum {string} */
+            type: "function";
+            function: {
+                name: string;
+                description?: string;
+                /** @description JSON Schema object. The client must validate arguments against its schema before execution. */
+                parameters: {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        ClientToolCall: {
+            id: string;
+            /** @enum {string} */
+            type: "function";
+            function: {
+                name: string;
+                /** @description JSON object encoded as a string; only declared function names are allowed. */
+                arguments: string;
+            };
         };
     };
     responses: never;

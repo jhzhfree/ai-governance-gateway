@@ -9,14 +9,18 @@ import (
 )
 
 type Message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role       string     `json:"role"`
+	Content    string     `json:"content"`
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string     `json:"tool_call_id,omitempty"`
 }
 type Request struct {
-	Model     string    `json:"model"`
-	Stream    bool      `json:"stream"`
-	MaxTokens int       `json:"max_tokens"`
-	Messages  []Message `json:"messages"`
+	Tools      []Tool    `json:"tools,omitempty"`
+	ToolChoice string    `json:"tool_choice,omitempty"`
+	Model      string    `json:"model"`
+	Stream     bool      `json:"stream"`
+	MaxTokens  int       `json:"max_tokens"`
+	Messages   []Message `json:"messages"`
 }
 type Usage struct {
 	PromptTokens     *int64 `json:"prompt_tokens"`
@@ -24,9 +28,10 @@ type Usage struct {
 	TotalTokens      *int64 `json:"total_tokens"`
 }
 type Delta struct {
-	Role             string  `json:"role,omitempty"`
-	Content          *string `json:"content,omitempty"`
-	ReasoningContent string  `json:"reasoning_content,omitempty"`
+	ToolCalls        []ToolCall `json:"tool_calls,omitempty"`
+	Role             string     `json:"role,omitempty"`
+	Content          *string    `json:"content,omitempty"`
+	ReasoningContent string     `json:"reasoning_content,omitempty"`
 }
 type Choice struct {
 	Index        int     `json:"index"`
@@ -45,18 +50,18 @@ type Response struct {
 }
 
 func ValidateRequest(req Request) bool {
-	if len(req.Messages) < 1 || len(req.Messages) > 64 {
+	if len(req.Messages) < 1 || len(req.Messages) > 64 || !validateTools(req) {
 		return false
 	}
 	for _, m := range req.Messages {
-		if (m.Role != "user" && m.Role != "system" && m.Role != "assistant") || len(m.Content) == 0 || len(m.Content) > 16<<10 {
+		if (m.Role != "user" && m.Role != "system" && m.Role != "assistant" && m.Role != "tool") || (len(m.Content) == 0 && len(m.ToolCalls) == 0) || len(m.Content) > 16<<10 {
 			return false
 		}
 	}
 	return true
 }
 func (r *Route) Open(ctx context.Context, req Request) (*http.Response, error) {
-	if !r.Ready() || r.key == "" {
+	if !r.Ready() || r.key == "" || req.HasTools() {
 		return nil, errors.New("mainland residency review expired")
 	}
 	payload := map[string]any{"model": r.model.UpstreamModel, "max_tokens": req.MaxTokens, "stream": req.Stream, "messages": req.Messages}
@@ -89,8 +94,15 @@ func (r *Route) Open(ctx context.Context, req Request) (*http.Response, error) {
 	return response, nil
 }
 
-// Normalize strips unsupported fields, tool/reasoning payloads, and error bodies.
+// Normalize preserves the text-only contract for existing executors.
 func Normalize(data []byte, alias, id string, stream bool) (Response, error) {
+	return normalize(data, alias, id, stream, false)
+}
+
+func NormalizeRequest(data []byte, req Request, id string) (Response, error) {
+	return normalize(data, req.Model, id, req.Stream, len(req.Tools) > 0)
+}
+func normalize(data []byte, alias, id string, stream, tools bool) (Response, error) {
 	var v Response
 	if json.Unmarshal(data, &v) != nil || len(v.Error) > 0 || len(v.Choices) > 1 || (!stream && len(v.Choices) != 1) || (v.Choices == nil && v.Usage == nil) {
 		return v, errors.New("invalid supplier response")
@@ -109,14 +121,14 @@ func Normalize(data []byte, alias, id string, stream bool) (Response, error) {
 		}
 		if !stream {
 			delta = c.Message
-			if c.FinishReason == nil || *c.FinishReason == "" || delta == nil || delta.Role != "assistant" || delta.Content == nil {
+			if c.FinishReason == nil || *c.FinishReason == "" || delta == nil || delta.Role != "assistant" || (delta.Content == nil && len(delta.ToolCalls) == 0) {
 				return v, errors.New("incomplete supplier response")
 			}
 		}
-		if delta != nil && (delta.ReasoningContent != "" || (delta.Role != "" && delta.Role != "assistant")) {
+		if delta != nil && ((!tools && len(delta.ToolCalls) > 0) || delta.ReasoningContent != "" || (delta.Role != "" && delta.Role != "assistant")) {
 			return v, errors.New("unsupported reasoning response")
 		}
-		if c.FinishReason != nil && *c.FinishReason != "stop" && *c.FinishReason != "length" && *c.FinishReason != "content_filter" {
+		if c.FinishReason != nil && *c.FinishReason != "stop" && *c.FinishReason != "length" && *c.FinishReason != "content_filter" && !(tools && *c.FinishReason == "tool_calls") {
 			return v, errors.New("unsupported supplier finish reason")
 		}
 	}

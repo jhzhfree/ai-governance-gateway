@@ -136,7 +136,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.serveProvider(w, r, id, token, req)
 		return
 	}
-	if req.Model != "mock-text" || !req.Stream || req.MaxTokens < 1 || req.MaxTokens > 8 || len(req.Messages) != 1 || req.Messages[0].Role != "user" {
+	if req.HasTools() || req.Model != "mock-text" || !req.Stream || req.MaxTokens < 1 || req.MaxTokens > 8 || len(req.Messages) != 1 || req.Messages[0].Role != "user" {
 		problem(w, 400, "unsupported_mock_request", id)
 		return
 	}

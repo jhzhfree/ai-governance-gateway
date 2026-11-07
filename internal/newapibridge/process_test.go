@@ -78,10 +78,15 @@ func TestNewAPIControlHelper(t *testing.T) {
 
 func TestNewAPITwoProcessRecovery(t *testing.T) {
 	for _, protocol := range []string{"openai", "deepseek", "anthropic"} {
-		t.Run(protocol, func(t *testing.T) { testNewAPITwoProcessRecovery(t, protocol) })
+		t.Run(protocol, func(t *testing.T) { testNewAPITwoProcessRecovery(t, protocol, false) })
 	}
 }
-func testNewAPITwoProcessRecovery(t *testing.T, protocol string) {
+func TestNewAPITwoProcessClientTools(t *testing.T) {
+	for _, protocol := range []string{"openai", "deepseek", "anthropic"} {
+		t.Run(protocol, func(t *testing.T) { testNewAPITwoProcessRecovery(t, protocol, true) })
+	}
+}
+func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools bool) {
 	binary := os.Getenv("TEST_NEWAPI_SERVER_BINARY")
 	if binary == "" {
 		t.Skip("pinned new-api integration fixture binary required")
@@ -108,10 +113,17 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string) {
 			return
 		}
 		var req struct {
-			Stream    bool `json:"stream"`
-			MaxTokens uint `json:"max_tokens"`
+			Tools     []json.RawMessage `json:"tools"`
+			Messages  json.RawMessage   `json:"messages"`
+			Stream    bool              `json:"stream"`
+			MaxTokens uint              `json:"max_tokens"`
 		}
 		if json.NewDecoder(r.Body).Decode(&req) != nil {
+			w.WriteHeader(400)
+			return
+		}
+		if tools && (len(req.Tools) != 1 || !strings.Contains(string(req.Tools[0]), "lookup") || !strings.Contains(string(req.Messages), "synthetic result")) {
+			t.Error("tool declaration/history lost during conversion")
 			w.WriteHeader(400)
 			return
 		}
@@ -142,17 +154,33 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string) {
 				case <-r.Context().Done():
 					return
 				}
-				io.WriteString(w, "data: "+`{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":3}}`+"\n\ndata: "+`{"type":"message_stop"}`+"\n\n")
+				reason := "end_turn"
+				if tools {
+					reason = "tool_use"
+					for _, frame := range []string{
+						`{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"call_new","name":"lookup","input":{}}}`,
+						`{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"q\":"}}`,
+						`{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"\"synthetic\"}"}}`,
+						`{"type":"content_block_stop","index":1}`,
+					} {
+						io.WriteString(w, "data: "+frame+"\n\n")
+					}
+				}
+				io.WriteString(w, "data: "+`{"type":"message_delta","delta":{"stop_reason":"`+reason+`"},"usage":{"output_tokens":3}}`+"\n\ndata: "+`{"type":"message_stop"}`+"\n\n")
 			} else {
 				w.Header().Set("Content-Type", "application/json")
-				io.WriteString(w, `{"id":"msg_synthetic","type":"message","role":"assistant","model":"governance-model","content":[{"type":"text","text":"synthetic"}],"stop_reason":"end_turn","usage":{"input_tokens":2,"output_tokens":3}}`)
+				if tools {
+					io.WriteString(w, `{"id":"msg_synthetic","type":"message","role":"assistant","model":"governance-model","content":[{"type":"text","text":"synthetic"},{"type":"tool_use","id":"call_new","name":"lookup","input":{"q":"synthetic"}}],"stop_reason":"tool_use","usage":{"input_tokens":2,"output_tokens":3}}`)
+				} else {
+					io.WriteString(w, `{"id":"msg_synthetic","type":"message","role":"assistant","model":"governance-model","content":[{"type":"text","text":"synthetic"}],"stop_reason":"end_turn","usage":{"input_tokens":2,"output_tokens":3}}`)
+				}
 			}
 			return
 		}
 		if req.Stream {
 			w.Header().Set("Content-Type", "text/event-stream")
 			io.WriteString(w, "data: {\"id\":\"synthetic\",\"model\":\"governance-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"synthetic\"},\"finish_reason\":null}]}\n\n")
-			if protocol == "deepseek" {
+			if protocol == "deepseek" || tools {
 				io.WriteString(w, "data: "+`{"id":"synthetic","model":"governance-model","choices":[{"index":0,"delta":{},"finish_reason":null}]}`+"\n\n")
 			} else {
 				io.WriteString(w, "data: {\"id\":\"synthetic\",\"model\":\"governance-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n")
@@ -163,14 +191,28 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string) {
 			case <-r.Context().Done():
 				return
 			}
-			if protocol == "deepseek" {
+			if tools {
+				for _, frame := range []string{
+					`{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_new","type":"function","function":{"name":"lookup","arguments":"{\"q\":"}}]},"finish_reason":null}]}`,
+					`{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"synthetic\"}"}}]},"finish_reason":null}]}`,
+					`{"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5}}`,
+				} {
+					io.WriteString(w, "data: "+frame+"\n\n")
+				}
+				io.WriteString(w, "data: [DONE]\n\n")
+			} else if protocol == "deepseek" {
 				io.WriteString(w, "data: "+`{"id":"synthetic","model":"governance-model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5}}`+"\n\ndata: [DONE]\n\n")
 			} else {
 				io.WriteString(w, "data: {\"id\":\"synthetic\",\"model\":\"governance-model\",\"choices\":[],\"usage\":{\"prompt_tokens\":2,\"completion_tokens\":3,\"total_tokens\":5}}\n\ndata: [DONE]\n\n")
 			}
 		} else {
 			w.Header().Set("Content-Type", "application/json")
-			io.WriteString(w, reply)
+			if tools {
+				io.WriteString(w, `{"id":"synthetic","object":"chat.completion","model":"governance-model","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_new","type":"function","function":{"name":"lookup","arguments":"{\"q\":\"synthetic\"}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5}}`)
+			} else {
+				io.WriteString(w, reply)
+
+			}
 		}
 	}))
 	defer func() { releaseStream(); upstream.Close() }()
@@ -265,6 +307,11 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string) {
 			req.Model = "reviewed-compatible/fixture"
 		}
 		req.Stream = stream
+		if tools {
+			req.Tools = []provider.Tool{{Type: "function", Function: provider.FunctionDefinition{Name: "lookup", Parameters: json.RawMessage(`{"type":"object","properties":{"q":{"type":"string"}}}`)}}}
+			req.ToolChoice = "auto"
+			req.Messages = append(req.Messages, provider.Message{Role: "assistant", ToolCalls: []provider.ToolCall{{ID: "call_old", Type: "function", Function: provider.FunctionCall{Name: "lookup", Arguments: `{"q":"prior"}`}}}}, provider.Message{Role: "tool", ToolCallID: "call_old", Content: "synthetic result"})
+		}
 		data, _ := json.Marshal(req)
 		r, _ := http.NewRequest("POST", origin+"/v1/chat/completions", bytes.NewReader(data))
 		r.Header.Set("Authorization", "Bearer synthetic-project-key")
@@ -303,7 +350,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string) {
 			releaseStream()
 			tail, readErr := io.ReadAll(reader)
 			if readErr != nil || !strings.Contains(string(tail), "[DONE]") {
-				t.Fatalf("verified stream did not finish: %v", readErr)
+				t.Fatalf("verified stream did not finish: %v, synthetic response: %s%s", readErr, first, tail)
 			}
 			return res.StatusCode, append([]byte(first), tail...)
 		}
@@ -314,6 +361,9 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string) {
 		status, body := call(controlURL, stream)
 		if status != 200 {
 			t.Fatalf("real process integration rejected request: %d %s physical=%d", status, body, calls.Load())
+		}
+		if tools && (!strings.Contains(string(body), "tool_calls") || !strings.Contains(string(body), "call_new") || !strings.Contains(string(body), "lookup")) {
+			t.Fatal("validated tool call missing from client response")
 		}
 	}
 	pause.Store(true)

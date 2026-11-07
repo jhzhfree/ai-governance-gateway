@@ -24,7 +24,7 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 		return
 	}
 	route, ok := h.Providers.Find(req.Model)
-	if !ok || !provider.ValidateRequest(req) {
+	if !ok || !provider.ValidateRequest(req) || (req.HasTools() && h.Executor == nil) {
 		problem(w, 400, "unsupported_request", id)
 		return
 	}
@@ -173,8 +173,8 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 			reply(502, "upstream_response_incomplete")
 			return
 		}
-		value, err := provider.Normalize(data, req.Model, id, false)
-		if err != nil {
+		value, err := provider.NormalizeRequest(data, req, id)
+		if err != nil || provider.NewToolResponseState(req).Apply(&value, false) != nil {
 			reply(502, "upstream_protocol_error")
 			return
 		}
@@ -212,6 +212,7 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 
 func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id string, route *provider.Route, settle func(int64) error, report func(string, string), trace *attemptTrace, ctx context.Context, guard *keyword.Session) circuit.Outcome {
 	started, finished := false, false
+	tools := provider.NewToolResponseState(req)
 	var actual *int64
 	write := func(data string) error {
 		if !started {
@@ -284,8 +285,8 @@ func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id strin
 			_ = write("[DONE]")
 			return circuit.Success
 		}
-		value, err := provider.Normalize([]byte(data), req.Model, id, true)
-		if err != nil {
+		value, err := provider.NormalizeRequest([]byte(data), req, id)
+		if err != nil || tools.Apply(&value, true) != nil {
 			fail("upstream_stream_incomplete")
 			return circuit.Failure
 		}

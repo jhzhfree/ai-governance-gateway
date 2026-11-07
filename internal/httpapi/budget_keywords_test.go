@@ -221,3 +221,29 @@ func TestKeywordFailClosedAndOverlappingRedaction(t *testing.T) {
 		t.Fatal("stream disclosed content after failed keyword audit")
 	}
 }
+
+func TestClientToolKeywordChecksDecodedArgumentsBeforeDispatch(t *testing.T) {
+	f := clientToolFixture(t)
+	o, p, key := providerProject(f)
+	path := projectPath(o, p) + "/keywords"
+	f.request(f.token("alice"), "PUT", path, map[string]any{"expected_revision": 0, "rules": []keyword.Rule{{ID: "deny-tool", Kind: "literal", Pattern: "secret", Direction: "input", Action: "block"}}}, 200)
+	payload := clientToolPayload()
+	payload["messages"] = []map[string]any{
+		{"role": "assistant", "tool_calls": []map[string]any{{"id": "call_old", "type": "function", "function": map[string]string{"name": "lookup", "arguments": `{"q":"\u0073ecret"}`}}}},
+		{"role": "tool", "tool_call_id": "call_old", "content": "result"},
+	}
+	f.request(key.Secret, "POST", "/v1/chat/completions", payload, 403)
+	usage := parse[control.Usage](t, f.request(f.token("alice"), "GET", projectPath(o, p)+"/usage", nil, 200))
+	if usage.Spent != 0 || usage.Held != 0 {
+		t.Fatal("blocked tool arguments acquired funds")
+	}
+	f.request(f.token("alice"), "PUT", path, map[string]any{"expected_revision": 1, "rules": []keyword.Rule{{ID: "redact-tool", Kind: "literal", Pattern: "secret", Direction: "output", Action: "redact"}}}, 200)
+	response := string(f.request(key.Secret, "POST", "/v1/chat/completions", clientToolPayload(), 200))
+	if strings.Contains(response, "synthetic secret") || !strings.Contains(response, "REDACTED") || !strings.Contains(response, "lookup") {
+		t.Fatal("structured argument redaction failed")
+	}
+	usage = parse[control.Usage](t, f.request(f.token("alice"), "GET", projectPath(o, p)+"/usage", nil, 200))
+	if usage.Spent != 16 || usage.Held != 0 {
+		t.Fatal("redaction changed supplier charge")
+	}
+}

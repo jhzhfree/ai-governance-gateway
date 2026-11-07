@@ -23,12 +23,17 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/gateway"
 	"github.com/jhzhfree/ai-governance-gateway/internal/httpapi"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
+	"github.com/jhzhfree/ai-governance-gateway/internal/keyword"
+	"github.com/jhzhfree/ai-governance-gateway/internal/newapibridge"
 	"github.com/jhzhfree/ai-governance-gateway/internal/observe"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 	"github.com/jhzhfree/ai-governance-gateway/internal/testutil"
 )
 
 func providerSetup(t *testing.T, supplier http.Handler, wrap ...func(gateway.Ledger) gateway.Ledger) fixture {
+	return providerExecutorSetup(t, supplier, nil, wrap...)
+}
+func providerExecutorSetup(t *testing.T, supplier http.Handler, executor gateway.ProviderExecutor, wrap ...func(gateway.Ledger) gateway.Ledger) fixture {
 	t.Helper()
 	pool, ledger, _ := testutil.Database(t)
 	catalog, _ := testutil.MainlandCatalog(t, supplier)
@@ -47,7 +52,11 @@ func providerSetup(t *testing.T, supplier http.Handler, wrap ...func(gateway.Led
 	if len(wrap) > 0 {
 		ledgerAPI = wrap[0](ledger)
 	}
-	mux.Handle("/v1/", &gateway.Handler{DeviceProof: store.VerifyDeviceRequest, Content: content, ListModels: store.KeyModels, Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Providers: catalog, Ledger: ledgerAPI, Authorize: store.ResolveKey})
+	var keywords *keyword.Service
+	if executor != nil {
+		keywords = keyword.New(pool)
+	}
+	mux.Handle("/v1/", &gateway.Handler{Executor: executor, Keywords: keywords, DeviceProof: store.VerifyDeviceRequest, Content: content, ListModels: store.KeyModels, Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Providers: catalog, Ledger: ledgerAPI, Authorize: store.ResolveKey})
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 	doc, err := openapi3.NewLoader().LoadFromData(openapi.Document)
@@ -268,4 +277,35 @@ func TestRealModelsCannotBeGrantedAgainstHistoricalMockCurrency(t *testing.T) {
 	if usage.Currency != "MOCK" || usage.Held != 0 || usage.Spent != 0 {
 		t.Fatal("model grant changed historical currency or accounting")
 	}
+}
+
+const clientToolReply = `{"id":"synthetic","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_new","type":"function","function":{"name":"lookup","arguments":"{\"q\":\"synthetic secret\"}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5}}`
+
+func clientToolPayload() map[string]any {
+	payload := realPayload("zhipu/fixture", false)
+	payload["tools"] = []map[string]any{{"type": "function", "function": map[string]any{"name": "lookup", "parameters": map[string]any{"type": "object"}}}}
+	return payload
+}
+func clientToolFixture(t *testing.T) fixture {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/internal/governance/v1/chat/completions" {
+			t.Error("wrong tool execution path")
+		}
+		var body map[string]json.RawMessage
+		if json.NewDecoder(r.Body).Decode(&body) != nil || !strings.Contains(string(body["tools"]), "lookup") {
+			t.Error("tool declaration dropped")
+		}
+		for key, value := range map[string]string{"X-Aigw-Evidence-Version": "1", "X-Aigw-Request-Id": r.Header.Get("X-Aigw-Request-Id"), "X-Aigw-Attempt-Id": r.Header.Get("X-Aigw-Attempt-Id"), "X-Aigw-Usage-Source": "upstream", "X-Aigw-Physical-Attempts": "1"} {
+			w.Header().Set(key, value)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, clientToolReply)
+	}))
+	t.Cleanup(server.Close)
+	executor, err := newapibridge.New(newapibridge.Config{Origin: server.URL, ServiceToken: "synthetic-internal-token", Models: map[string]string{"zhipu/fixture": "backend-model"}, MaxConcurrent: 1, AllowLoopbackHTTP: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(executor.Close)
+	return providerExecutorSetup(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Error("native executor used for tool call") }), executor)
 }

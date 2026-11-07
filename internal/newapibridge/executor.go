@@ -155,6 +155,12 @@ func (e *Executor) Open(ctx context.Context, route *provider.Route, req gateway.
 	var once sync.Once
 	release := func() { once.Do(func() { stop(); cancel(); <-e.slots; e.active.Done() }) }
 	payload := map[string]any{"model": e.models[req.Model], "messages": req.Messages, "max_tokens": req.MaxTokens, "stream": req.Stream}
+	if len(req.Tools) > 0 {
+		payload["tools"] = req.Tools
+		if req.ToolChoice != "" {
+			payload["tool_choice"] = req.ToolChoice
+		}
+	}
 	if req.Stream {
 		payload["stream_options"] = map[string]bool{"include_usage": true}
 	}
