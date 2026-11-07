@@ -1,6 +1,6 @@
 # V1.0 企业网关交付跟踪
 
-本分支规划说明（2026-11-07）：`feature/v1-single-process-commercial` 基于 `455b3fa` 建立，后续目标和验收按[单进程自主商业化开发规划](single-process-commercial-plan.md)推进。本轮只增加规划，未切换执行引擎；以下保留原双进程分支的状态与历史证据，不应视为新分支的单进程验收结果。
+本分支规划说明（2026-11-07）：`feature/v1-single-process-commercial` 基于 `455b3fa` 建立，后续目标和验收按[单进程自主商业化开发规划 V2](single-process-commercial-plan.md)推进。V2 以成熟组件和当前代码复用为优先，**待用户确认后开始功能开发**；本轮仅修改文档，未切换执行引擎。以下保留原双进程分支的状态与历史证据，不应视为新分支的单进程验收结果。
 
 状态：开发中，未发布 V1.0。当前控制面分支为 `feature/newapi-foundation-validation`，配套 new-api 数据面为 `feature/enterprise-governance-integration`。此前 `feature/v1.0-enterprise-gateway` 从主线 b4e4bc983f3058cd88ec0cc5ddcf0649d2014300 创建；下文保留其历史阶段证据。当前接入与部署约束以 [new-api 集成](new-api-integration.md) 的最新章节为准。
 
