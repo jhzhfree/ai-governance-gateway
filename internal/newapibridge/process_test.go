@@ -120,12 +120,27 @@ func TestNewAPITwoProcessCacheTariffs(t *testing.T) {
 	})
 }
 
-type processOptions struct{ cacheTariff, replicated bool }
+type processOptions struct {
+	cacheTariff, replicated bool
+	multiKey                string
+}
 
 func TestNewAPIReplicatedControlRecovery(t *testing.T) {
 	for _, protocol := range []string{"anthropic", "embedding"} {
 		t.Run(protocol, func(t *testing.T) {
 			testNewAPITwoProcessRecovery(t, protocol, false, false, processOptions{cacheTariff: protocol == "anthropic", replicated: true})
+		})
+	}
+}
+
+func TestNewAPIMultiKeyRecovery(t *testing.T) {
+	for i, protocol := range []string{"openai", "anthropic", "deepseek", "embedding"} {
+		mode := "polling"
+		if i%2 == 1 {
+			mode = "random"
+		}
+		t.Run(protocol+"/"+mode, func(t *testing.T) {
+			testNewAPITwoProcessRecovery(t, protocol, false, false, processOptions{cacheTariff: protocol != "embedding", replicated: true, multiKey: mode})
 		})
 	}
 }
@@ -176,6 +191,17 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	defer releaseStream()
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
+		if option.multiKey != "" {
+			key := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+			if protocol == "anthropic" {
+				key = r.Header.Get("x-api-key")
+			}
+			if key != "syntheticvendor-one" && key != "syntheticvendor-two" {
+				t.Error("unapproved or disabled credential dispatched")
+				w.WriteHeader(401)
+				return
+			}
+		}
 		write := func(data string) (int, error) {
 			if cache {
 				if protocol == "anthropic" {
@@ -363,7 +389,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	root := t.TempDir()
 	native := exec.Command(binary)
 	native.Dir = root
-	native.Env = append(os.Environ(), "GOVERNANCE_FIXTURE_DIR="+root, "GOVERNANCE_FIXTURE_UPSTREAM="+upstream.URL, "GOVERNANCE_FIXTURE_PROTOCOL="+protocol)
+	native.Env = append(os.Environ(), "GOVERNANCE_FIXTURE_DIR="+root, "GOVERNANCE_FIXTURE_UPSTREAM="+upstream.URL, "GOVERNANCE_FIXTURE_PROTOCOL="+protocol, "GOVERNANCE_FIXTURE_MULTIKEY="+option.multiKey)
 	nativeURL, stopNative := start(native, filepath.Join(root, "address"))
 	defer stopNative()
 	// Only synthetic fixtures automatically copy a revision. Operators must review production configuration.
@@ -586,7 +612,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	}
 	restartedNative := exec.Command(binary)
 	restartedNative.Dir = root
-	restartedNative.Env = append(os.Environ(), "GOVERNANCE_FIXTURE_DIR="+root, "GOVERNANCE_FIXTURE_UPSTREAM="+upstream.URL, "GOVERNANCE_FIXTURE_PROTOCOL="+protocol, "GOVERNANCE_FIXTURE_LISTEN="+target.Host)
+	restartedNative.Env = append(os.Environ(), "GOVERNANCE_FIXTURE_DIR="+root, "GOVERNANCE_FIXTURE_UPSTREAM="+upstream.URL, "GOVERNANCE_FIXTURE_PROTOCOL="+protocol, "GOVERNANCE_FIXTURE_LISTEN="+target.Host, "GOVERNANCE_FIXTURE_MULTIKEY="+option.multiKey)
 	_, stopNativeAgain := start(restartedNative, filepath.Join(root, "address"))
 	defer stopNativeAgain()
 	// A recovery poll may observe this restart; it is not authority to replay.
