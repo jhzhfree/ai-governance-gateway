@@ -148,3 +148,11 @@
 两条真实 PostgreSQL 17.11 逻辑备份/恢复路径分别覆盖当前 0025 和构造的 0024 fixture；比较全部 fixture 表和序列摘要、检查截断备份失败无残留、执行旧备份恢复后的升级，并验证费用 settled/reserved/dispatched/uncertain 状态和占用保留、系统审计 identity 继续写入。首轮发现 libpq 不展开 PGDATABASE 中的完整 URI，已改为受限 URI 字段到子进程环境映射，凭证不进入 argv/输出；首次失败不计入通过。独立 race 演练最终通过（3.695 秒），脚本缺少测试数据库的失败分支及带 restore_e2e 标签的 vet 通过。
 
 没有运行真实密钥解密、生产备份、跨主机或大数据量恢复；没有修改 Web 或执行付费模型调用。本轮不重复浏览器测试，上一轮已有 17 个 OIDC 场景通过证据。完整 `AIGW_VERIFY_RESTORE=1 AIGW_VERIFY_WEB=0 GOMAXPROCS=4 bash scripts/verify.sh` 退出码 0：234 个主模块顶层测试、执行模块各包（49 个测试）和 1 个恢复顶层测试（2 条版本路径）全部通过，无失败或跳过，包含真实 PostgreSQL、race/vet、模块与 API 契约。完整证据日志 `/workspace/.onboarding/logs/restore-stage-verify.log`，独立演练日志 `restore-drill.log`。
+
+## Linux 原生候选发行打包阶段
+
+基线 252aa28。新增 `scripts/package-linux.sh` 与无解压校验器：从 HEAD 归档快照构建原生 Linux amd64/arm64 候选包，固定 Go/Node、冻结 Web 依赖、只读 Go 模块；包含六个生产命令、控制台、无凭证配置示例、部署文档、版本清单与载荷校验和。拒绝覆盖既有路径，完成清单校验后才以独占方式写出目标包。没有集成 Bifrost 独立入口、安装服务、生产迁移、正式标签或外部发行。详见 [Linux 候选包](linux-package.md)。
+
+本机 amd64 已用固定 Go 1.27.3、Node 24.19.0 对基线源码成功构建包并验证完整性；最初环境 Node 24.22.1 被明确拒绝，之后使用官方校验和核验的固定版本重试。冻结 npm 安装、Web 契约/类型/Lint/生产构建及六个 Go 二进制构建通过，网关与主机代理帮助命令退出码 0；迁移工具保持现有用法错误行为（`--help` 显示用法并退出 1），仅核验该预期，不计为成功执行迁移。校验器的正常包、内容篡改、额外/缺失文件、绝对/上级路径、符号链接、重复文件、不可执行权限等子场景通过；同名包拒绝覆盖后原包仍校验通过。构建日志 `/workspace/.onboarding/logs/package-checked.log`，归档留在本地 `.onboarding`，不提交二进制或凭证。
+
+本轮没有修改业务 Go/Web 代码，不重复完整后端或浏览器回归；上一阶段完整后端与恢复门禁有通过证据。arm64 未实机验证，尚无签名、可重复构建一致性证明、完整 SBOM/授权审查或真实安装升级验收，不能视为 V1.0 正式发行。
