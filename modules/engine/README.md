@@ -22,4 +22,4 @@ Bifrost Core v1.14.1，独立 Go 模块。来源为本工作区已验证的 M0 �
 
 受管发布：`NewManaged` 从一致数据库快照刷新路由和实例池，必须作为同一个网关的 Routing 与 Executor 成对安装。同步刷新失败时停止新接纳，已有请求正常排空；事务内模型查询不发布实例。该组件现可由独立入口显式启用，读取边界详见 [ADR 0008](docs/adr/0008-managed-snapshot-publication.md)。
 
-当前入口与生命周期见 [ADR 0009](docs/adr/0009-explicit-engine-entrypoint.md)。默认仍为 native；独立命令需显式 `--execution-engine=bifrost`。
+当前入口与生命周期见 [ADR 0009](docs/adr/0009-explicit-engine-entrypoint.md)。单进程分支的独立命令默认且仅允许 `bifrost`，不再接受 native/newapi；历史根命令保留 native 默认值用于迁移对照。

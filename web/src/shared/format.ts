@@ -49,3 +49,17 @@ export const date = (value: string) =>
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value));
+
+// Keep all six ledger decimals: small charges must never appear to be free.
+export function budgetAmount(value: number, currency: string): string {
+  if (currency !== 'CNY_MICRO') return number(value);
+  if (!Number.isSafeInteger(value)) return '—';
+  const absolute = BigInt(Math.abs(value));
+  const whole = (absolute / 1_000_000n).toLocaleString('zh-CN');
+  const fraction = (absolute % 1_000_000n)
+    .toString()
+    .padStart(6, '0')
+    .replace(/0+$/, '')
+    .padEnd(2, '0');
+  return `${value < 0 ? '-' : ''}${whole}.${fraction}`;
+}

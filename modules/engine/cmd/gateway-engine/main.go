@@ -1,4 +1,4 @@
-// gateway-engine adds an explicitly selected execution engine to the shared app.
+// gateway-engine is the single-process product entrypoint.
 package main
 
 import (
@@ -15,4 +15,4 @@ func createEngine(ctx context.Context, manager *provider.Manager, cfg gatewayapp
 	}
 	return engine, nil
 }
-func main() { gatewayapp.Main(createEngine) }
+func main() { gatewayapp.MainEmbedded(createEngine) }

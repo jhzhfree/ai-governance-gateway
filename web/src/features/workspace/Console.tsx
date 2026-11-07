@@ -17,7 +17,8 @@ import {
 } from '../../api';
 import { Mark, ErrorBox, Empty } from '../../shared/Feedback';
 import { usePage } from '../../shared/useResourcePage';
-import { roleNames, number } from '../../shared/format';
+import { roleNames, number, budgetAmount } from '../../shared/format';
+import { navigation, navigationItems, NavigationIcon } from './navigation';
 import { SecretDialog } from '../keys/SecretDialog';
 import { KeyPanel } from '../keys/KeyPanel';
 import { RequestPanel } from '../requests/RequestPanel';
@@ -78,47 +79,12 @@ export function Console({ session }: { session: Session }) {
     `${projectPath}/keys`,
     Boolean(orgID && projectID),
   );
-  const view =
-    (
-      [
-        'system',
-        'local',
-        'overview',
-        'keys',
-        'audit',
-        'requests',
-        'operations',
-        'members',
-        'departments',
-        'devices',
-        'content',
-        'providers',
-        'budget',
-        'keywords',
-        'reports',
-        'alerts',
-        'ownership',
-      ] as const
-    ).find((value) => value === params.get('view')) ?? 'overview';
-  const viewLabel = {
-    system: '系统管理',
-    local: '本地账号',
-    overview: '项目概览',
-    keys: '访问密钥',
-    audit: '审计记录',
-    requests: '调用账本',
-    operations: '流量与核查',
-    members: '成员管理',
-    departments: '部门管理',
-    devices: '终端准入',
-    content: '内容审计',
-    providers: '供应商配置',
-    budget: '预算管理',
-    keywords: '关键字匹配',
-    reports: '成本报表',
-    alerts: '预算告警',
-    ownership: '组织交接',
-  }[view];
+  const selectedView =
+    navigationItems.find((item) => item.id === params.get('view')) ?? navigationItems[0];
+  const view = selectedView.id;
+  const viewLabel = selectedView.label;
+  const [navigationOpen, setNavigationOpen] = useState(false);
+  const navigationToggle = useRef<HTMLButtonElement>(null);
   const audit = usePage<Audit>(
     identity,
     'audit',
@@ -240,12 +206,15 @@ export function Console({ session }: { session: Session }) {
       setNotice('退出未完成，请重试。');
     }
   }
-  const nav = (value: string) =>
+  const nav = (value: string) => {
     choose({
       ...(orgID ? { org: orgID } : {}),
       ...(projectID ? { project: projectID } : {}),
       view: value,
     });
+    setNavigationOpen(false);
+    requestAnimationFrame(() => document.getElementById('main')?.focus());
+  };
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main">
@@ -258,53 +227,66 @@ export function Console({ session }: { session: Session }) {
             序衡<small>AI GOVERNANCE</small>
           </span>
         </a>
-        <div className="sidebar-label">工作空间</div>
-        <nav aria-label="主要导航">
-          {[
-            ['overview', '◫', '项目概览'],
-            ['keys', '⌘', '访问密钥'],
-            ['audit', '≡', '审计记录'],
-            ['requests', '↗', '调用账本'],
-            ['operations', '⚙', '流量与核查'],
-            ['members', '♧', '成员管理'],
-            ['departments', '♧', '部门管理'],
-            ['devices', '▣', '终端准入'],
-            ['content', '▤', '内容审计'],
-            ['providers', '⇄', '供应商配置'],
-            ['system', '⚙', '系统管理'],
-            ['local', '♙', '本地账号'],
-            ['budget', '▥', '预算管理'],
-            ['keywords', '⌕', '关键字匹配'],
-            ['reports', '▤', '成本报表'],
-            ['alerts', '⚑', '预算告警'],
-            ['ownership', '⇢', '组织交接'],
-          ]
-            .filter(
-              ([id]) =>
+        <button
+          ref={navigationToggle}
+          className="navigation-toggle"
+          aria-label="切换导航菜单"
+          aria-expanded={navigationOpen}
+          aria-controls="console-navigation"
+          onClick={() => setNavigationOpen(!navigationOpen)}
+        >
+          <NavigationIcon
+            path={navigationOpen ? 'M5 5l14 14 M5 19L19 5' : 'M4 6h16 M4 12h16 M4 18h16'}
+          />
+          {navigationOpen ? '收起' : '导航'}
+        </button>
+        <nav
+          id="console-navigation"
+          aria-label="主要导航"
+          className={navigationOpen ? 'navigation-open' : undefined}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape' && navigationOpen) {
+              setNavigationOpen(false);
+              navigationToggle.current?.focus();
+            }
+          }}
+        >
+          {navigation.map((group) => {
+            const items = group.items.filter(
+              ({ id }) =>
                 (id !== 'local' || session.auth_mode === 'local') &&
                 (!['members', 'departments', 'content', 'keywords'].includes(id) || canManage),
-            )
-            .map(([id, icon, label]) => (
-              <button
-                key={id}
-                className={view === id ? 'nav-item active' : 'nav-item'}
-                aria-current={view === id ? 'page' : undefined}
-                onClick={() => nav(id)}
-              >
-                <span aria-hidden="true">{icon}</span>
-                {label}
-                {view === id && <i />}
-              </button>
-            ))}
+            );
+            return (
+              items.length > 0 && (
+                <div className="navigation-group" key={group.label}>
+                  <div className="sidebar-label">{group.label}</div>
+                  {items.map(({ id, label, path }) => (
+                    <button
+                      key={id}
+                      className={view === id ? 'nav-item active' : 'nav-item'}
+                      aria-current={view === id ? 'page' : undefined}
+                      onClick={() => nav(id)}
+                    >
+                      <NavigationIcon path={path} />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )
+            );
+          })}
         </nav>
         <div className="sidebar-bottom">
-          <span className="status-dot" />{' '}
-          {currencies.includes('CNY_MICRO')
-            ? '中国大陆供应商配置'
-            : currencies.includes('MOCK')
-              ? '测试模型环境'
-              : '等待供应商配置'}
-          <small>权限与预算使用真实治理链路</small>
+          <strong>模型目录</strong>
+          <span>
+            {catalog.isPending
+              ? '读取中'
+              : catalog.isError
+                ? '暂不可用'
+                : `${catalog.data?.data.length ?? 0} 个模型`}
+          </span>
+          <small>供应商与模型授权请在配置中核查</small>
         </div>
       </aside>
       <div className="workspace">
@@ -327,7 +309,7 @@ export function Console({ session }: { session: Session }) {
             </Button>
           </div>
         </header>
-        <main id="main" className="main-content">
+        <main id="main" className="main-content" tabIndex={-1}>
           {view !== 'system' && catalog.error && (
             <ErrorBox
               error={catalog.error}
@@ -338,18 +320,12 @@ export function Console({ session }: { session: Session }) {
           )}
           <div className="page-heading">
             <div>
-              <div className="eyebrow">WORKSPACE / GOVERNANCE</div>
+              <div className="eyebrow">企业 AI 管理控制台</div>
               <h1>
                 {viewLabel}
                 <span className="heading-dot">.</span>
               </h1>
-              <p>
-                {view === 'system'
-                  ? '查看当前节点资源，受控管理网络配置并核查变更记录。'
-                  : view === 'audit'
-                    ? '追踪组织配置与访问凭证的每一次变更。'
-                    : '从访问权限到预算用量，掌握项目的模型调用边界。'}
-              </p>
+              <p>{selectedView.description}</p>
             </div>
             {view !== 'system' && (
               <Button
@@ -673,13 +649,15 @@ export function Console({ session }: { session: Session }) {
                                   className={`metric-card metric-${index}`}
                                   key={String(label)}
                                 >
-                                  <div className="metric-label">
-                                    {label}
-                                    <span aria-hidden="true">↗</span>
-                                  </div>
-                                  <div className="metric-value">
-                                    {number(Number(value))}
-                                    <small>单位</small>
+                                  <div className="metric-label">{label}</div>
+                                  <div
+                                    className="metric-value"
+                                    title={`${number(Number(value))} ${currencyLabel(usage.data!.currency)}`}
+                                  >
+                                    {budgetAmount(Number(value), usage.data!.currency)}
+                                    <small>
+                                      {usage.data!.currency === 'CNY_MICRO' ? '元' : '单位'}
+                                    </small>
                                   </div>
                                   <p>{hint}</p>
                                 </article>

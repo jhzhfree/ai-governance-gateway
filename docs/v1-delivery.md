@@ -1,6 +1,17 @@
 # V1.0 企业网关交付跟踪
 
-本分支规划说明（2026-11-07）：`feature/v1-single-process-commercial` 基于 `455b3fa` 建立，后续目标和验收按[单进程自主商业化开发规划 V2](single-process-commercial-plan.md)推进。V2 以成熟组件和当前代码复用为优先，**待用户确认后开始功能开发**；本轮仅修改文档，未切换执行引擎。以下保留原双进程分支的状态与历史证据，不应视为新分支的单进程验收结果。
+本分支 `feature/v1-single-process-commercial` 的 [复用优先规划 V2](single-process-commercial-plan.md)已获用户批准，进入实施。以下旧双进程状态和历史证据不等于新执行器验收。
+
+## 单进程分支首阶段（2026-11-07，本地验证通过）
+
+- 固定产品入口 `gateway-engine` 的 Bifrost 默认值与禁止旧引擎规则，共享数据库自动迁移、身份、路由、预算、审计与关闭流程；未新增数据库迁移，仍未完成执行完成事件的持久闭环。
+- 重整控制台分组导航、每页任务说明、可滚动侧栏、移动端菜单与键盘焦点。沿用原页面业务操作与后端授权；不以侧栏可见性代替权限。
+- 概览人民币按元展示且保留微元精度；模拟预算仍显示模拟单位。移除由币种推断供应商地域的状态文案。
+- 新增入口拒绝旧引擎回归、微元显示边界和移动导航测试。`AIGW_VERIFY_WEB=1 bash scripts/verify.sh` 退出 0：嵌套引擎和根包 race/vet、真实隔离 PostgreSQL、冻结 Web 安装、契约/类型/Lint/构建、20 项 Playwright 检查通过；桌面与移动截图复查通过。唯一顶层 SKIP 是只供子进程启动的 `TestNewAPIControlHelper`，相应进程场景已运行，未以缺数据库/夹具的跳过当作通过。
+- 产品二进制 `--help` 与 native/newapi 拒绝启动冒烟通过。未执行真实供应商、企业 IdP、真实终端或目标机器验收；约 572 KB 的 Web 主脚本仍有构建体积提示，按页面加载优化留待后续。
+- 依赖来源与 71 个第三方 Go 模块文件证据见 [复用核验](compliance/reuse-review.md)，尚未完成商业发行许可审查。本轮完整回归沿用既有 `newapi-governance-server-channels` 合成夹具，其构建元数据为 `fb0c225` 加未提交修改；已另从干净的 `934d85c3cd6f8eb0ef51514cb833ce5719cc6531` 重建 `newapi-governance-server-pin934d`（`vcs.modified=false`），后续复验切换该可追溯夹具。两者都不是实际供应商验收。
+
+---
 
 状态：开发中，未发布 V1.0。当前控制面分支为 `feature/newapi-foundation-validation`，配套 new-api 数据面为 `feature/enterprise-governance-integration`。此前 `feature/v1.0-enterprise-gateway` 从主线 b4e4bc983f3058cd88ec0cc5ddcf0649d2014300 创建；下文保留其历史阶段证据。当前接入与部署约束以 [new-api 集成](new-api-integration.md) 的最新章节为准。
 

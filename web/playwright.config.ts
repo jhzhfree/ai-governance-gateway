@@ -11,7 +11,7 @@ export default defineConfig({
       ? '**/newapi.spec.ts'
       : process.env.AIGW_E2E_AUTH_MODE === 'local'
         ? '**/local.spec.ts'
-        : '**/console.spec.ts',
+        : ['**/console.spec.ts', '**/budget-format.spec.ts'],
   fullyParallel: false,
   workers: 1,
   retries: 0,

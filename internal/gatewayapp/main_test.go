@@ -1,6 +1,31 @@
 package gatewayapp
 
-import "testing"
+import (
+	"context"
+	"strings"
+	"testing"
+)
+
+func TestEmbeddedEntrypointCannotSelectLegacyEngine(t *testing.T) {
+	for _, args := range [][]string{nil, {"--execution-engine=bifrost"}} {
+		cfg, err := commandConfig(args, true)
+		if err != nil || cfg.executionEngine != "bifrost" || cfg.schemaMode != "auto" {
+			t.Fatalf("embedded defaults changed: engine=%s schema=%s err=%v", cfg.executionEngine, cfg.schemaMode, err)
+		}
+	}
+	// Deliberately omit the database: these must fail at the product boundary,
+	// before any attempt to initialize schema, identity or external services.
+	for _, engine := range []string{"native", "newapi", "", "unknown"} {
+		err := RunEmbedded(context.Background(), []string{"--execution-engine=" + engine}, nil)
+		if err == nil || !strings.Contains(err.Error(), "single-process product requires") {
+			t.Fatalf("legacy selection not rejected before setup: %q: %v", engine, err)
+		}
+	}
+	legacy, err := commandConfig(nil, false)
+	if err != nil || legacy.executionEngine != "native" {
+		t.Fatalf("historical entrypoint changed: %v", err)
+	}
+}
 
 func TestDevelopmentConfigFailsClosed(t *testing.T) {
 	valid := config{database: "postgres://unused", issuer: "https://idp.example/realm", audience: "aigw-management", upstream: "http://127.0.0.1:8091/v1/chat/completions", listen: "127.0.0.1:8080", mockOnly: true}

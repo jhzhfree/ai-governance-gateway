@@ -362,8 +362,26 @@ func run(ctx context.Context, c config, factory EngineFactory, listener net.List
 	}
 }
 
-// Run parses the same flags for native and engine-bearing binaries.
+// Run preserves the historical native/bridge entrypoint for migration tests.
 func Run(ctx context.Context, args []string, factory EngineFactory) error {
+	return runCommand(ctx, args, factory, false)
+}
+
+// RunEmbedded selects the in-process engine exclusively. An explicit legacy
+// engine flag must fail rather than silently changing the product's data plane.
+func RunEmbedded(ctx context.Context, args []string, factory EngineFactory) error {
+	return runCommand(ctx, args, factory, true)
+}
+
+func runCommand(ctx context.Context, args []string, factory EngineFactory, embedded bool) error {
+	c, err := commandConfig(args, embedded)
+	if err != nil {
+		return err
+	}
+	return run(ctx, c, factory, nil)
+}
+
+func commandConfig(args []string, embedded bool) (config, error) {
 	flags := flag.NewFlagSet("gateway", flag.ContinueOnError)
 	c := config{database: os.Getenv("AIGW_DATABASE_URL"), issuer: os.Getenv("AIGW_OIDC_ISSUER"), audience: os.Getenv("AIGW_OIDC_AUDIENCE"), upstream: os.Getenv("AIGW_UPSTREAM_URL")}
 	c.browserOrigin = os.Getenv("AIGW_BROWSER_ORIGIN")
@@ -379,26 +397,42 @@ func Run(ctx context.Context, args []string, factory EngineFactory) error {
 	flags.StringVar(&c.providerConfig, "providers", "", "explicit mainland provider configuration file; mutually exclusive with --mock-only")
 	flags.StringVar(&c.webDir, "web-dir", "web/dist", "built console assets directory")
 	flags.BoolVar(&c.allowLoopbackHTTP, "allow-loopback-browser-http", false, "allow non-secure browser cookies only on an explicit loopback HTTP origin")
-	flags.StringVar(&c.executionEngine, "execution-engine", "native", "native (default), newapi, or bifrost in the engine binary")
+	defaultEngine, engineHelp := "native", "native (default), newapi, or bifrost with an engine factory"
+	if embedded {
+		defaultEngine, engineHelp = "bifrost", "bifrost only: in-process execution, no legacy engine fallback"
+	}
+	flags.StringVar(&c.executionEngine, "execution-engine", defaultEngine, engineHelp)
 	flags.IntVar(&c.engineLimits.MaxBindings, "engine-max-bindings", 64, "total current, draining and building execution instances")
 	flags.IntVar(&c.engineLimits.MaxConcurrent, "engine-max-concurrent", 32, "global execution concurrency including response bodies")
 	if err := flags.Parse(args); err != nil {
-		return err
+		return c, err
 	}
 	if flags.NArg() != 0 {
-		return errors.New("unexpected positional arguments")
+		return c, errors.New("unexpected positional arguments")
+	}
+	if embedded && c.executionEngine != "bifrost" {
+		return c, errors.New("single-process product requires --execution-engine=bifrost; legacy engines are not supported by this entrypoint")
 	}
 	if c.mockOnly && os.Getenv("AIGW_TEST_MODE") != "1" {
-		return errors.New("--mock-only requires explicit AIGW_TEST_MODE=1")
+		return c, errors.New("--mock-only requires explicit AIGW_TEST_MODE=1")
 	}
-	return run(ctx, c, factory, nil)
+	return c, nil
 }
 
-// Main owns process signals; both entrypoints share application behavior.
+// Main owns process signals for the historical entrypoint.
 func Main(factory EngineFactory) {
+	mainCommand(factory, Run)
+}
+
+// MainEmbedded is the single-process product entrypoint.
+func MainEmbedded(factory EngineFactory) {
+	mainCommand(factory, RunEmbedded)
+}
+
+func mainCommand(factory EngineFactory, runCommand func(context.Context, []string, EngineFactory) error) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := Run(ctx, os.Args[1:], factory); err != nil && !errors.Is(err, flag.ErrHelp) {
+	if err := runCommand(ctx, os.Args[1:], factory); err != nil && !errors.Is(err, flag.ErrHelp) {
 		log.Print(err)
 		os.Exit(1)
 	}

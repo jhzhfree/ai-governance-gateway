@@ -6,7 +6,7 @@
 
 将原 cmd/gateway 的启动、配置、schema 和 health 实现及测试迁至 internal/gatewayapp。原命令保持薄入口，调用共享 Main(nil)，不引入 Bifrost SDK。新增 modules/engine/cmd/gateway-engine，提供 Managed 工厂并调用同一 Main。管理 API、身份、设备、预算、审计、迁移和 Web 组装只有一份实现。
 
-两个二进制都默认 `--execution-engine=native`。独立引擎二进制必须显式选择 `--execution-engine=bifrost` 才创建 Managed；原生二进制拒绝该选择，不能回退。未知选择、mock 模式、静态 --providers 文件以及非法实例/并发上限拒绝；本轮新引擎只接数据库托管供应商。工厂失败或返回空引擎时启动失败，后续初始化失败时释放已创建引擎。
+2026-11-07 单进程分支修订：引擎二进制通过 `MainEmbedded` 默认且仅允许 `bifrost`，明确拒绝 native/newapi；历史原生二进制仍默认 native。两者复用同一配置解析、schema 和应用生命周期；产品入口不允许回退。未知选择、mock 模式、静态 --providers 文件以及非法实例/并发上限拒绝；本轮新引擎只接数据库托管供应商。工厂失败或返回空引擎时启动失败，后续初始化失败时释放已创建引擎。
 
 默认 MaxBindings=64，允许最多 32 个配置模型进行一轮全量轮换；MaxConcurrent=32。排空中的旧版本仍占容量，连续轮换仍可能触及上限并进入不接纳状态。取值边界是资源保护，不是生产容量承诺。SDK imports 仍仅限 adapters/bifrost；共享应用只依赖 RuntimeEngine 接口。
 

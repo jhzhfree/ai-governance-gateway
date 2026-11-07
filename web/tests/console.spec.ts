@@ -27,6 +27,8 @@ test('login, organization, project, one-time key and revocation', async ({ page 
   await expect(page.getByLabel('新密钥', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('cell', { name: /^SDK 主密钥 / })).toBeVisible();
   await expect(page.getByRole('progressbar', { name: '预算占用比例' })).toBeVisible();
+  await page.getByRole('heading', { name: '项目概览.' }).click();
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: '/tmp/aigw-console-desktop.png', fullPage: true });
   const accessibility = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
@@ -81,6 +83,8 @@ test('responsive layout, keyboard navigation and API failure recovery', async ({
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
   ).toBeTruthy();
+  await page.getByRole('heading', { name: '项目概览.' }).click();
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: '/tmp/aigw-console-mobile.png', fullPage: true });
   await page.route('**/api/v1/organizations/*/projects/*/keys?*', (route) =>
     route.fulfill({
@@ -94,7 +98,18 @@ test('responsive layout, keyboard navigation and API failure recovery', async ({
   await page.unrouteAll();
   await page.getByRole('button', { name: '重试', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveCount(0);
-  await page.getByRole('button', { name: '审计记录' }).click();
+  const navigationToggle = page.getByRole('button', { name: '切换导航菜单' });
+  await expect(navigationToggle).toHaveAttribute('aria-expanded', 'false');
+  await navigationToggle.click();
+  await expect(navigationToggle).toHaveAttribute('aria-expanded', 'true');
+  await page.getByRole('button', { name: '项目概览', exact: true }).focus();
+  await page.keyboard.press('Escape');
+  await expect(navigationToggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(navigationToggle).toBeFocused();
+  await navigationToggle.click();
+  await page.getByRole('button', { name: '审计记录', exact: true }).click();
+  await expect(navigationToggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByRole('main')).toBeFocused();
   await expect(page.getByRole('heading', { name: '组织变更记录' })).toBeVisible();
   await expect(page.getByRole('cell', { name: '创建项目', exact: true })).toBeVisible();
 });
@@ -444,6 +459,7 @@ test('normalized bill import, duplicate detection and rejection preserve budget'
       nodes: v.nodes.map((n) => ({ target: n.target, failureSummary: n.failureSummary })),
     })),
   ).toEqual([]);
+  await page.getByRole('button', { name: '切换导航菜单' }).click();
   await page.getByRole('button', { name: '项目概览', exact: true }).click();
   await expect(page.getByRole('progressbar', { name: '预算占用比例' })).toHaveAttribute(
     'value',

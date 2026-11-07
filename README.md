@@ -2,7 +2,7 @@
 
 AI 治理网关：面向团队的统一模型接入、访问控制、预算限额和调用审计平台。
 
-本分支 `feature/v1-single-process-commercial` 从 `455b3fa` 建立，目标为单进程、自主商业交付。[单进程开发规划 V2](docs/single-process-commercial-plan.md)采用复用优先策略，列出 V1 模块能力、授权边界和交付物，**待用户确认后开始实施**。当前只有规划变更，以下功能与双进程说明属于继承的代码基线，不代表新架构已完成。
+本分支 `feature/v1-single-process-commercial` 从 `455b3fa` 建立，目标为单进程、自主商业交付。[单进程开发规划 V2](docs/single-process-commercial-plan.md)已获用户批准，现按复用优先策略实施。产品入口 `modules/engine/cmd/gateway-engine` 固定使用进程内 Bifrost，旧 `cmd/gateway` 保留迁移对照；控制台沿用企业治理流程并改进导航和金额展示。当前仍是开发候选，四协议迁移、完成证据及商业发行验收尚未完成。
 
 V1 开发分支默认在网关启动时自动执行版本化数据库升级，成功后才监听服务。多实例互斥、失败回滚、历史校验仍有效；可用 `--schema-mode=check` 分离迁移权限，`--schema-timeout=10m` 调整等待时间。参见[数据库升级](docs/database-migrations.md)与[V1 交付跟踪](docs/v1-delivery.md)。
 
