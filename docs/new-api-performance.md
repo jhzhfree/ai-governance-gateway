@@ -4,7 +4,7 @@
 
 ## 测量范围
 
-控制面真实项目/Token 授权、共享 PostgreSQL 预算、准入、熔断、元数据审计及可选加密内容审计 → 本地 HTTP → 独立 new-api 进程、SQLite 持久派发与 outbox → 合成 OpenAI 兼容供应商。每组检查供应商调用数恰为请求数、持久回执齐全、预算占额归零、扣费精确及审计链有效。Chat JSON、有限 SSE、Embeddings，各测内容审计关闭/开启与 1/4 工作者，50 次请求加一次预热。
+控制面真实项目/Token 授权、共享 PostgreSQL 预算、准入、熔断、元数据审计及可选加密内容审计 → 本地 HTTP → 独立 new-api 进程、SQLite 持久派发与 outbox → 合成 OpenAI 兼容供应商。每组检查供应商调用数恰为请求数、持久回执齐全、预算占额归零、扣费精确及审计链有效。Chat JSON、有限 SSE、Embeddings、Responses JSON/SSE，各测内容审计关闭/开启与 1/4 工作者，默认每组 50 次请求加一次预热。
 
 计时包含请求完整完成，不是首字延迟。SSE 供应商立即发出有限帧，不模拟长流或网络慢消费者。B/op、allocs/op 仅属于控制面测试进程，不包含 new-api 进程堆。未包含入口 TLS、真实 OIDC、终端证明、跨机网络、外部模型延迟、多实例和生产数据库调优。50 个样本的 p99 接近单次最大值，只能用于回归观察。
 
@@ -13,7 +13,7 @@
 1. 使用专用测试 PostgreSQL 设置 `TEST_DATABASE_URL`，脚本只创建并清理隔离 `poc_` schema；不要指向生产数据库。
 2. 在 new-api `98b689f6695e4f330de98a8555c825641f3788c1` 构建 `go build -mod=readonly -o /tmp/newapi-governance-bench ./scripts/testdata/governance_server`。性能测量不要使用 `-race`；竞态门禁另行执行。
 3. 使用控制面 `.go-version` 固定工具链，设置 `TEST_NEWAPI_SERVER_BINARY=/tmp/newapi-governance-bench`，执行 `bash scripts/benchmark-newapi.sh`。避免与其他测试/压测并发。
-4. 脚本覆盖 12 组并输出完整请求延迟 p50/p95/p99、吞吐与控制面分配；任何子基准失败都拒绝该轮，即使 Go 最后打印包级 PASS。
+4. 脚本默认覆盖 20 组并输出完整请求延迟 p50/p95/p99、吞吐与控制面分配；任何子基准失败都拒绝该轮，即使 Go 最后打印包级 PASS。
 
 new-api 基准子进程的 `GOMAXPROCS` 与当前 1/4 工作者一致，SQLite 保持生产默认 WAL、30 秒 busy timeout 与 BEGIN IMMEDIATE，使用 `SQL_MAX_OPEN_CONNS=1000`、`SQL_MAX_IDLE_CONNS=1`。可用 `AIGW_BENCH_SQLITE_CONNECTIONS`（1..1000）做争用故障诊断；不得把失败场景吞吐当作有效容量。所有供应商凭证、输入、输出都是测试生成的合成值。
 
@@ -50,3 +50,38 @@ Linux amd64，Intel Xeon Platinum 8573C，共享开发环境，Go 1.27.3，控�
 故障复现：旧夹具 200 请求/4 工作者检测到 5 次 SQLite 锁错误，供应商调用仍恰为 201（含预热），没有自动重试。修复生产事务参数后，3 轮各 200 请求全部成功，分页回执/预算/审计核对通过（26.977 秒）；这组与其他开发活动并行，只用于正确性诊断，不用于上表性能比较。
 
 阶段完整门禁：固定 `98b689f66` 专用竞态 fixture，执行 `AIGW_VERIFY_RESTORE=1 bash scripts/verify.sh`，退出码 0。包含所有后端 race/vet、契约、真实 PostgreSQL、全部协议双进程故障及当前/旧版逻辑恢复；HTTP API 235.413 秒、bridge 168.170 秒、恢复 4.378 秒。公共 API/Web 未变化，本轮未重复浏览器。基准脚本单独使用非竞态 fixture 运行；不得混用这两类性能证据。
+
+
+## 20 并发验收配置与审计容量修正
+
+用户首批目标记录为“4核8c 32G，峰值并发20”；CPU 表述须在目标机器验收时确认。当前开发容器 CPU quota 为 4 vCPU、内存上限 16 GiB，不能将其写成 32 GB 目标机。GOMAXPROCS=4/8 只是同一 CPU 限额下的调度参数对比。
+
+本轮增加独立工作者数、合成供应商延时、实际网关/供应商峰值并发、请求数及 CPU 参数。示例（专用数据库、固定 d7ae87e36 数据面非 race fixture）：
+
+```bash
+AIGW_BENCH_CONCURRENCY=20 AIGW_BENCH_UPSTREAM_DELAY_MS=2000 \
+AIGW_BENCH_ITERATIONS=100 AIGW_BENCH_CPUS=4,8 \
+AIGW_BENCH_PATTERN='^BenchmarkNewAPIGovernance$/(stream|responses_stream)/' \
+bash scripts/benchmark-newapi.sh
+```
+
+流式上游先 flush 首帧，再等待两秒并发出用量/完成帧。测量仍是完整完成时间；20 路 × 2 秒等待的理论吞吐约为 10 请求/秒，不能当作网关最大吞吐。入口使用真实 handler，但测试响应写入内存 recorder，不测入口网络、慢消费者或终端本地代理。终端代理每实例 16 路限制不代表全网关并发上限。
+
+首次 20 并发测试准确暴露每进程内容审计仅允许 16 个活动捕获：审计关闭四组通过，开启四组均为 84 次拒绝、17 次供应商调用（含预热），该轮整体无效，不作为容量通过证据。已将捕获上限调整为 32，仍非阻塞地拒绝超额请求，不绕过审计；最大策略下响应前缀的逻辑内容合计至多 8 MiB，不包含切片预分配余量、加密临时值、协议聚合、传输等内存。项目准入和执行器仍是独立边界。新增重复请求事务失败释放槽位、满额拒绝、完成后复用回归；数据库连接池没有扩容，无新迁移（v29）。
+
+最终复跑 153.638 秒退出码 0：8 组均达到实际网关峰值 20、上游峰值 20；每组 100 次测量加 1 次预热，101 次物理调用、101 份持久回执、占额归零和精确扣费。开启审计的四组各有 101 条 complete 记录，关闭组没有内容记录；全部审计链校验通过。
+
+| 协议 | 内容审计 | GOMAXPROCS | req/s | p50 ms | p95 ms | p99 ms | 控制面 B/op |
+|---|---|---:|---:|---:|---:|---:|---:|
+| stream | 关 | 4 | 8.924 | 2158 | 2480 | 2569 | 92049 |
+| stream | 关 | 8 | 9.439 | 2042 | 2317 | 2384 | 98134 |
+| stream | 开 | 4 | 9.287 | 2069 | 2350 | 2418 | 141360 |
+| stream | 开 | 8 | 9.199 | 2106 | 2376 | 2417 | 155615 |
+| responses_stream | 关 | 4 | 9.270 | 2059 | 2384 | 2497 | 116907 |
+| responses_stream | 关 | 8 | 9.323 | 2058 | 2334 | 2386 | 125858 |
+| responses_stream | 开 | 4 | 9.120 | 2104 | 2393 | 2536 | 238152 |
+| responses_stream | 开 | 8 | 9.147 | 2103 | 2380 | 2443 | 258219 |
+
+这些仅是固定小文本、单增量加等待的合成流结果。没有证明持续大量增量、长输出、慢消费者或多租户负载的容量；100 个样本的 p99 也不能成为生产承诺。
+
+阶段完整门禁：固定 d7ae87e36 数据面竞态 fixture，执行 `AIGW_VERIFY_RESTORE=1 AIGW_VERIFY_SDK=1 bash scripts/verify.sh`（配置专用数据库及 SDK venv），退出码 0。内容审计 13.247 秒、HTTP API 273.596 秒、bridge 392.813 秒、当前/旧版恢复 5.133 秒、最终 SDK/Responses 20.292 秒；全部后端 race/vet/契约通过，无跳过集成检查。公共 API/UI 未变，本阶段不重复浏览器；此前 Responses 流式阶段远端 CI 42356275129 已成功。

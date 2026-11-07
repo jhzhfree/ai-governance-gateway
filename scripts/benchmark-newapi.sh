@@ -14,9 +14,15 @@ if [[ -z "${TEST_DATABASE_URL:-}" || ! -x "${TEST_NEWAPI_SERVER_BINARY:-}" ]]; t
 fi
 results="$(mktemp)"
 trap 'rm -f "$results"' EXIT
+iterations="${AIGW_BENCH_ITERATIONS:-50}"
+cpus="${AIGW_BENCH_CPUS:-1,4}"
+if [[ ! "$iterations" =~ ^[0-9]+$ ]] || (( iterations < 1 || iterations > 10000 )) || [[ ! "$cpus" =~ ^[0-9]+(,[0-9]+)*$ ]]; then
+  echo "Invalid benchmark iterations or CPU list." >&2
+  exit 1
+fi
 export GOTOOLCHAIN=local
 "$go_bin" test -mod=readonly ./internal/newapibridge -run '^$' \
-  -bench '^BenchmarkNewAPIGovernance$' -benchtime=50x -cpu=1,4 \
+  -bench "${AIGW_BENCH_PATTERN:-^BenchmarkNewAPIGovernance$}" -benchtime="${iterations}x" -cpu="$cpus" \
   -count=1 -benchmem -timeout=300s | tee "$results"
 # Some Go benchmark runs report a passing package despite failed sub-benchmarks.
 if grep -q -- '--- FAIL:' "$results"; then

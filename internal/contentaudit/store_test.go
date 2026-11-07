@@ -138,8 +138,15 @@ func TestContentKeyVersionRotationAndBoundedCapture(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// Failed transactions must return the slot even after acquisition. Reusing
+	// the committed request ID fails its unique constraint.
+	for i := 0; i < contentaudit.MaxActiveCaptures+1; i++ {
+		if _, err := second.Begin(ctx, contentaudit.Meta{RequestID: "old-version", Organization: org.ID, Project: project.ID, Model: "mock-text"}, []byte("synthetic")); err == nil {
+			t.Fatal("duplicate audit request accepted")
+		}
+	}
 	var active []*contentaudit.Capture
-	for i := 0; i < 16; i++ {
+	for i := 0; i < contentaudit.MaxActiveCaptures; i++ {
 		id := fmt.Sprintf("bounded-%d", i)
 		c, err := second.Begin(ctx, contentaudit.Meta{RequestID: id, Organization: org.ID, Project: project.ID, Model: "mock-text"}, []byte("synthetic"))
 		if err != nil {
@@ -154,6 +161,14 @@ func TestContentKeyVersionRotationAndBoundedCapture(t *testing.T) {
 		if err := c.Finish(ctx, 503, "incomplete"); err != nil {
 			t.Fatal(err)
 		}
+	}
+	// Completion returns capacity for the next request.
+	reused, err := second.Begin(ctx, contentaudit.Meta{RequestID: "slot-reused", Organization: org.ID, Project: project.ID, Model: "mock-text"}, []byte("synthetic"))
+	if err != nil {
+		t.Fatal("completed captures leaked capacity", err)
+	}
+	if err := reused.Finish(ctx, 200, "complete"); err != nil {
+		t.Fatal(err)
 	}
 	proof, err := second.Verify(ctx, org.ID)
 	if err != nil || !proof.Valid {

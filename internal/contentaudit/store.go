@@ -38,8 +38,13 @@ type Service struct {
 	slots chan struct{}
 }
 
+// MaxActiveCaptures bounds live encrypted-audit captures per service instance.
+// At the maximum policy size, retained response prefixes total at most 8 MiB
+// (32 * 256 KiB), excluding transient encryption and transport buffers.
+const MaxActiveCaptures = 32
+
 func New(pool *pgxpool.Pool, ring *Keyring) *Service {
-	return &Service{pool: pool, ring: ring, slots: make(chan struct{}, 16)}
+	return &Service{pool: pool, ring: ring, slots: make(chan struct{}, MaxActiveCaptures)}
 }
 func (s *Service) Configured() bool { return s != nil && s.ring != nil }
 func ReadPolicy(ctx context.Context, tx pgx.Tx, org, project string) (p Policy, err error) {

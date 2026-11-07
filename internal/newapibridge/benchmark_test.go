@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -46,26 +47,63 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 	if err != nil || size < 1 || size > 1000 {
 		b.Fatal("benchmark SQLite connections must be 1..1000")
 	}
-	for _, protocol := range []string{"chat", "stream", "embedding"} {
+	concurrency := 0
+	if value := os.Getenv("AIGW_BENCH_CONCURRENCY"); value != "" {
+		concurrency, err = strconv.Atoi(value)
+		if err != nil || concurrency < 1 || concurrency > 64 {
+			b.Fatal("benchmark concurrency must be 1..64")
+		}
+	}
+	delayMS := 0
+	if value := os.Getenv("AIGW_BENCH_UPSTREAM_DELAY_MS"); value != "" {
+		delayMS, err = strconv.Atoi(value)
+		if err != nil || delayMS < 0 || delayMS > 10000 {
+			b.Fatal("synthetic upstream delay must be 0..10000 ms")
+		}
+	}
+	for _, protocol := range []string{"chat", "stream", "embedding", "responses", "responses_stream"} {
 		for _, content := range []bool{false, true} {
 			b.Run(fmt.Sprintf("%s/content=%t", protocol, content), func(b *testing.B) {
 				ctx := context.Background()
 				db, ledger, _ := testutil.Database(b)
-				var upstreamCalls atomic.Int64
+				var upstreamCalls, active, peak atomic.Int64
 				upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					upstreamCalls.Add(1)
+					current := active.Add(1)
+					defer active.Add(-1)
+					for previous := peak.Load(); current > previous; previous = peak.Load() {
+						if peak.CompareAndSwap(previous, current) {
+							break
+						}
+					}
+
 					if r.Header.Get("Authorization") != "Bearer syntheticvendor" {
 						w.WriteHeader(400)
 						return
+					}
+					if delayMS > 0 && protocol != "stream" && protocol != "responses_stream" {
+						select {
+						case <-time.After(time.Duration(delayMS) * time.Millisecond):
+						case <-r.Context().Done():
+							return
+						}
 					}
 					w.Header().Set("Content-Type", "application/json")
 					if protocol == "embedding" {
 						fmt.Fprint(w, `{"object":"list","data":[{"object":"embedding","index":0,"embedding":[0.1,0.2]}],"model":"governance-model","usage":{"prompt_tokens":2,"total_tokens":2}}`)
 						return
 					}
-					if protocol == "stream" {
+					if protocol == "stream" || protocol == "responses_stream" {
 						w.Header().Set("Content-Type", "text/event-stream")
 						fmt.Fprint(w, "data: {\"id\":\"synthetic\",\"object\":\"chat.completion.chunk\",\"model\":\"governance-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"synthetic\"},\"finish_reason\":null}]}\n\n")
+						w.(http.Flusher).Flush()
+						if delayMS > 0 {
+							select {
+							case <-time.After(time.Duration(delayMS) * time.Millisecond):
+							case <-r.Context().Done():
+								return
+							}
+						}
 						fmt.Fprint(w, "data: {\"id\":\"synthetic\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":2,\"completion_tokens\":3,\"total_tokens\":5}}\n\ndata: [DONE]\n\n")
 						return
 					}
@@ -135,7 +173,11 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 				if err != nil {
 					b.Fatal(err)
 				}
-				source, err := newapibridge.NewRuntime(ctx, newapibridge.Config{Origin: origin, ServiceToken: "sk-syntheticgovernancefixture", MaxConcurrent: 64, AllowLoopbackHTTP: true, Journal: newapibridge.NewJournal(db)}, directory)
+				executionLimit := 64
+				if concurrency > 0 {
+					executionLimit = concurrency
+				}
+				source, err := newapibridge.NewRuntime(ctx, newapibridge.Config{Origin: origin, ServiceToken: "sk-syntheticgovernancefixture", MaxConcurrent: executionLimit, AllowLoopbackHTTP: true, Journal: newapibridge.NewJournal(db)}, directory)
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -159,7 +201,7 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 				}
 				audit := testutil.ContentAudit(b, db)
 				if err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
-					if err := admission.Update(ctx, tx, org.ID, project.ID, admission.Policy{RequestsPerMinute: 10000, MaxConcurrent: 64}); err != nil {
+					if err := admission.Update(ctx, tx, org.ID, project.ID, admission.Policy{RequestsPerMinute: 10000, MaxConcurrent: executionLimit}); err != nil {
 						return err
 					}
 					return audit.SetPolicy(ctx, tx, org.ID, project.ID, contentaudit.Policy{Enabled: content, RetentionDays: 1, MaxBytes: 8192, ConsentRef: "synthetic"})
@@ -178,7 +220,20 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 					payload = `{"model":"zhipu/fixture","input":"synthetic"}`
 					cost = 4
 				}
+				if protocol == "responses" || protocol == "responses_stream" {
+					path = "/v1/responses"
+					payload = fmt.Sprintf(`{"model":"zhipu/fixture","input":"synthetic","max_output_tokens":32,"store":false,"stream":%t}`, protocol == "responses_stream")
+				}
+				var gatewayActive, gatewayPeak atomic.Int64
 				invoke := func() bool {
+					active := gatewayActive.Add(1)
+					defer gatewayActive.Add(-1)
+					for previous := gatewayPeak.Load(); active > previous; previous = gatewayPeak.Load() {
+						if gatewayPeak.CompareAndSwap(previous, active) {
+							break
+						}
+					}
+
 					r := httptest.NewRequest("POST", path, strings.NewReader(payload))
 					r.Header.Set("Authorization", "Bearer "+key.Secret)
 					w := httptest.NewRecorder()
@@ -186,7 +241,16 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 					if w.Code != 200 {
 						b.Logf("synthetic benchmark failure: status=%d body=%s", w.Code, w.Body.String())
 					}
-					return w.Code == 200 && (protocol != "stream" || strings.Contains(w.Body.String(), "[DONE]"))
+					if w.Code != 200 {
+						return false
+					}
+					if protocol == "responses_stream" {
+						return strings.Contains(w.Body.String(), `"type":"response.completed"`) && !strings.Contains(w.Body.String(), "[DONE]")
+					}
+					if protocol == "responses" {
+						return strings.Contains(w.Body.String(), `"object":"response"`) && strings.Contains(w.Body.String(), `"status":"completed"`)
+					}
+					return protocol != "stream" || strings.Contains(w.Body.String(), "[DONE]")
 				}
 				if !invoke() {
 					b.Fatal("warmup request failed")
@@ -195,16 +259,27 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 				var next, failures atomic.Int64
 				b.ReportAllocs()
 				b.ResetTimer()
-				b.RunParallel(func(pb *testing.PB) {
-					for pb.Next() {
-						index := next.Add(1) - 1
-						started := time.Now()
-						if !invoke() {
-							failures.Add(1)
+				workers := concurrency
+				if workers == 0 {
+					workers = runtime.GOMAXPROCS(0)
+				}
+				var group sync.WaitGroup
+				for range workers {
+					group.Go(func() {
+						for {
+							index := next.Add(1) - 1
+							if index >= int64(b.N) {
+								return
+							}
+							started := time.Now()
+							if !invoke() {
+								failures.Add(1)
+							}
+							durations[index] = time.Since(started).Nanoseconds()
 						}
-						durations[index] = time.Since(started).Nanoseconds()
-					}
-				})
+					})
+				}
+				group.Wait()
 				b.StopTimer()
 				if failures.Load() != 0 || upstreamCalls.Load() != int64(b.N+1) {
 					_ = nativeLog.Sync()
@@ -233,6 +308,17 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 					b.Fatal("missing durable receipts")
 				}
 
+				var complete, total int64
+				if err := db.QueryRow(ctx, `SELECT count(*) FILTER (WHERE state='complete'),count(*) FROM content_audit_records`).Scan(&complete, &total); err != nil {
+					b.Fatal("audit completion query failed")
+				}
+				expectedAudits := int64(0)
+				if content {
+					expectedAudits = int64(b.N + 1)
+				}
+				if total != expectedAudits || complete != expectedAudits {
+					b.Fatal("audit captures incomplete or missing")
+				}
 				if checkpoint, err := audit.Verify(ctx, org.ID); err != nil || !checkpoint.Valid {
 					b.Fatal("benchmark audit chain invalid")
 				}
@@ -242,6 +328,10 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 					b.ReportMetric(float64(durations[index])/1e6, fmt.Sprintf("p%d-ms", p))
 				}
 				b.ReportMetric(float64(b.N)/b.Elapsed().Seconds(), "req/s")
+				b.ReportMetric(float64(workers), "workers")
+				b.ReportMetric(float64(peak.Load()), "upstream-peak")
+				b.ReportMetric(float64(gatewayPeak.Load()), "gateway-peak")
+				b.ReportMetric(float64(delayMS), "synthetic-delay-ms")
 			})
 		}
 	}
