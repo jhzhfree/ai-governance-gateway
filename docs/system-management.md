@@ -4,6 +4,7 @@
 
 ## 范围与权限
 
+- 采样异常：必要内存/负载字段缺失、非有限数或计数溢出时返回不可用，不伪造为零；失败样本不更新 CPU 差分基线。
 - CPU：相邻 `/proc/stat` 样本的整体使用率（不重复计算 guest），首次返回未知；可见逻辑 CPU、1 分钟负载。
 - 内存：操作系统总量、可用量；另列 cgroup v2 挂载根的内存使用/限制及 CPU 配额；不代表任意 systemd 子组的服务专属配额。cgroup 不可读、v1 或无限制不伪造为零。CPU 百分比不是容器配额归一化百分比。
 - 网卡：当前网络命名空间的接口、启用标志、MTU、地址和累计收发字节。`up` 是接口管理标志，不保证物理链路/互联网畅通。
@@ -63,7 +64,9 @@ AIGW_INTERFACES=<逗号分隔的允许接口，例如 ens192>
 
 API：`GET /api/v1/system`、`GET /api/v1/system/events`（最近 100 条）、`POST /api/v1/system/network`、`POST /api/v1/system/network/{id}/confirm|rollback`。契约和 Go/TypeScript 类型同步。历史读取限系统管理员，不能借组织权限查看；当前没有分页、保留清理与外部锚定。
 
-每次写操作记录 requested 以及 succeeded/rejected/unknown。apply 的 succeeded 只表示临时应用成功，不表示已确认持久化；具体结果在 payload.result.state。请求后无结果记录也必须视为未知，禁止自动重放。代理/数据库之间没有分布式事务；结果记录失败会返回不可用，原 intent 保留，用户必须刷新实际状态核查。自动超时的观测可能在后续回退核验中记录，不宣称所有主机事件实时完整回传或日志防 root 篡改。
+每次写操作记录 requested 以及 succeeded/rejected/unknown。apply 的 succeeded 只表示临时应用成功，不表示已确认持久化；具体结果在 payload.result.state。请求后无结果记录也必须视为未知，禁止自动重放。本地代理响应限制为 16 KiB 响应头和 1 MiB 正文，不接受截断、多段 JSON 或尾随垃圾；写结果必须匹配操作 ID、网卡/状态及临时应用截止时间。校验失败按不可用/未知处理，不重放写请求。
+
+代理/数据库之间没有分布式事务；结果记录失败会返回不可用，原 intent 保留，用户必须刷新实际状态核查。自动超时的观测可能在后续回退核验中记录，不宣称所有主机事件实时完整回传或日志防 root 篡改。
 
 ## 本轮验收与下一步
 

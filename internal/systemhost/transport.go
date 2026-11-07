@@ -76,7 +76,8 @@ func NewClient(socket string) (*Client, error) {
 	}
 	t := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, "unix", socket)
-	}, MaxConnsPerHost: 8, IdleConnTimeout: 30 * time.Second}
+	}, MaxConnsPerHost: 8, IdleConnTimeout: 30 * time.Second,
+		MaxResponseHeaderBytes: 16 << 10, DisableCompression: true}
 	return &Client{http: &http.Client{Transport: t, Timeout: 12 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, transport: t}, nil
 }
 func (c *Client) Close() { c.transport.CloseIdleConnections() }
@@ -106,8 +107,13 @@ func (c *Client) call(ctx context.Context, method, path string, in, out any) err
 	default:
 		return ErrUnavailable
 	}
-	d := json.NewDecoder(io.LimitReader(res.Body, 1<<20))
-	if d.Decode(out) != nil {
+	// Read one extra byte so a valid JSON prefix cannot hide an oversized body.
+	body, e := io.ReadAll(io.LimitReader(res.Body, (1<<20)+1))
+	if e != nil || len(body) > 1<<20 {
+		return ErrUnavailable
+	}
+	d := json.NewDecoder(bytes.NewReader(body))
+	if d.Decode(out) != nil || d.Decode(&struct{}{}) != io.EOF {
 		return ErrUnavailable
 	}
 	return nil
@@ -118,6 +124,9 @@ func (c *Client) Snapshot(ctx context.Context) (v Snapshot, e error) {
 }
 func (c *Client) Apply(ctx context.Context, in Change) (v Result, e error) {
 	e = c.call(ctx, "POST", "/changes", in, &v)
+	if e == nil && (v.ID != in.ID || v.Interface != in.Interface || v.State != "pending" || v.Deadline.IsZero()) {
+		return Result{}, ErrUnavailable
+	}
 	return
 }
 func (c *Client) Finish(ctx context.Context, id string, confirm bool) (v Result, e error) {
@@ -129,5 +138,12 @@ func (c *Client) Finish(ctx context.Context, id string, confirm bool) (v Result,
 		action = "confirm"
 	}
 	e = c.call(ctx, "POST", "/changes/"+id+"/"+action, nil, &v)
+	expected := "rolled_back"
+	if confirm {
+		expected = "confirmed"
+	}
+	if e == nil && (v.ID != id || !ValidInterface(v.Interface) || v.State != expected) {
+		return Result{}, ErrUnavailable
+	}
 	return
 }

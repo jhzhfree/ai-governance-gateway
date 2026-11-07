@@ -132,3 +132,11 @@
 最终后端脚本 `AIGW_VERIFY_WEB=0 GOMAXPROCS=4 bash scripts/verify.sh` 日志包含全部 232 个主模块顶层测试通过，执行模块各包通过（49 个测试），无失败或跳过；包含真实隔离 PostgreSQL、race/vet、契约及模块检查，httpapi 206.137 秒。最后补强的只读过期观测断言另连续 5 轮 race 通过。冻结依赖安装、前端契约/类型/Lint/构建通过，17 个 OIDC 和 1 个本地登录浏览器场景通过；随后新增确认后复读 DNS 断言，17 个 OIDC 场景再次通过（81.638 秒）。私有 D-Bus 的真实线协议序列化、Unix socket 身份检查及代理构建均通过。日志保存在 `/workspace/.onboarding/logs/system-backend-final.log`、`system-readonly-expiry.log`、`system-web-final.log`、`system-browser-confirm-final.log`、`system-dbus-wire.log`。
 
 初次验证发现并修复嵌套模块依赖校验缺失、未来迁移版本测试固定编号与新版本冲突，以及浏览器表格滚动区域不可键盘聚焦；未将失败轮计入通过。NetworkManager 测试使用合成服务；当前环境没有真实 NetworkManager，未安装特权服务或修改开发机网卡/DNS。真实 Linux 虚拟机的 DHCP/静态地址、失联后回退、进程退出与系统重启边界仍须验收；此阶段不构成 V1.0 生产发布。新提交远端 CI 需独立核验。
+
+## 系统管理通信与采样加固阶段
+
+基线 59e5fee。修复必要内存/负载字段缺失被误报为零、计数溢出与非有限浮点数问题；失败采样不更新 CPU 差分基线。代理通信限制响应头 16 KiB、正文 1 MiB，关闭自动压缩，拒绝有效 JSON 后的额外内容、截断和超限响应。成功写结果必须匹配操作 ID、预期状态，临时应用还校验目标接口和非零截止时间；无法验证时返回不可用，由既有控制面记为 unknown，不自动重放。没有新增迁移或修改公开 API/UI，启动自动升级保持至 0025。
+
+新增真实 Unix socket 异常响应与监控异常输入测试；最终 systemhost race 回归通过（1.275 秒），最后结果校验代码通过 vet。17 个 OIDC 浏览器场景全部通过（74.106 秒），包含真实 PostgreSQL/OIDC、Unix 代理 fixture 和确认后复读 DNS。本轮未修改前端，未重复冻结安装/构建及本地登录浏览器；上一阶段已有对应通过证据。日志位于 `/workspace/.onboarding/logs/system-hardening-targeted.log`、`system-hardening-browser.log`。完整 `AIGW_VERIFY_WEB=0 GOMAXPROCS=4 bash scripts/verify.sh` 退出码 0，234 个主模块顶层测试和执行模块各包（49 个测试）通过，无失败或跳过，覆盖真实隔离 PostgreSQL、race/vet、模块和 API 契约；日志 `system-hardening-verify.log`。最后追加的响应结果绑定校验另经上述 systemhost race/vet 与浏览器流程复验。
+
+仍未进行真实 NetworkManager 虚拟机网络切换及失联回退验收，没有修改开发机网络或发布生产版本。

@@ -3,6 +3,7 @@ package systemhost
 import (
 	"context"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"path/filepath"
@@ -53,6 +54,9 @@ func (m *Monitor) Snapshot(ctx context.Context) (Metrics, error) {
 		if e != nil {
 			return v, ErrUnavailable
 		}
+		if n > math.MaxUint64-total {
+			return v, ErrUnavailable
+		}
 		total += n
 		if i == 4 || i == 5 {
 			idle += n
@@ -71,19 +75,28 @@ func (m *Monitor) Snapshot(ctx context.Context) (Metrics, error) {
 		f := strings.Fields(line)
 		if len(f) == 3 && f[2] == "kB" {
 			n, e := strconv.ParseUint(f[1], 10, 64)
-			if e == nil {
+			if e == nil && n <= math.MaxUint64/1024 {
 				values[f[0]] = n * 1024
 			}
 		}
 	}
 	v.MemoryTotal = values["MemTotal:"]
-	v.MemoryAvailable = values["MemAvailable:"]
+	available, present := values["MemAvailable:"]
+	if !present {
+		return v, ErrUnavailable
+	}
+	v.MemoryAvailable = available
 	if v.MemoryTotal == 0 || v.MemoryAvailable > v.MemoryTotal {
 		return v, ErrUnavailable
 	}
-	load, _ := m.read("proc/loadavg")
-	if f := strings.Fields(load); len(f) > 0 {
-		v.Load1, _ = strconv.ParseFloat(f[0], 64)
+	load, e := m.read("proc/loadavg")
+	f = strings.Fields(load)
+	if e != nil || len(f) == 0 {
+		return v, ErrUnavailable
+	}
+	v.Load1, e = strconv.ParseFloat(f[0], 64)
+	if e != nil || v.Load1 < 0 || math.IsNaN(v.Load1) || math.IsInf(v.Load1, 0) {
+		return v, ErrUnavailable
 	}
 	if text, e := m.read("sys/fs/cgroup/memory.max"); e == nil {
 		if n, e := strconv.ParseUint(strings.TrimSpace(text), 10, 64); e == nil {
@@ -97,9 +110,11 @@ func (m *Monitor) Snapshot(ctx context.Context) (Metrics, error) {
 	}
 	if text, e := m.read("sys/fs/cgroup/cpu.max"); e == nil {
 		var quota, period float64
-		if _, e := fmt.Sscan(text, &quota, &period); e == nil && quota > 0 && period > 0 {
+		if _, e := fmt.Sscan(text, &quota, &period); e == nil && quota > 0 && period > 0 && !math.IsInf(quota, 0) && !math.IsInf(period, 0) {
 			n := quota / period
-			v.CgroupCPUQuota = &n
+			if !math.IsInf(n, 0) && n > 0 {
+				v.CgroupCPUQuota = &n
+			}
 		}
 	}
 	interfaces, e := net.Interfaces()
