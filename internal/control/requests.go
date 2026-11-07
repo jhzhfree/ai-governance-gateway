@@ -17,15 +17,19 @@ import (
 // RequestRecord exposes accounting metadata only. State does not acknowledge
 // delivery to the downstream client; rejected requests without a hold are absent.
 type CacheBilling struct {
-	InputPerMillion  int64  `json:"input_per_million"`
-	OutputPerMillion int64  `json:"output_per_million"`
-	ReadPerMillion   int64  `json:"read_per_million"`
-	WritePerMillion  int64  `json:"write_per_million"`
-	DetailsVersion   int    `json:"details_version"`
-	InputTokens      *int64 `json:"input_tokens"`
-	OutputTokens     *int64 `json:"output_tokens"`
-	ReadTokens       *int64 `json:"read_tokens"`
-	WriteTokens      *int64 `json:"write_tokens"`
+	FiveMinutePerMillion *int64 `json:"five_minute_per_million"`
+	OneHourPerMillion    *int64 `json:"one_hour_per_million"`
+	FiveMinuteTokens     *int64 `json:"five_minute_tokens"`
+	OneHourTokens        *int64 `json:"one_hour_tokens"`
+	InputPerMillion      int64  `json:"input_per_million"`
+	OutputPerMillion     int64  `json:"output_per_million"`
+	ReadPerMillion       int64  `json:"read_per_million"`
+	WritePerMillion      int64  `json:"write_per_million"`
+	DetailsVersion       int    `json:"details_version"`
+	InputTokens          *int64 `json:"input_tokens"`
+	OutputTokens         *int64 `json:"output_tokens"`
+	ReadTokens           *int64 `json:"read_tokens"`
+	WriteTokens          *int64 `json:"write_tokens"`
 }
 
 type RequestRecord struct {
@@ -76,9 +80,12 @@ const recordColumns = `r.request_id,r.period_id,r.currency,r.price_version,r.sta
  'attempt_id',a.attempt_id,'request_id',a.request_id,'model',a.model,'provider',a.provider,'region',a.region,'stream',a.stream,'outcome',a.outcome,'error_code',a.error_code,'upstream_status',a.upstream_status,'input_tokens',a.input_tokens,'output_tokens',a.output_tokens,'started_at',a.started_at,'finished_at',a.finished_at,'duration_ms',a.duration_ms) END,
  CASE WHEN b.cache_read_price IS NULL THEN NULL ELSE jsonb_build_object(
  'input_per_million',b.input_price,'output_per_million',b.output_price,'read_per_million',b.cache_read_price,'write_per_million',b.cache_write_price,
+ 'five_minute_per_million',b.cache_write_5m_price,'one_hour_per_million',b.cache_write_1h_price,
+ 'five_minute_tokens',CASE WHEN e.cache_details_version=2 THEN e.cache_write_5m_tokens ELSE NULL END,
+ 'one_hour_tokens',CASE WHEN e.cache_details_version=2 THEN e.cache_write_1h_tokens ELSE NULL END,
  'details_version',COALESCE(e.cache_details_version,0),'input_tokens',e.input_tokens,'output_tokens',e.output_tokens,
- 'read_tokens',CASE WHEN e.cache_details_version=1 THEN e.cache_read_tokens ELSE NULL END,
- 'write_tokens',CASE WHEN e.cache_details_version=1 THEN e.cache_write_tokens ELSE NULL END) END`
+ 'read_tokens',CASE WHEN e.cache_details_version>=1 THEN e.cache_read_tokens ELSE NULL END,
+ 'write_tokens',CASE WHEN e.cache_details_version>=1 THEN e.cache_write_tokens ELSE NULL END) END`
 const recordFrom = ` FROM budget_reservations r LEFT JOIN inference_attempts a ON a.request_id=r.request_id LEFT JOIN newapi_execution_bindings b ON b.attempt_id=a.attempt_id LEFT JOIN newapi_execution_receipts e ON e.attempt_id=b.attempt_id `
 
 func scanRecord(row interface{ Scan(...any) error }, item *RequestRecord, extras ...any) error {

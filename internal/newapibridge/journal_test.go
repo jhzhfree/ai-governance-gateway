@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
+	"github.com/jhzhfree/ai-governance-gateway/internal/database"
 	"github.com/jhzhfree/ai-governance-gateway/internal/execution"
 	"github.com/jhzhfree/ai-governance-gateway/internal/newapibridge"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
@@ -14,7 +15,8 @@ import (
 )
 
 func TestRecoveryReceiptAtomicReplayAndBinding(t *testing.T) {
-	for _, cache := range []bool{false, true} {
+	for _, version := range []int{0, 1, 2} {
+		cache := version > 0
 		for _, cancelled := range []bool{false, true} {
 			pool, ledger, scope := testutil.Database(t)
 			ctx := context.Background()
@@ -25,6 +27,9 @@ func TestRecoveryReceiptAtomicReplayAndBinding(t *testing.T) {
 				cfgDirectory.Models[i].NewAPIChannelID = 1
 				if cache {
 					cfgDirectory.Models[i].CachePricing = &provider.CachePricing{ReadPerMillion: 500000, WritePerMillion: 3000000}
+					if version == 2 {
+						cfgDirectory.Models[i].CachePricing.WriteTTL = &provider.CacheWriteTTL{FiveMinutePerMillion: 3000000, OneHourPerMillion: 6000000}
+					}
 				}
 				cfgDirectory.Models[i].NewAPIChannelRevision = strings.Repeat("a", 64)
 				cfgDirectory.Models[i].UpstreamModel = "backend-model"
@@ -59,7 +64,11 @@ func TestRecoveryReceiptAtomicReplayAndBinding(t *testing.T) {
 			}
 			e := newapibridge.Event{AttemptID: attemptID, RequestID: requestID, State: "completed", Model: "backend-model", ChannelID: 1, PromptTokens: 2, CompletionTokens: 3, TotalTokens: 5}
 			if cache && !cancelled {
-				e.CacheDetailsVersion = 1
+				e.CacheDetailsVersion = version
+				if version == 2 {
+					e.CacheWrite5mTokens = 3
+					e.CacheWrite1hTokens = 2
+				}
 				e.CacheReadTokens = 4
 				e.CacheWriteTokens = 5
 				e.PromptTokens = 11
@@ -70,6 +79,8 @@ func TestRecoveryReceiptAtomicReplayAndBinding(t *testing.T) {
 				missing.CacheDetailsVersion = 0
 				missing.CacheReadTokens = 0
 				missing.CacheWriteTokens = 0
+				missing.CacheWrite5mTokens = 0
+				missing.CacheWrite1hTokens = 0
 				if journal.Apply(ctx, backend, missing) == nil {
 					t.Fatal("missing cache evidence settled tariff")
 				}
@@ -132,12 +143,40 @@ func TestRecoveryReceiptAtomicReplayAndBinding(t *testing.T) {
 			want := int64(16)
 			if cache {
 				want = 33
+				if version == 2 {
+					want = 39
+				}
 			}
 			if cancelled {
 				want = 0
 			}
 			if err != nil || r.State != "settled" || r.Actual == nil || *r.Actual != want {
 				t.Fatal("recovery did not settle exactly once")
+			}
+
+			if version == 1 {
+				// Persist a genuine v29-shaped receipt, then upgrade automatically.
+				testutil.RevertCacheTTLMigration(t, pool)
+				if err := database.Migrate(ctx, pool); err != nil {
+					t.Fatal(err)
+				}
+				var receiptVersion int
+				var five, hour, actual int64
+				var frozen bool
+				if err := pool.QueryRow(ctx, `SELECT e.cache_details_version,e.cache_write_5m_tokens,e.cache_write_1h_tokens,e.actual,b.cache_write_5m_price IS NULL AND b.cache_write_1h_price IS NULL FROM newapi_execution_receipts e JOIN newapi_execution_bindings b USING(attempt_id) WHERE attempt_id=$1`, attemptID).Scan(&receiptVersion, &five, &hour, &actual, &frozen); err != nil || receiptVersion != e.CacheDetailsVersion || five != 0 || hour != 0 || actual != want || !frozen {
+					t.Fatal("upgrade invented duration evidence or repriced old receipt")
+				}
+				if err := journal.Apply(ctx, backend, e); err != nil {
+					t.Fatal("old receipt replay after upgrade", err)
+				}
+			}
+			if version == 2 && !cancelled {
+				changed := e
+				changed.CacheWrite5mTokens++
+				changed.CacheWrite1hTokens--
+				if journal.Apply(ctx, backend, changed) == nil {
+					t.Fatal("changed cache duration distribution accepted")
+				}
 			}
 			bad := e
 			bad.RequestID = "WrongRequest12345"

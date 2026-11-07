@@ -273,7 +273,12 @@ func (r *Route) Bound(maxOutput int) (int64, error) {
 	}
 	price := r.model.InputPerMillion
 	if r.model.CachePricing != nil {
-		price = max(price, r.model.CachePricing.ReadPerMillion, r.model.CachePricing.WritePerMillion)
+		cache := r.model.CachePricing
+		if cache.WriteTTL == nil {
+			price = max(price, cache.ReadPerMillion, cache.WritePerMillion)
+		} else {
+			price = max(price, cache.ReadPerMillion, cache.WriteTTL.FiveMinutePerMillion, cache.WriteTTL.OneHourPerMillion)
+		}
 	}
 	return TokenCost(r.model.MaxInputTokens, int64(maxOutput), 0, 0, price, r.model.OutputPerMillion, nil)
 }
@@ -289,7 +294,7 @@ func (r *Route) ValidateUsage(u *Usage, maxOutput int) (int64, error) {
 		if details.CachedCreationTokens != nil {
 			write = *details.CachedCreationTokens
 		}
-		if read < 0 || write < 0 || read > *u.PromptTokens || write > *u.PromptTokens-read {
+		if read < 0 || write < 0 || read > *u.PromptTokens || write > *u.PromptTokens-read || (details.CachedCreationTokensDetails != nil && (details.CachedCreationTokens == nil || !details.CachedCreationTokensDetails.valid(write))) {
 			return 0, errors.New("invalid cache quantities")
 		}
 	}
@@ -297,7 +302,7 @@ func (r *Route) ValidateUsage(u *Usage, maxOutput int) (int64, error) {
 		if u.PromptTokensDetails == nil || u.PromptTokensDetails.CachedTokens == nil || u.PromptTokensDetails.CachedCreationTokens == nil {
 			return 0, errors.New("missing original cache quantities")
 		}
-		return TokenCost(*u.PromptTokens, *u.CompletionTokens, *u.PromptTokensDetails.CachedTokens, *u.PromptTokensDetails.CachedCreationTokens, r.model.InputPerMillion, r.model.OutputPerMillion, r.model.CachePricing)
+		return TokenCostDetailed(*u.PromptTokens, *u.CompletionTokens, *u.PromptTokensDetails.CachedTokens, *u.PromptTokensDetails.CachedCreationTokens, r.model.InputPerMillion, r.model.OutputPerMillion, r.model.CachePricing, u.PromptTokensDetails.CachedCreationTokensDetails)
 	}
 	return r.Cost(*u.PromptTokens, *u.CompletionTokens)
 }

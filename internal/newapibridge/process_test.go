@@ -61,6 +61,9 @@ func TestNewAPIControlHelper(t *testing.T) {
 		}
 		if os.Getenv("AIGW_INTEGRATION_CACHE") == "1" {
 			cfg.Models[i].CachePricing = &provider.CachePricing{ReadPerMillion: 500000, WritePerMillion: 3000000}
+			if os.Getenv("AIGW_INTEGRATION_TTL") == "1" {
+				cfg.Models[i].CachePricing.WriteTTL = &provider.CacheWriteTTL{FiveMinutePerMillion: 3000000, OneHourPerMillion: 6000000}
+			}
 		}
 		if os.Getenv("AIGW_INTEGRATION_PROTOCOL") == "embedding" {
 			cfg.Models[i].API = "embeddings"
@@ -112,6 +115,14 @@ func TestNewAPITwoProcessImages(t *testing.T) {
 func TestNewAPITwoProcessEmbeddings(t *testing.T) {
 	testNewAPITwoProcessRecovery(t, "embedding", false, false)
 }
+func TestNewAPITwoProcessCacheTTL(t *testing.T) {
+	for _, protocol := range []string{"openai", "deepseek", "anthropic"} {
+		t.Run(protocol, func(t *testing.T) {
+			testNewAPITwoProcessRecovery(t, protocol, false, false, processOptions{cacheTTL: true, replicated: true, multiKey: "polling"})
+		})
+	}
+}
+
 func TestNewAPITwoProcessCacheTariffs(t *testing.T) {
 	for _, protocol := range []string{"openai", "deepseek", "anthropic"} {
 		t.Run(protocol, func(t *testing.T) {
@@ -124,8 +135,8 @@ func TestNewAPITwoProcessCacheTariffs(t *testing.T) {
 }
 
 type processOptions struct {
-	cacheTariff, replicated, responses, messages bool
-	multiKey                                     string
+	cacheTTL, cacheTariff, replicated, responses, messages bool
+	multiKey                                               string
 }
 
 func TestNewAPIReplicatedControlRecovery(t *testing.T) {
@@ -169,7 +180,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	if len(options) > 0 {
 		option = options[0]
 	}
-	cache := option.cacheTariff
+	cache := option.cacheTariff || option.cacheTTL
 	embedding := protocol == "embedding"
 	expectedHeld := int64(288)
 	if tools || images {
@@ -185,12 +196,18 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	}
 	if cache {
 		expectedHeld = 416
+		if option.cacheTTL {
+			expectedHeld = 800
+		}
 		if tools || images {
 			expectedHeld = 3104
 		}
 		expectedSpent = 45
 		if protocol == "anthropic" {
 			expectedSpent = 99
+			if option.cacheTTL {
+				expectedSpent = 117
+			}
 		}
 	}
 	if option.responses {
@@ -228,6 +245,9 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 			if cache {
 				if protocol == "anthropic" {
 					data = strings.ReplaceAll(data, `"input_tokens":2`, `"input_tokens":2,"cache_read_input_tokens":4,"cache_creation_input_tokens":5`)
+					if option.cacheTTL {
+						data = strings.ReplaceAll(data, `"cache_creation_input_tokens":5`, `"cache_creation_input_tokens":5,"cache_creation":{"ephemeral_5m_input_tokens":3,"ephemeral_1h_input_tokens":2}`)
+					}
 				} else {
 					extra := `"prompt_tokens":2,"prompt_tokens_details":{"cached_tokens":1,"cached_creation_tokens":0}`
 					if protocol == "deepseek" {
@@ -474,7 +494,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	child := func() (string, func()) {
 		ready := filepath.Join(t.TempDir(), "ready")
 		command := exec.Command(os.Args[0], "-test.run=^TestNewAPIControlHelper$")
-		command.Env = append(os.Environ(), "AIGW_INTEGRATION_CHILD=1", "AIGW_INTEGRATION_RESPONSES="+map[bool]string{true: "1", false: "0"}[option.responses], "AIGW_INTEGRATION_CACHE="+map[bool]string{true: "1", false: "0"}[cache], "AIGW_INTEGRATION_REVISION="+manifest.Revision, "AIGW_INTEGRATION_PROTOCOL="+protocol, "AIGW_INTEGRATION_IMAGES="+map[bool]string{true: "1", false: "0"}[images], "AIGW_INTEGRATION_RICH="+map[bool]string{true: "1", false: "0"}[tools || images], "AIGW_INTEGRATION_DSN="+isolatedDSN.String(), "AIGW_INTEGRATION_ORIGIN="+faultProxy.URL, "AIGW_INTEGRATION_READY="+ready)
+		command.Env = append(os.Environ(), "AIGW_INTEGRATION_CHILD=1", "AIGW_INTEGRATION_TTL="+map[bool]string{true: "1", false: "0"}[option.cacheTTL], "AIGW_INTEGRATION_RESPONSES="+map[bool]string{true: "1", false: "0"}[option.responses], "AIGW_INTEGRATION_CACHE="+map[bool]string{true: "1", false: "0"}[cache], "AIGW_INTEGRATION_REVISION="+manifest.Revision, "AIGW_INTEGRATION_PROTOCOL="+protocol, "AIGW_INTEGRATION_IMAGES="+map[bool]string{true: "1", false: "0"}[images], "AIGW_INTEGRATION_RICH="+map[bool]string{true: "1", false: "0"}[tools || images], "AIGW_INTEGRATION_DSN="+isolatedDSN.String(), "AIGW_INTEGRATION_ORIGIN="+faultProxy.URL, "AIGW_INTEGRATION_READY="+ready)
 		return start(command, ready)
 	}
 	controlURL, stopControl := child()

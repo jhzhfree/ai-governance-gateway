@@ -31,6 +31,9 @@ func NewRuntime(ctx context.Context, cfg Config, directory *provider.Catalog) (*
 		alias, model := route.ExecutionModel()
 		if route.RequiresCacheEvidence() {
 			cfg.RequireTariff = true
+			if route.TariffVersion() == 2 {
+				cfg.RequireTariffV2 = true
+			}
 		}
 		if route.API() == "embeddings" {
 			cfg.RequireEmbeddings = true

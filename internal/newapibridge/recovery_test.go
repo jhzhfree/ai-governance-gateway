@@ -219,3 +219,38 @@ func TestRecoveryWhileInferenceConnectionSaturated(t *testing.T) {
 		t.Fatal("in-progress hold changed during recovery")
 	}
 }
+
+func TestCacheTTLCapabilityCannotSilentlyDowngrade(t *testing.T) {
+	pool, _, _ := testutil.Database(t)
+	var supported atomic.Bool
+	var duplicated atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		for k, v := range map[string]string{"X-Aigw-Events-Version": "1", "X-Aigw-Paging-Version": "1", "X-Aigw-Admission-Version": "2", "X-Aigw-Config-Version": "1", "X-Aigw-Tariff-Version": "1"} {
+			w.Header().Set(k, v)
+		}
+		if supported.Load() {
+			w.Header().Set("X-Aigw-Tariff-Versions", "1,2")
+		}
+		if duplicated.Load() {
+			w.Header().Add("X-Aigw-Tariff-Versions", "1,2")
+		}
+		w.Write([]byte(`[]`))
+	}))
+	defer server.Close()
+	executor, err := newapibridge.New(newapibridge.Config{Origin: server.URL, ServiceToken: token, Models: map[string]string{"reviewed/model": "backend-model"}, Channels: map[string]int{"reviewed/model": 1}, MaxConcurrent: 1, AllowLoopbackHTTP: true, Journal: newapibridge.NewJournal(pool), RequireTariff: true, RequireTariffV2: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer executor.Close()
+	if executor.ReconcileOnce(context.Background()) == nil {
+		t.Fatal("TTL silently downgraded to aggregate capability")
+	}
+	supported.Store(true)
+	if err := executor.ReconcileOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	duplicated.Store(true)
+	if executor.ReconcileOnce(context.Background()) == nil {
+		t.Fatal("ambiguous capability accepted")
+	}
+}

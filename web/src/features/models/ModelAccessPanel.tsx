@@ -151,7 +151,10 @@ export function ModelAccessPanel({
                   {model.cache_pricing && (
                     <small>
                       缓存读 {model.cache_pricing.read_per_million} / 写{' '}
-                      {model.cache_pricing.write_per_million} 微人民币/百万 token
+                      {model.cache_pricing.write_ttl
+                        ? `5 分钟 ${model.cache_pricing.write_ttl.five_minute_per_million} / 1 小时 ${model.cache_pricing.write_ttl.one_hour_per_million}`
+                        : model.cache_pricing.write_per_million}{' '}
+                      微人民币/百万 token
                     </small>
                   )}
                 </span>

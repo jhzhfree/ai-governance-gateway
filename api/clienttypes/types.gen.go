@@ -96,6 +96,7 @@ const (
 const (
 	CacheBillingDetailsVersionN0 CacheBillingDetailsVersion = 0
 	CacheBillingDetailsVersionN1 CacheBillingDetailsVersion = 1
+	CacheBillingDetailsVersionN2 CacheBillingDetailsVersion = 2
 )
 
 // Defines values for ChangeDeviceState.
@@ -864,15 +865,19 @@ type BudgetCycle struct {
 
 // CacheBilling defines model for CacheBilling.
 type CacheBilling struct {
-	DetailsVersion   CacheBillingDetailsVersion `json:"details_version"`
-	InputPerMillion  int64                      `json:"input_per_million"`
-	InputTokens      *int64                     `json:"input_tokens"`
-	OutputPerMillion int64                      `json:"output_per_million"`
-	OutputTokens     *int64                     `json:"output_tokens"`
-	ReadPerMillion   int64                      `json:"read_per_million"`
-	ReadTokens       *int64                     `json:"read_tokens"`
-	WritePerMillion  int64                      `json:"write_per_million"`
-	WriteTokens      *int64                     `json:"write_tokens"`
+	DetailsVersion       CacheBillingDetailsVersion `json:"details_version"`
+	FiveMinutePerMillion *int64                     `json:"five_minute_per_million"`
+	FiveMinuteTokens     *int64                     `json:"five_minute_tokens"`
+	InputPerMillion      int64                      `json:"input_per_million"`
+	InputTokens          *int64                     `json:"input_tokens"`
+	OneHourPerMillion    *int64                     `json:"one_hour_per_million"`
+	OneHourTokens        *int64                     `json:"one_hour_tokens"`
+	OutputPerMillion     int64                      `json:"output_per_million"`
+	OutputTokens         *int64                     `json:"output_tokens"`
+	ReadPerMillion       int64                      `json:"read_per_million"`
+	ReadTokens           *int64                     `json:"read_tokens"`
+	WritePerMillion      int64                      `json:"write_per_million"`
+	WriteTokens          *int64                     `json:"write_tokens"`
 }
 
 // CacheBillingDetailsVersion defines model for CacheBilling.DetailsVersion.
@@ -882,6 +887,15 @@ type CacheBillingDetailsVersion int
 type CachePricing struct {
 	ReadPerMillion  int64 `json:"read_per_million"`
 	WritePerMillion int64 `json:"write_per_million"`
+
+	// WriteTtl Explicit cache write duration rates; overrides aggregate write_per_million. Requires original tariff-v2 evidence.
+	WriteTtl *CacheWriteTTL `json:"write_ttl,omitempty"`
+}
+
+// CacheWriteTTL Explicit cache write duration rates; overrides aggregate write_per_million. Requires original tariff-v2 evidence.
+type CacheWriteTTL struct {
+	FiveMinutePerMillion int64 `json:"five_minute_per_million"`
+	OneHourPerMillion    int64 `json:"one_hour_per_million"`
 }
 
 // ChangeDevice defines model for ChangeDevice.

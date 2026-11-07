@@ -37,3 +37,14 @@ func (r *Route) GovernanceChannelID() int { return r.model.NewAPIChannelID }
 func (r *Route) GovernanceChannelRevision() string { return r.model.NewAPIChannelRevision }
 
 func (r *Route) RequiresCacheEvidence() bool { return r.model.CachePricing != nil }
+
+// TariffVersion selects the evidence contract before dispatch.
+func (r *Route) TariffVersion() int {
+	if r.model.CachePricing == nil {
+		return 0
+	}
+	if r.model.CachePricing.WriteTTL != nil {
+		return 2
+	}
+	return 1
+}

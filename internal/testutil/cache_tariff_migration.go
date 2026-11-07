@@ -9,6 +9,7 @@ import (
 // RevertCacheTariffMigration restores only v29 in isolated legacy-schema tests.
 func RevertCacheTariffMigration(t testing.TB, pool *pgxpool.Pool) {
 	t.Helper()
+	RevertCacheTTLMigration(t, pool)
 	_, err := pool.Exec(context.Background(), `ALTER TABLE newapi_execution_bindings DROP CONSTRAINT newapi_cache_tariff_check;
  ALTER TABLE newapi_execution_bindings DROP COLUMN cache_read_price,DROP COLUMN cache_write_price;
  ALTER TABLE newapi_execution_receipts DROP CONSTRAINT newapi_cache_evidence_check;

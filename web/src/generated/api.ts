@@ -3187,6 +3187,7 @@ export interface components {
             read_per_million: number;
             /** Format: int64 */
             write_per_million: number;
+            write_ttl?: components["schemas"]["CacheWriteTTL"];
         };
         CacheBilling: {
             /** Format: int64 */
@@ -3198,7 +3199,7 @@ export interface components {
             /** Format: int64 */
             write_per_million: number;
             /** @enum {integer} */
-            details_version: 0 | 1;
+            details_version: 0 | 1 | 2;
             /** Format: int64 */
             input_tokens: number | null;
             /** Format: int64 */
@@ -3207,6 +3208,14 @@ export interface components {
             read_tokens: number | null;
             /** Format: int64 */
             write_tokens: number | null;
+            /** Format: int64 */
+            five_minute_per_million?: number | null;
+            /** Format: int64 */
+            one_hour_per_million?: number | null;
+            /** Format: int64 */
+            five_minute_tokens?: number | null;
+            /** Format: int64 */
+            one_hour_tokens?: number | null;
         };
         ResponsesCreateRequest: {
             model: string;
@@ -3321,6 +3330,13 @@ export interface components {
                 type: string;
                 message: string;
             };
+        };
+        /** @description Explicit cache write duration rates; overrides aggregate write_per_million. Requires original tariff-v2 evidence. */
+        CacheWriteTTL: {
+            /** Format: int64 */
+            five_minute_per_million: number;
+            /** Format: int64 */
+            one_hour_per_million: number;
         };
     };
     responses: never;

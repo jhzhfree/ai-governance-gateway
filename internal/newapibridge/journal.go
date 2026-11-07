@@ -27,15 +27,19 @@ func (j *Journal) Bind(ctx context.Context, backend, model, requestID, attemptID
 	if _, err := route.Bound(maxOutput); err != nil {
 		return ErrInvalid
 	}
-	var readPrice, writePrice any
+	var readPrice, writePrice, fivePrice, hourPrice any
 	if p.CachePricing != nil {
 		readPrice = p.CachePricing.ReadPerMillion
 		writePrice = p.CachePricing.WritePerMillion
+		if p.CachePricing.WriteTTL != nil {
+			fivePrice = p.CachePricing.WriteTTL.FiveMinutePerMillion
+			hourPrice = p.CachePricing.WriteTTL.OneHourPerMillion
+		}
 	}
-	result, err := j.pool.Exec(ctx, `INSERT INTO newapi_execution_bindings(attempt_id,request_id,backend,model,fingerprint,price_version,input_price,output_price,max_input,max_output,channel_id,cache_read_price,cache_write_price)
- SELECT a.attempt_id,a.request_id,$3,$4,$5,$6,$7,$8,$9,$10,$13,$14,$15 FROM inference_attempts a JOIN budget_reservations r ON r.request_id=a.request_id
+	result, err := j.pool.Exec(ctx, `INSERT INTO newapi_execution_bindings(attempt_id,request_id,backend,model,fingerprint,price_version,input_price,output_price,max_input,max_output,channel_id,cache_read_price,cache_write_price,cache_write_5m_price,cache_write_1h_price)
+ SELECT a.attempt_id,a.request_id,$3,$4,$5,$6,$7,$8,$9,$10,$13,$14,$15,$16,$17 FROM inference_attempts a JOIN budget_reservations r ON r.request_id=a.request_id
  WHERE a.attempt_id=$1 AND a.request_id=$2 AND a.model=$11 AND a.outcome='unfinished' AND r.state='dispatched' AND r.price_version=$6 AND r.currency=$12
- ON CONFLICT DO NOTHING`, attemptID, requestID, backend, model, fingerprint, p.PriceVersion, p.InputPerMillion, p.OutputPerMillion, p.MaxInputTokens, maxOutput, p.ID, provider.Currency, route.GovernanceChannelID(), readPrice, writePrice)
+ ON CONFLICT DO NOTHING`, attemptID, requestID, backend, model, fingerprint, p.PriceVersion, p.InputPerMillion, p.OutputPerMillion, p.MaxInputTokens, maxOutput, p.ID, provider.Currency, route.GovernanceChannelID(), readPrice, writePrice, fivePrice, hourPrice)
 	if err != nil {
 		return err
 	}
@@ -48,6 +52,7 @@ func (j *Journal) Bind(ctx context.Context, backend, model, requestID, attemptID
 // Event is returned only by the authenticated data-plane outbox endpoint.
 // Original field names match the new-api model's JSON contract.
 type Event struct {
+	CacheWrite5mTokens, CacheWrite1hTokens      int64
 	CacheDetailsVersion                         int
 	CacheReadTokens, CacheWriteTokens           int64
 	AttemptID                                   string
@@ -62,15 +67,18 @@ func (j *Journal) Apply(ctx context.Context, backend string, e Event) error {
 	if j == nil || !idPattern.MatchString(e.AttemptID) || !idPattern.MatchString(e.RequestID) || (e.State != "completed" && e.State != "cancelled") || e.PromptTokens < 0 || e.CompletionTokens < 0 || e.PromptTokens > 1<<31-1 || e.CompletionTokens > 1<<31-1 || e.TotalTokens != e.PromptTokens+e.CompletionTokens {
 		return ErrInvalid
 	}
-	if e.CacheDetailsVersion < 0 || e.CacheDetailsVersion > 1 || e.CacheReadTokens < 0 || e.CacheWriteTokens < 0 || e.CacheReadTokens > e.PromptTokens || e.CacheWriteTokens > e.PromptTokens-e.CacheReadTokens || (e.CacheDetailsVersion == 0 && (e.CacheReadTokens != 0 || e.CacheWriteTokens != 0)) {
+	if e.CacheDetailsVersion < 0 || e.CacheDetailsVersion > 2 || e.CacheReadTokens < 0 || e.CacheWriteTokens < 0 || e.CacheReadTokens > e.PromptTokens || e.CacheWriteTokens > e.PromptTokens-e.CacheReadTokens || (e.CacheDetailsVersion == 0 && (e.CacheReadTokens != 0 || e.CacheWriteTokens != 0)) {
+		return ErrInvalid
+	}
+	if e.CacheWrite5mTokens < 0 || e.CacheWrite1hTokens < 0 || e.CacheWrite5mTokens > e.CacheWriteTokens || e.CacheWrite1hTokens > e.CacheWriteTokens || (e.CacheDetailsVersion == 2 && e.CacheWrite1hTokens != e.CacheWriteTokens-e.CacheWrite5mTokens) || (e.CacheDetailsVersion != 2 && (e.CacheWrite5mTokens != 0 || e.CacheWrite1hTokens != 0)) {
 		return ErrInvalid
 	}
 	return pgx.BeginFunc(ctx, j.pool, func(tx pgx.Tx) error {
 		var requestID, model string
 		var inPrice, outPrice, maxInput, maxOutput int64
 		var channelID int
-		var readPrice, writePrice pgtype.Int8
-		if err := tx.QueryRow(ctx, `SELECT request_id,model,input_price,output_price,max_input,max_output,channel_id,cache_read_price,cache_write_price FROM newapi_execution_bindings WHERE attempt_id=$1 AND backend=$2 FOR UPDATE`, e.AttemptID, backend).Scan(&requestID, &model, &inPrice, &outPrice, &maxInput, &maxOutput, &channelID, &readPrice, &writePrice); err != nil {
+		var readPrice, writePrice, fivePrice, hourPrice pgtype.Int8
+		if err := tx.QueryRow(ctx, `SELECT request_id,model,input_price,output_price,max_input,max_output,channel_id,cache_read_price,cache_write_price,cache_write_5m_price,cache_write_1h_price FROM newapi_execution_bindings WHERE attempt_id=$1 AND backend=$2 FOR UPDATE`, e.AttemptID, backend).Scan(&requestID, &model, &inPrice, &outPrice, &maxInput, &maxOutput, &channelID, &readPrice, &writePrice, &fivePrice, &hourPrice); err != nil {
 			return err
 		}
 		if requestID != e.RequestID || e.PromptTokens > maxInput || e.CompletionTokens > maxOutput {
@@ -83,26 +91,38 @@ func (j *Journal) Apply(ctx context.Context, backend string, e Event) error {
 			return ErrInvalid
 		}
 		var cache *provider.CachePricing
-		if readPrice.Valid != writePrice.Valid {
+		if readPrice.Valid != writePrice.Valid || fivePrice.Valid != hourPrice.Valid || (fivePrice.Valid && !readPrice.Valid) {
 			return ErrInvalid
 		}
 		if readPrice.Valid {
-			if e.State == "completed" && e.CacheDetailsVersion != 1 {
+			version := 1
+			if fivePrice.Valid {
+				version = 2
+			}
+			if e.State == "completed" && e.CacheDetailsVersion != version {
 				return ErrInvalid
 			}
 			cache = &provider.CachePricing{ReadPerMillion: readPrice.Int64, WritePerMillion: writePrice.Int64}
+			if fivePrice.Valid {
+				cache.WriteTTL = &provider.CacheWriteTTL{FiveMinutePerMillion: fivePrice.Int64, OneHourPerMillion: hourPrice.Int64}
+			}
 		}
-		actual, err := provider.TokenCost(e.PromptTokens, e.CompletionTokens, e.CacheReadTokens, e.CacheWriteTokens, inPrice, outPrice, cache)
+		var ttl *provider.CacheWriteUsage
+		// A verified cancelled receipt proves no dispatch and therefore zero usage.
+		if e.CacheDetailsVersion == 2 || (fivePrice.Valid && e.State == "cancelled") {
+			ttl = &provider.CacheWriteUsage{FiveMinuteTokens: &e.CacheWrite5mTokens, OneHourTokens: &e.CacheWrite1hTokens}
+		}
+		actual, err := provider.TokenCostDetailed(e.PromptTokens, e.CompletionTokens, e.CacheReadTokens, e.CacheWriteTokens, inPrice, outPrice, cache, ttl)
 		if err != nil {
 			return ErrInvalid
 		}
 
 		var state string
-		var input, output, oldActual, oldRead, oldWrite int64
+		var input, output, oldActual, oldRead, oldWrite, oldFive, oldHour int64
 		var oldVersion int
-		err = tx.QueryRow(ctx, `SELECT state,input_tokens,output_tokens,actual,cache_details_version,cache_read_tokens,cache_write_tokens FROM newapi_execution_receipts WHERE attempt_id=$1`, e.AttemptID).Scan(&state, &input, &output, &oldActual, &oldVersion, &oldRead, &oldWrite)
+		err = tx.QueryRow(ctx, `SELECT state,input_tokens,output_tokens,actual,cache_details_version,cache_read_tokens,cache_write_tokens,cache_write_5m_tokens,cache_write_1h_tokens FROM newapi_execution_receipts WHERE attempt_id=$1`, e.AttemptID).Scan(&state, &input, &output, &oldActual, &oldVersion, &oldRead, &oldWrite, &oldFive, &oldHour)
 		if err == nil {
-			if state == e.State && input == e.PromptTokens && output == e.CompletionTokens && oldActual == actual && oldVersion == e.CacheDetailsVersion && oldRead == e.CacheReadTokens && oldWrite == e.CacheWriteTokens {
+			if state == e.State && input == e.PromptTokens && output == e.CompletionTokens && oldActual == actual && oldVersion == e.CacheDetailsVersion && oldRead == e.CacheReadTokens && oldWrite == e.CacheWriteTokens && oldFive == e.CacheWrite5mTokens && oldHour == e.CacheWrite1hTokens {
 				return nil
 			}
 			return ErrInvalid
@@ -113,7 +133,7 @@ func (j *Journal) Apply(ctx context.Context, backend string, e Event) error {
 		if err := budget.ReconcileTx(ctx, tx, requestID, actual); err != nil {
 			return err
 		}
-		_, err = tx.Exec(ctx, `INSERT INTO newapi_execution_receipts(attempt_id,state,input_tokens,output_tokens,actual,cache_details_version,cache_read_tokens,cache_write_tokens) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, e.AttemptID, e.State, e.PromptTokens, e.CompletionTokens, actual, e.CacheDetailsVersion, e.CacheReadTokens, e.CacheWriteTokens)
+		_, err = tx.Exec(ctx, `INSERT INTO newapi_execution_receipts(attempt_id,state,input_tokens,output_tokens,actual,cache_details_version,cache_read_tokens,cache_write_tokens,cache_write_5m_tokens,cache_write_1h_tokens) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, e.AttemptID, e.State, e.PromptTokens, e.CompletionTokens, actual, e.CacheDetailsVersion, e.CacheReadTokens, e.CacheWriteTokens, e.CacheWrite5mTokens, e.CacheWrite1hTokens)
 		if err != nil {
 			return err
 		}

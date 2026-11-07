@@ -56,7 +56,7 @@ func TestFreshSchemaAndReadOnlyStatus(t *testing.T) {
 	pool := testutil.EmptyDatabase(t)
 	ctx := context.Background()
 	initial := status(t, pool)
-	if initial.Managed || initial.Ready || initial.CurrentVersion != 0 || len(initial.Pending) != 29 {
+	if initial.Managed || initial.Ready || initial.CurrentVersion != 0 || len(initial.Pending) != 30 {
 		t.Fatal("unexpected unmanaged status")
 	}
 	if relation(t, pool, "aigw_schema_migrations") {
@@ -69,7 +69,7 @@ func TestFreshSchemaAndReadOnlyStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := status(t, pool)
-	if !before.Ready || before.CurrentVersion != 29 || len(before.Applied) != 29 {
+	if !before.Ready || before.CurrentVersion != 30 || len(before.Applied) != 30 {
 		t.Fatal("fresh migration incomplete")
 	}
 	for _, a := range before.Applied {
@@ -203,7 +203,7 @@ func TestConcurrentMigrationsRunExactlyOnce(t *testing.T) {
 	close(start)
 	wg.Wait()
 	r := status(t, pool)
-	if len(r.Applied) != 29 || !r.Ready {
+	if len(r.Applied) != 30 || !r.Ready {
 		t.Fatal("concurrent migration history invalid")
 	}
 }
@@ -1096,6 +1096,33 @@ func TestCacheTariffUpgradeRollbackAndReadiness(t *testing.T) {
 		t.Fatal(err)
 	}
 	execSQL(t, pool, `ALTER TABLE newapi_execution_bindings DROP CONSTRAINT newapi_cache_tariff_check`)
+	if database.Check(ctx, pool) == nil {
+		t.Fatal("missing cache tariff constraint accepted")
+	}
+}
+
+func TestCacheTTLUpgradeRollbackAndReadiness(t *testing.T) {
+	pool, _, _ := testutil.Database(t)
+	ctx := context.Background()
+	testutil.RevertCacheTTLMigration(t, pool)
+	execSQL(t, pool, `ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v30 CHECK(version<>30)`)
+	if database.Migrate(ctx, pool) == nil {
+		t.Fatal("failed cache tariff upgrade accepted")
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM pg_constraint WHERE conrelid='newapi_execution_bindings'::regclass AND conname='newapi_cache_ttl_tariff_check'`).Scan(&count); err != nil || count != 0 {
+		t.Fatal("failed upgrade left new constraint")
+	}
+	execSQL(t, pool, `ALTER TABLE aigw_schema_migrations DROP CONSTRAINT reject_v30`)
+	for range 2 {
+		if err := database.Migrate(ctx, pool); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := database.Check(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	execSQL(t, pool, `ALTER TABLE newapi_execution_bindings DROP CONSTRAINT newapi_cache_ttl_tariff_check`)
 	if database.Check(ctx, pool) == nil {
 		t.Fatal("missing cache tariff constraint accepted")
 	}

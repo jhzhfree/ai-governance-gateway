@@ -28,8 +28,9 @@ type Request struct {
 	Messages       []Message `json:"messages"`
 }
 type InputTokenDetails struct {
-	CachedTokens         *int64 `json:"cached_tokens"`
-	CachedCreationTokens *int64 `json:"cached_creation_tokens,omitempty"`
+	CachedCreationTokensDetails *CacheWriteUsage `json:"cached_creation_tokens_details,omitempty"`
+	CachedTokens                *int64           `json:"cached_tokens"`
+	CachedCreationTokens        *int64           `json:"cached_creation_tokens,omitempty"`
 }
 type Usage struct {
 	PromptTokensDetails *InputTokenDetails `json:"prompt_tokens_details,omitempty"`
