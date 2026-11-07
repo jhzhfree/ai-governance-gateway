@@ -1,11 +1,18 @@
-import { useEffect, useState } from 'react';
+import { lazy, useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError, type Session } from './api';
 import { Mark, ErrorBox } from './shared/Feedback';
 import { useSearchParams } from 'react-router-dom';
-import { AuditorWorkspace } from './features/content/AuditorWorkspace';
+import { FeatureBoundary } from './shared/FeatureBoundary';
 import { LoginOptions, LocalPasswordForm } from './features/local/LocalLogin';
-import { Console } from './features/workspace/Console';
+const Console = lazy(() =>
+  import('./features/workspace/Console').then((module) => ({ default: module.Console })),
+);
+const AuditorWorkspace = lazy(() =>
+  import('./features/content/AuditorWorkspace').then((module) => ({
+    default: module.AuditorWorkspace,
+  })),
+);
 
 export function App() {
   const client = useQueryClient();
@@ -81,11 +88,17 @@ export function App() {
     );
   if (params.get('audit_only') === '1' && params.get('org') && params.get('project'))
     return (
-      <AuditorWorkspace
-        session={session.data}
-        org={params.get('org')!}
-        project={params.get('project')!}
-      />
+      <FeatureBoundary key="auditor">
+        <AuditorWorkspace
+          session={session.data}
+          org={params.get('org')!}
+          project={params.get('project')!}
+        />
+      </FeatureBoundary>
     );
-  return <Console session={session.data} />;
+  return (
+    <FeatureBoundary key="console">
+      <Console session={session.data} />
+    </FeatureBoundary>
+  );
 }

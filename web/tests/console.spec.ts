@@ -1,6 +1,42 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
+test('feature chunks load on demand and recover without losing navigation', async ({ page }) => {
+  const systemChunk = /\/assets\/SystemPanel-[^/]+\.js(?:\?.*)?$/;
+  let requests = 0;
+  let release!: () => void;
+  const blocked = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(systemChunk, async (route) => {
+    requests++;
+    await blocked;
+    await route.abort();
+  });
+  try {
+    await page.goto('/');
+    await page.getByRole('link', { name: /使用组织账号登录/ }).click();
+    await expect(page.getByRole('heading', { name: '项目概览.' })).toBeVisible();
+    expect(requests).toBe(0);
+    await page.getByRole('button', { name: '系统管理', exact: true }).click();
+    await expect(page.getByRole('status').filter({ hasText: '正在加载功能页面' })).toBeVisible();
+    expect(requests).toBe(1);
+    release();
+    await expect(page.getByRole('alert').filter({ hasText: '页面暂时无法显示' })).toBeVisible();
+    await page.getByRole('button', { name: '项目概览', exact: true }).click();
+    await expect(page.getByRole('heading', { name: '项目概览.' })).toBeVisible();
+    await expect(page.getByRole('alert').filter({ hasText: '页面暂时无法显示' })).toHaveCount(0);
+    await page.getByRole('button', { name: '系统管理', exact: true }).click();
+    await expect(page.getByRole('button', { name: '重新加载页面' })).toBeVisible();
+    await page.unroute(systemChunk);
+    await page.getByRole('button', { name: '重新加载页面' }).click();
+    await expect(page.getByRole('heading', { name: 'CPU 使用率', exact: true })).toBeVisible();
+  } finally {
+    release();
+    await page.unroute(systemChunk);
+  }
+});
+
 test('login, organization, project, one-time key and revocation', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.name));

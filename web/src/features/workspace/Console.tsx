@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { lazy, useRef, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Dialog, Tag } from 'tdesign-react';
@@ -17,27 +17,61 @@ import {
 } from '../../api';
 import { Mark, ErrorBox, Empty } from '../../shared/Feedback';
 import { usePage } from '../../shared/useResourcePage';
+import { FeatureBoundary } from '../../shared/FeatureBoundary';
 import { roleNames, number, budgetAmount } from '../../shared/format';
 import { navigation, navigationItems, NavigationIcon } from './navigation';
 import { SecretDialog } from '../keys/SecretDialog';
 import { KeyPanel } from '../keys/KeyPanel';
-import { RequestPanel } from '../requests/RequestPanel';
 import { ModelAccessPanel, currencyLabel } from '../models/ModelAccessPanel';
-import { CostReportPanel } from '../operations/CostReportPanel';
-import { OperationsPanel } from '../operations/OperationsPanel';
-import { ContentAuditPanel } from '../content/ContentAuditPanel';
-import { LocalAccountsPanel } from '../local/LocalAccountsPanel';
-import { BudgetAlertsPanel } from '../governance/BudgetAlertsPanel';
 import type { BudgetApprovalPolicy } from '../../api';
-import { BudgetPanel } from '../governance/BudgetPanel';
-import { KeywordPanel } from '../governance/KeywordPanel';
-import { ProviderPanel } from '../providers/ProviderPanel';
-import { OwnershipPanel } from '../members/OwnershipPanel';
-import { DevicePanel } from '../devices/DevicePanel';
-import { DepartmentPanel } from '../departments/DepartmentPanel';
-import { MemberPanel } from '../members/MemberPanel';
-import { SystemPanel } from '../system/SystemPanel';
-import { AuditPanel } from '../audit/AuditPanel';
+
+const RequestPanel = lazy(() =>
+  import('../requests/RequestPanel').then((module) => ({ default: module.RequestPanel })),
+);
+const CostReportPanel = lazy(() =>
+  import('../operations/CostReportPanel').then((module) => ({ default: module.CostReportPanel })),
+);
+const OperationsPanel = lazy(() =>
+  import('../operations/OperationsPanel').then((module) => ({ default: module.OperationsPanel })),
+);
+const ContentAuditPanel = lazy(() =>
+  import('../content/ContentAuditPanel').then((module) => ({ default: module.ContentAuditPanel })),
+);
+const LocalAccountsPanel = lazy(() =>
+  import('../local/LocalAccountsPanel').then((module) => ({ default: module.LocalAccountsPanel })),
+);
+const BudgetAlertsPanel = lazy(() =>
+  import('../governance/BudgetAlertsPanel').then((module) => ({
+    default: module.BudgetAlertsPanel,
+  })),
+);
+const BudgetPanel = lazy(() =>
+  import('../governance/BudgetPanel').then((module) => ({ default: module.BudgetPanel })),
+);
+const KeywordPanel = lazy(() =>
+  import('../governance/KeywordPanel').then((module) => ({ default: module.KeywordPanel })),
+);
+const ProviderPanel = lazy(() =>
+  import('../providers/ProviderPanel').then((module) => ({ default: module.ProviderPanel })),
+);
+const OwnershipPanel = lazy(() =>
+  import('../members/OwnershipPanel').then((module) => ({ default: module.OwnershipPanel })),
+);
+const DevicePanel = lazy(() =>
+  import('../devices/DevicePanel').then((module) => ({ default: module.DevicePanel })),
+);
+const DepartmentPanel = lazy(() =>
+  import('../departments/DepartmentPanel').then((module) => ({ default: module.DepartmentPanel })),
+);
+const MemberPanel = lazy(() =>
+  import('../members/MemberPanel').then((module) => ({ default: module.MemberPanel })),
+);
+const SystemPanel = lazy(() =>
+  import('../system/SystemPanel').then((module) => ({ default: module.SystemPanel })),
+);
+const AuditPanel = lazy(() =>
+  import('../audit/AuditPanel').then((module) => ({ default: module.AuditPanel })),
+);
 
 export function Console({ session }: { session: Session }) {
   const returnFocus = useRef<HTMLElement | null>(null);
@@ -427,309 +461,311 @@ export function Console({ session }: { session: Session }) {
               }}
             />
           )}
-          {view === 'system' ? (
-            <SystemPanel identity={identity} csrf={session.csrf_token} />
-          ) : view === 'local' && session.auth_mode === 'local' ? (
-            <LocalAccountsPanel session={session} />
-          ) : view === 'providers' ? (
-            <ProviderPanel identity={identity} csrf={session.csrf_token} />
-          ) : organizations.isPending ? (
-            <div className="loading" role="status">
-              正在加载组织…
-            </div>
-          ) : orgs.length === 0 ? (
-            <section className="panel">
-              <Empty
-                title="从第一个组织开始"
-                description="创建组织，设置预算，再为团队的应用添加项目。"
-              />
-              <div className="empty-action">
-                <Button
-                  theme="primary"
-                  disabled={!catalog.isSuccess || currencies.length === 0}
-                  onClick={() => open('organization')}
-                >
-                  创建组织
-                </Button>
+          <FeatureBoundary key={view}>
+            {view === 'system' ? (
+              <SystemPanel identity={identity} csrf={session.csrf_token} />
+            ) : view === 'local' && session.auth_mode === 'local' ? (
+              <LocalAccountsPanel session={session} />
+            ) : view === 'providers' ? (
+              <ProviderPanel identity={identity} csrf={session.csrf_token} />
+            ) : organizations.isPending ? (
+              <div className="loading" role="status">
+                正在加载组织…
               </div>
-            </section>
-          ) : (
-            <>
-              {projects.error && (
-                <ErrorBox
-                  error={projects.error}
-                  retry={() => {
-                    void projects.refetch();
-                  }}
+            ) : orgs.length === 0 ? (
+              <section className="panel">
+                <Empty
+                  title="从第一个组织开始"
+                  description="创建组织，设置预算，再为团队的应用添加项目。"
                 />
-              )}
-              {!projectID &&
-                !projects.isPending &&
-                view !== 'audit' &&
-                view !== 'members' &&
-                view !== 'departments' &&
-                view !== 'devices' &&
-                view !== 'budget' &&
-                view !== 'reports' &&
-                view !== 'alerts' &&
-                view !== 'ownership' && (
-                  <section className="panel">
-                    <Empty
-                      title="还没有可访问的项目"
-                      description={
-                        canManage
-                          ? '新建项目，配置预算并生成模型访问密钥。'
-                          : '请联系组织管理员为你分配项目。'
-                      }
-                    />
-                    {canManage && (
-                      <div className="empty-action">
-                        <Button theme="primary" onClick={() => open('project')}>
-                          创建项目
-                        </Button>
-                      </div>
-                    )}
-                  </section>
+                <div className="empty-action">
+                  <Button
+                    theme="primary"
+                    disabled={!catalog.isSuccess || currencies.length === 0}
+                    onClick={() => open('organization')}
+                  >
+                    创建组织
+                  </Button>
+                </div>
+              </section>
+            ) : (
+              <>
+                {projects.error && (
+                  <ErrorBox
+                    error={projects.error}
+                    retry={() => {
+                      void projects.refetch();
+                    }}
+                  />
                 )}
-              {project.error &&
-                view !== 'audit' &&
-                view !== 'members' &&
-                view !== 'departments' &&
-                view !== 'devices' &&
-                view !== 'budget' &&
-                view !== 'reports' && <ErrorBox error={project.error} />}
-              {view === 'devices' ? (
-                <DevicePanel
-                  key={orgPath + '/' + projectID}
-                  identity={identity}
-                  orgPath={orgPath}
-                  projectPath={projectID ? projectPath : undefined}
-                  csrf={session.csrf_token}
-                  canManage={canManage}
-                />
-              ) : view === 'departments' ? (
-                <DepartmentPanel
-                  key={orgPath}
-                  identity={identity}
-                  orgPath={orgPath}
-                  csrf={session.csrf_token}
-                  canManage={canManage}
-                />
-              ) : view === 'ownership' ? (
-                <OwnershipPanel
-                  key={orgPath}
-                  identity={identity}
-                  orgPath={orgPath}
-                  isOwner={organization?.role === 'owner'}
-                  session={session}
-                />
-              ) : view === 'alerts' ? (
-                <BudgetAlertsPanel
-                  identity={identity}
-                  orgPath={orgPath}
-                  projectPath={projectID ? projectPath : undefined}
-                  canManage={canManage}
-                  csrf={session.csrf_token}
-                />
-              ) : view === 'reports' ? (
-                <CostReportPanel
-                  key={projectPath}
-                  identity={identity}
-                  orgPath={orgPath}
-                  projectPath={projectID ? projectPath : undefined}
-                  canManage={canManage}
-                  csrf={session.csrf_token}
-                />
-              ) : view === 'budget' ? (
-                <BudgetPanel
-                  isOwner={organization?.role === 'owner'}
-                  identity={identity}
-                  orgPath={orgPath}
-                  projectPath={projectID ? projectPath : undefined}
-                  canManage={canManage}
-                  csrf={session.csrf_token}
-                />
-              ) : view === 'keywords' && projectID ? (
-                <KeywordPanel
-                  identity={identity}
-                  projectPath={projectPath}
-                  csrf={session.csrf_token}
-                />
-              ) : view === 'content' && projectID ? (
-                <>
-                  <p className="content-audit-entry">
-                    独立审计员访问地址：
-                    <a
-                      href={`/?audit_only=1&org=${encodeURIComponent(orgID)}&project=${encodeURIComponent(projectID)}`}
-                    >
-                      打开当前项目内容审计专用入口
-                    </a>
-                  </p>
-                  <ContentAuditPanel
+                {!projectID &&
+                  !projects.isPending &&
+                  view !== 'audit' &&
+                  view !== 'members' &&
+                  view !== 'departments' &&
+                  view !== 'devices' &&
+                  view !== 'budget' &&
+                  view !== 'reports' &&
+                  view !== 'alerts' &&
+                  view !== 'ownership' && (
+                    <section className="panel">
+                      <Empty
+                        title="还没有可访问的项目"
+                        description={
+                          canManage
+                            ? '新建项目，配置预算并生成模型访问密钥。'
+                            : '请联系组织管理员为你分配项目。'
+                        }
+                      />
+                      {canManage && (
+                        <div className="empty-action">
+                          <Button theme="primary" onClick={() => open('project')}>
+                            创建项目
+                          </Button>
+                        </div>
+                      )}
+                    </section>
+                  )}
+                {project.error &&
+                  view !== 'audit' &&
+                  view !== 'members' &&
+                  view !== 'departments' &&
+                  view !== 'devices' &&
+                  view !== 'budget' &&
+                  view !== 'reports' && <ErrorBox error={project.error} />}
+                {view === 'devices' ? (
+                  <DevicePanel
+                    key={orgPath + '/' + projectID}
+                    identity={identity}
+                    orgPath={orgPath}
+                    projectPath={projectID ? projectPath : undefined}
+                    csrf={session.csrf_token}
+                    canManage={canManage}
+                  />
+                ) : view === 'departments' ? (
+                  <DepartmentPanel
+                    key={orgPath}
+                    identity={identity}
+                    orgPath={orgPath}
+                    csrf={session.csrf_token}
+                    canManage={canManage}
+                  />
+                ) : view === 'ownership' ? (
+                  <OwnershipPanel
+                    key={orgPath}
+                    identity={identity}
+                    orgPath={orgPath}
+                    isOwner={organization?.role === 'owner'}
+                    session={session}
+                  />
+                ) : view === 'alerts' ? (
+                  <BudgetAlertsPanel
+                    identity={identity}
+                    orgPath={orgPath}
+                    projectPath={projectID ? projectPath : undefined}
+                    canManage={canManage}
+                    csrf={session.csrf_token}
+                  />
+                ) : view === 'reports' ? (
+                  <CostReportPanel
                     key={projectPath}
+                    identity={identity}
+                    orgPath={orgPath}
+                    projectPath={projectID ? projectPath : undefined}
+                    canManage={canManage}
+                    csrf={session.csrf_token}
+                  />
+                ) : view === 'budget' ? (
+                  <BudgetPanel
+                    isOwner={organization?.role === 'owner'}
+                    identity={identity}
+                    orgPath={orgPath}
+                    projectPath={projectID ? projectPath : undefined}
+                    canManage={canManage}
+                    csrf={session.csrf_token}
+                  />
+                ) : view === 'keywords' && projectID ? (
+                  <KeywordPanel
                     identity={identity}
                     projectPath={projectPath}
                     csrf={session.csrf_token}
-                    canManage={canManage}
-                    canGrant={organization?.role === 'owner'}
                   />
-                </>
-              ) : view === 'members' ? (
-                <MemberPanel
-                  key={orgPath + '/' + projectID}
-                  identity={identity}
-                  orgPath={orgPath}
-                  projectPath={projectID ? projectPath : undefined}
-                  canRead={canManage}
-                  isOwner={organization?.role === 'owner'}
-                  csrf={session.csrf_token}
-                />
-              ) : view === 'audit' ? (
-                <AuditPanel
-                  items={audit.data?.pages.flatMap((p) => p.data) ?? []}
-                  error={audit.error}
-                  loading={audit.isPending}
-                  hasMore={audit.hasNextPage}
-                  onMore={() => {
-                    void audit.fetchNextPage();
-                  }}
-                />
-              ) : (
-                project.data && (
+                ) : view === 'content' && projectID ? (
                   <>
-                    {view === 'operations' && (
-                      <OperationsPanel
-                        currency={organization?.currency ?? usage.data?.currency ?? ''}
-                        key={projectPath}
-                        identity={identity}
-                        projectPath={projectPath}
-                        canManage={canManage}
-                        csrf={session.csrf_token}
-                      />
-                    )}
-                    {view === 'requests' && (
-                      <RequestPanel
-                        key={projectPath}
-                        identity={identity}
-                        projectPath={projectPath}
-                      />
-                    )}
-                    {view === 'overview' && (
-                      <>
-                        <section className="project-title">
-                          <div>
-                            <h2>{project.data.name}</h2>
-                            <span>项目用量与访问概况</span>
-                          </div>
-                          <Tag variant="light" theme="success">
-                            {roleNames[project.data.role]}
-                          </Tag>
-                        </section>
-                        {usage.error ? (
-                          <ErrorBox
-                            error={usage.error}
-                            retry={() => {
-                              void usage.refetch();
-                            }}
-                          />
-                        ) : usage.data ? (
-                          <>
-                            <div className="metric-grid">
-                              {[
-                                ['项目预算', usage.data.limit_amount, '当前配置周期的费用上限'],
-                                ['已使用', usage.data.spent, '已完成结算的模型调用'],
-                                ['预留中', usage.data.held, '进行中或等待核对的调用'],
-                                [
-                                  '可用预算',
-                                  usage.data.limit_amount - usage.data.spent - usage.data.held,
-                                  '可继续用于新调用的额度',
-                                ],
-                              ].map(([label, value, hint], index) => (
-                                <article
-                                  className={`metric-card metric-${index}`}
-                                  key={String(label)}
-                                >
-                                  <div className="metric-label">{label}</div>
-                                  <div
-                                    className="metric-value"
-                                    title={`${number(Number(value))} ${currencyLabel(usage.data!.currency)}`}
-                                  >
-                                    {budgetAmount(Number(value), usage.data!.currency)}
-                                    <small>
-                                      {usage.data!.currency === 'CNY_MICRO' ? '元' : '单位'}
-                                    </small>
-                                  </div>
-                                  <p>{hint}</p>
-                                </article>
-                              ))}
-                            </div>
-                            <section className="budget-strip">
-                              <div>
-                                <strong>预算使用情况</strong>
-                                <span>
-                                  {usage.data.period} · {currencyLabel(usage.data.currency)}
-                                </span>
-                              </div>
-                              <progress
-                                aria-label="预算占用比例"
-                                value={usage.data.spent + usage.data.held}
-                                max={usage.data.limit_amount || 1}
-                              />
-                              <span>
-                                {usage.data.limit_amount
-                                  ? Math.round(
-                                      ((usage.data.spent + usage.data.held) /
-                                        usage.data.limit_amount) *
-                                        100,
-                                    )
-                                  : 0}
-                                % 已使用或预留
-                              </span>
-                            </section>
-                          </>
-                        ) : (
-                          <div className="loading" role="status">
-                            正在加载用量…
-                          </div>
-                        )}
-                        <ModelAccessPanel
-                          key={projectPath}
-                          project={project.data}
-                          path={projectPath}
-                          currency={organization?.currency ?? usage.data?.currency ?? ''}
-                          models={catalog.data?.data ?? []}
-                          error={catalog.error}
-                          canManage={Boolean(canManage)}
-                          csrf={session.csrf_token}
-                          onSaved={refresh}
-                        />
-                      </>
-                    )}
-                    {(view === 'overview' || view === 'keys') && (
-                      <KeyPanel
-                        items={visibleKeys}
-                        error={keys.error}
-                        loading={keys.isPending}
-                        hasMore={keys.hasNextPage}
-                        canIssue={Boolean(canIssue)}
-                        onCreate={() => open('key')}
-                        onRetry={() => {
-                          void keys.refetch();
-                        }}
-                        onMore={() => {
-                          void keys.fetchNextPage();
-                        }}
-                        onRevoke={(key) => {
-                          setFormError(null);
-                          setRevoke(key);
-                        }}
-                      />
-                    )}
+                    <p className="content-audit-entry">
+                      独立审计员访问地址：
+                      <a
+                        href={`/?audit_only=1&org=${encodeURIComponent(orgID)}&project=${encodeURIComponent(projectID)}`}
+                      >
+                        打开当前项目内容审计专用入口
+                      </a>
+                    </p>
+                    <ContentAuditPanel
+                      key={projectPath}
+                      identity={identity}
+                      projectPath={projectPath}
+                      csrf={session.csrf_token}
+                      canManage={canManage}
+                      canGrant={organization?.role === 'owner'}
+                    />
                   </>
-                )
-              )}
-            </>
-          )}
+                ) : view === 'members' ? (
+                  <MemberPanel
+                    key={orgPath + '/' + projectID}
+                    identity={identity}
+                    orgPath={orgPath}
+                    projectPath={projectID ? projectPath : undefined}
+                    canRead={canManage}
+                    isOwner={organization?.role === 'owner'}
+                    csrf={session.csrf_token}
+                  />
+                ) : view === 'audit' ? (
+                  <AuditPanel
+                    items={audit.data?.pages.flatMap((p) => p.data) ?? []}
+                    error={audit.error}
+                    loading={audit.isPending}
+                    hasMore={audit.hasNextPage}
+                    onMore={() => {
+                      void audit.fetchNextPage();
+                    }}
+                  />
+                ) : (
+                  project.data && (
+                    <>
+                      {view === 'operations' && (
+                        <OperationsPanel
+                          currency={organization?.currency ?? usage.data?.currency ?? ''}
+                          key={projectPath}
+                          identity={identity}
+                          projectPath={projectPath}
+                          canManage={canManage}
+                          csrf={session.csrf_token}
+                        />
+                      )}
+                      {view === 'requests' && (
+                        <RequestPanel
+                          key={projectPath}
+                          identity={identity}
+                          projectPath={projectPath}
+                        />
+                      )}
+                      {view === 'overview' && (
+                        <>
+                          <section className="project-title">
+                            <div>
+                              <h2>{project.data.name}</h2>
+                              <span>项目用量与访问概况</span>
+                            </div>
+                            <Tag variant="light" theme="success">
+                              {roleNames[project.data.role]}
+                            </Tag>
+                          </section>
+                          {usage.error ? (
+                            <ErrorBox
+                              error={usage.error}
+                              retry={() => {
+                                void usage.refetch();
+                              }}
+                            />
+                          ) : usage.data ? (
+                            <>
+                              <div className="metric-grid">
+                                {[
+                                  ['项目预算', usage.data.limit_amount, '当前配置周期的费用上限'],
+                                  ['已使用', usage.data.spent, '已完成结算的模型调用'],
+                                  ['预留中', usage.data.held, '进行中或等待核对的调用'],
+                                  [
+                                    '可用预算',
+                                    usage.data.limit_amount - usage.data.spent - usage.data.held,
+                                    '可继续用于新调用的额度',
+                                  ],
+                                ].map(([label, value, hint], index) => (
+                                  <article
+                                    className={`metric-card metric-${index}`}
+                                    key={String(label)}
+                                  >
+                                    <div className="metric-label">{label}</div>
+                                    <div
+                                      className="metric-value"
+                                      title={`${number(Number(value))} ${currencyLabel(usage.data!.currency)}`}
+                                    >
+                                      {budgetAmount(Number(value), usage.data!.currency)}
+                                      <small>
+                                        {usage.data!.currency === 'CNY_MICRO' ? '元' : '单位'}
+                                      </small>
+                                    </div>
+                                    <p>{hint}</p>
+                                  </article>
+                                ))}
+                              </div>
+                              <section className="budget-strip">
+                                <div>
+                                  <strong>预算使用情况</strong>
+                                  <span>
+                                    {usage.data.period} · {currencyLabel(usage.data.currency)}
+                                  </span>
+                                </div>
+                                <progress
+                                  aria-label="预算占用比例"
+                                  value={usage.data.spent + usage.data.held}
+                                  max={usage.data.limit_amount || 1}
+                                />
+                                <span>
+                                  {usage.data.limit_amount
+                                    ? Math.round(
+                                        ((usage.data.spent + usage.data.held) /
+                                          usage.data.limit_amount) *
+                                          100,
+                                      )
+                                    : 0}
+                                  % 已使用或预留
+                                </span>
+                              </section>
+                            </>
+                          ) : (
+                            <div className="loading" role="status">
+                              正在加载用量…
+                            </div>
+                          )}
+                          <ModelAccessPanel
+                            key={projectPath}
+                            project={project.data}
+                            path={projectPath}
+                            currency={organization?.currency ?? usage.data?.currency ?? ''}
+                            models={catalog.data?.data ?? []}
+                            error={catalog.error}
+                            canManage={Boolean(canManage)}
+                            csrf={session.csrf_token}
+                            onSaved={refresh}
+                          />
+                        </>
+                      )}
+                      {(view === 'overview' || view === 'keys') && (
+                        <KeyPanel
+                          items={visibleKeys}
+                          error={keys.error}
+                          loading={keys.isPending}
+                          hasMore={keys.hasNextPage}
+                          canIssue={Boolean(canIssue)}
+                          onCreate={() => open('key')}
+                          onRetry={() => {
+                            void keys.refetch();
+                          }}
+                          onMore={() => {
+                            void keys.fetchNextPage();
+                          }}
+                          onRevoke={(key) => {
+                            setFormError(null);
+                            setRevoke(key);
+                          }}
+                        />
+                      )}
+                    </>
+                  )
+                )}
+              </>
+            )}
+          </FeatureBoundary>
           <footer className="workspace-footer">
             <span>序衡 AI 治理网关</span>
             <span>访问有边界 · 用量可追踪</span>
