@@ -445,8 +445,9 @@ const (
 
 // Defines values for ProviderConfigurationStatusExecutionEngine.
 const (
-	Native ProviderConfigurationStatusExecutionEngine = "native"
-	Newapi ProviderConfigurationStatusExecutionEngine = "newapi"
+	Bifrost ProviderConfigurationStatusExecutionEngine = "bifrost"
+	Native  ProviderConfigurationStatusExecutionEngine = "native"
+	Newapi  ProviderConfigurationStatusExecutionEngine = "newapi"
 )
 
 // Defines values for ProviderModelConfigurationApi.

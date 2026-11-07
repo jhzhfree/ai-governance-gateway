@@ -22,8 +22,13 @@ with tarfile.open(root/'candidate.tar.gz','r:gz') as archive:
         run=subprocess.run([str(binary),'--help'],env=env,capture_output=True,timeout=10)
         if run.returncode!=expected:
             raise SystemExit(name+' unexpected help exit status')
-        if name=='aigw-gateway' and b'newapi' not in run.stdout+run.stderr:
-            raise SystemExit('declared newapi mode absent from gateway help')
+        if name=='aigw-gateway':
+            if b'bifrost only' not in run.stdout+run.stderr:
+                raise SystemExit('embedded execution mode absent from gateway help')
+            for engine in ('native','newapi'):
+                rejected=subprocess.run([str(binary),'--execution-engine='+engine],env=env,capture_output=True,timeout=10)
+                if rejected.returncode!=1 or b'single-process product requires' not in rejected.stderr:
+                    raise SystemExit('legacy execution unexpectedly accepted')
         if name=='aigw-migrate' and b'usage: migrate' not in run.stderr:
             raise SystemExit('migration usage output missing')
         print(name+' startup smoke passed; no service or migration started')

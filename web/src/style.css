@@ -1462,3 +1462,20 @@ fieldset.model-selection {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.provider-execution-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  border: 1px solid #dce9dc;
+  background: #f3f8f4;
+  border-radius: 7px;
+}
+.provider-status-note {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 10px 0 18px;
+}

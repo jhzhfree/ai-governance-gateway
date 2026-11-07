@@ -2609,7 +2609,7 @@ export interface components {
             configuration?: components["schemas"]["ProviderConfiguration"];
             credential_storage_ready: boolean;
             /** @enum {string} */
-            execution_engine?: "native" | "newapi";
+            execution_engine?: "native" | "newapi" | "bifrost";
             can_manage_channels?: boolean;
         };
         PublishProviderConfiguration: {

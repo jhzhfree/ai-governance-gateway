@@ -70,6 +70,41 @@ func fixtureDSN(t *testing.T, original, searchPath string) string {
 	u.RawQuery = q.Encode()
 	return u.String()
 }
+
+func TestEmbeddedProviderStatusReflectsExecutionReadiness(t *testing.T) {
+	pool, _, _ := testutil.Database(t)
+	actor := identity.Principal{Issuer: "synthetic", Subject: "platform-admin"}
+	manager := testutil.MainlandManager(t, pool, actor, testutil.SupplierFixture(t))
+	ctx := context.Background()
+	if err := manager.Publish(ctx, actor, 0, testutil.MainlandConfig()); err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := manager.ExecutionSnapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	engine := &runtimeFixture{Catalog: catalog}
+	engine.ready.Store(true)
+	management := embeddedProviders{ProviderManagement: manager, engine: engine}
+	status, err := management.Status(ctx, actor)
+	if err != nil || !status.Ready || !status.CanManage || status.Configuration == nil || status.ExecutionEngine != "bifrost" {
+		t.Fatalf("embedded status lost configuration or engine identity: %v", err)
+	}
+	engine.ready.Store(false)
+	status, err = management.Status(ctx, actor)
+	if err != nil || status.Ready || status.Revision != 1 || status.Configuration == nil {
+		t.Fatalf("stored configuration hid unavailable engine: %v", err)
+	}
+	other := identity.Principal{Issuer: "synthetic", Subject: "organization-owner"}
+	status, err = management.Status(ctx, other)
+	if err != nil || status.CanManage || status.Configuration != nil {
+		t.Fatalf("runtime status widened configuration authorization: %v", err)
+	}
+	if err := management.Publish(ctx, other, 1, testutil.MainlandConfig()); !errors.Is(err, identity.ErrForbidden) {
+		t.Fatal("embedded status wrapper bypassed publication authorization")
+	}
+}
+
 func TestApplicationPairsEngineReadinessAndGracefulShutdown(t *testing.T) {
 	db, _, _ := testutil.Database(t)
 	dsn := fixtureDSN(t, os.Getenv("TEST_DATABASE_URL"), db.Config().ConnConfig.RuntimeParams["search_path"])

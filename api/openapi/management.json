@@ -15206,7 +15206,8 @@
             "type": "string",
             "enum": [
               "native",
-              "newapi"
+              "newapi",
+              "bifrost"
             ]
           },
           "can_manage_channels": {

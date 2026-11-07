@@ -46,12 +46,19 @@ export function ProviderPanel({ identity, csrf }: { identity: string[]; csrf: st
         {query.isPending && <p role="status">正在读取供应商配置…</p>}
         {query.data && (
           <>
+            {query.data.execution_engine === 'bifrost' && (
+              <div className="provider-execution-summary">
+                <Tag variant="light">单进程执行</Tag>
+                <span>供应商凭证、路由与治理在当前网关统一管理。</span>
+              </div>
+            )}
             <p>
               <Tag theme={query.data.ready ? 'success' : 'warning'}>
-                {query.data.ready ? '真实路由可用' : '待配置或配置失效'}
+                {query.data.ready ? '路由配置就绪' : '待配置或执行器未就绪'}
               </Tag>{' '}
               · 已发布版本 {query.data.revision}
             </p>
+            <p className="provider-status-note">配置就绪不代表已通过供应商连通性或真实账单验收。</p>
             <div className="table-scroll" role="region" aria-label="真实供应商状态表" tabIndex={0}>
               <table>
                 <thead>

@@ -189,6 +189,7 @@ func run(ctx context.Context, c config, factory EngineFactory, listener net.List
 	}
 	if c.executionEngine != "newapi" && !c.mockOnly && c.providerConfig == "" {
 		manager := provider.NewManager(pool, os.Getenv, nil, identity.Principal{Issuer: os.Getenv("AIGW_PROVIDER_ADMIN_ISSUER"), Subject: os.Getenv("AIGW_PROVIDER_ADMIN_SUBJECT")})
+		var management control.ProviderManagement = manager
 		providers = manager
 		if c.executionEngine == "bifrost" {
 			selected, err = factory(resources, manager, c.engineLimits)
@@ -203,8 +204,9 @@ func run(ctx context.Context, c config, factory EngineFactory, listener net.List
 			}
 			defer func() { cancelResources(); selected.Close() }()
 			providers = selected
+			management = embeddedProviders{ProviderManagement: manager, engine: selected}
 		}
-		store = control.NewWithCatalog(pool, providers).WithProviderManager(manager)
+		store = control.NewWithCatalog(pool, providers).WithProviderManager(management)
 	}
 
 	client := &http.Client{Timeout: 6 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
