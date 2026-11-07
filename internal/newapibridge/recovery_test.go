@@ -25,6 +25,7 @@ func TestRecoveryPagesDoNotStarveBehindPoisonEvents(t *testing.T) {
 	cfg := testutil.MainlandConfig()
 	for i := range cfg.Models {
 		cfg.Models[i].NewAPIChannelID = 1
+		cfg.Models[i].NewAPIChannelRevision = strings.Repeat("a", 64)
 		cfg.Models[i].UpstreamModel = "backend-model"
 	}
 	directory, err := provider.NewGoverned(cfg)
@@ -59,8 +60,16 @@ func TestRecoveryPagesDoNotStarveBehindPoisonEvents(t *testing.T) {
 		w.Header().Set("X-Aigw-Events-Version", "1")
 		w.Header().Set("X-Aigw-Paging-Version", "1")
 		w.Header().Set("X-Aigw-Admission-Version", "2")
+		w.Header().Set("X-Aigw-Config-Version", "1")
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
+		case "/internal/governance/v1/channels/1/revision":
+			w.Header().Set("X-Aigw-Config-Version", "1")
+			revision := strings.Repeat("b", 64)
+			if repaired.Load() {
+				revision = strings.Repeat("a", 64)
+			}
+			json.NewEncoder(w).Encode(map[string]any{"channel_id": 1, "revision": revision, "enabled": true})
 		case "/internal/governance/v1/events":
 			if repaired.Load() {
 				json.NewEncoder(w).Encode([]newapibridge.Event{})
@@ -141,6 +150,7 @@ func TestRecoveryWhileInferenceConnectionSaturated(t *testing.T) {
 	cfg := testutil.MainlandConfig()
 	for i := range cfg.Models {
 		cfg.Models[i].NewAPIChannelID = 1
+		cfg.Models[i].NewAPIChannelRevision = strings.Repeat("a", 64)
 		cfg.Models[i].UpstreamModel = "backend-model"
 	}
 	directory, err := provider.NewGoverned(cfg)
@@ -163,6 +173,7 @@ func TestRecoveryWhileInferenceConnectionSaturated(t *testing.T) {
 			w.Header().Set("X-Aigw-Events-Version", "1")
 			w.Header().Set("X-Aigw-Paging-Version", "1")
 			w.Header().Set("X-Aigw-Admission-Version", "2")
+			w.Header().Set("X-Aigw-Config-Version", "1")
 			json.NewEncoder(w).Encode([]newapibridge.Event{})
 		default:
 			t.Error("unexpected recovery request")

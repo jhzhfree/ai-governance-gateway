@@ -33,3 +33,5 @@ func (r *Route) PriceSnapshot() ModelInfo {
 
 // GovernanceChannelID identifies the reviewed new-api channel for this route.
 func (r *Route) GovernanceChannelID() int { return r.model.NewAPIChannelID }
+
+func (r *Route) GovernanceChannelRevision() string { return r.model.NewAPIChannelRevision }

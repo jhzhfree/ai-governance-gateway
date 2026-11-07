@@ -26,6 +26,7 @@ func NewRuntime(ctx context.Context, cfg Config, directory *provider.Catalog) (*
 	}
 	cfg.Models = make(map[string]string)
 	cfg.Channels = make(map[string]int)
+	cfg.Revisions = make(map[int]string)
 	for _, route := range directory.ExecutionRoutes() {
 		alias, model := route.ExecutionModel()
 		if route.API() == "embeddings" {
@@ -36,6 +37,11 @@ func NewRuntime(ctx context.Context, cfg Config, directory *provider.Catalog) (*
 			return nil, ErrInvalid
 		}
 		cfg.Channels[alias] = route.GovernanceChannelID()
+		id, revision := route.GovernanceChannelID(), route.GovernanceChannelRevision()
+		if previous, ok := cfg.Revisions[id]; ok && previous != revision {
+			return nil, ErrInvalid
+		}
+		cfg.Revisions[id] = revision
 	}
 	executor, err := New(cfg)
 	if err != nil {
@@ -50,7 +56,10 @@ func NewRuntime(ctx context.Context, cfg Config, directory *provider.Catalog) (*
 	}
 	worker, stop := context.WithCancel(ctx)
 	runtime := &Runtime{Executor: executor, directory: directory, cancel: stop, done: make(chan struct{})}
-	runtime.healthy.Store(err == nil)
+	review, reviewCancel := context.WithTimeout(ctx, 10*time.Second)
+	revisionErr := executor.CheckChannelRevisions(review)
+	reviewCancel()
+	runtime.healthy.Store(err == nil && revisionErr == nil)
 	go func() {
 		defer close(runtime.done)
 		ticker := time.NewTicker(5 * time.Second)
@@ -62,8 +71,9 @@ func NewRuntime(ctx context.Context, cfg Config, directory *provider.Catalog) (*
 			case <-ticker.C:
 				poll, cancel := context.WithTimeout(worker, 10*time.Second)
 				err := executor.ReconcileOnce(poll)
+				revisionErr := executor.CheckChannelRevisions(poll)
 				cancel()
-				runtime.healthy.Store(err == nil)
+				runtime.healthy.Store(err == nil && revisionErr == nil)
 			}
 		}
 	}()

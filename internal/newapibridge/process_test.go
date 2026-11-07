@@ -54,6 +54,7 @@ func TestNewAPIControlHelper(t *testing.T) {
 			cfg.Models[i].Provider = "reviewed-compatible"
 		}
 		cfg.Models[i].NewAPIChannelID = 1
+		cfg.Models[i].NewAPIChannelRevision = os.Getenv("AIGW_INTEGRATION_REVISION")
 		cfg.Models[i].AllowedTools = []string{"lookup"}
 		if os.Getenv("AIGW_INTEGRATION_PROTOCOL") == "embedding" {
 			cfg.Models[i].API = "embeddings"
@@ -314,6 +315,22 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	native.Env = append(os.Environ(), "GOVERNANCE_FIXTURE_DIR="+root, "GOVERNANCE_FIXTURE_UPSTREAM="+upstream.URL, "GOVERNANCE_FIXTURE_PROTOCOL="+protocol)
 	nativeURL, stopNative := start(native, filepath.Join(root, "address"))
 	defer stopNative()
+	// Only synthetic fixtures automatically copy a revision. Operators must review production configuration.
+	manifestRequest, _ := http.NewRequest("GET", nativeURL+"/internal/governance/v1/channels/1/revision", nil)
+	manifestRequest.Header.Set("Authorization", "Bearer sk-syntheticgovernancefixture")
+	manifestResponse, err := http.DefaultClient.Do(manifestRequest)
+	if err != nil {
+		t.Fatal("fixture manifest unavailable")
+	}
+	var manifest struct {
+		Revision string `json:"revision"`
+	}
+	decodeErr := json.NewDecoder(io.LimitReader(manifestResponse.Body, 4096)).Decode(&manifest)
+	manifestResponse.Body.Close()
+	if decodeErr != nil || manifestResponse.StatusCode != 200 || len(manifest.Revision) != 64 {
+		t.Fatal("invalid fixture manifest")
+	}
+
 	target, _ := url.Parse(nativeURL)
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	var pause atomic.Bool
@@ -354,7 +371,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	child := func() (string, func()) {
 		ready := filepath.Join(t.TempDir(), "ready")
 		command := exec.Command(os.Args[0], "-test.run=^TestNewAPIControlHelper$")
-		command.Env = append(os.Environ(), "AIGW_INTEGRATION_CHILD=1", "AIGW_INTEGRATION_PROTOCOL="+protocol, "AIGW_INTEGRATION_IMAGES="+map[bool]string{true: "1", false: "0"}[images], "AIGW_INTEGRATION_RICH="+map[bool]string{true: "1", false: "0"}[tools || images], "AIGW_INTEGRATION_DSN="+isolatedDSN.String(), "AIGW_INTEGRATION_ORIGIN="+faultProxy.URL, "AIGW_INTEGRATION_READY="+ready)
+		command.Env = append(os.Environ(), "AIGW_INTEGRATION_CHILD=1", "AIGW_INTEGRATION_REVISION="+manifest.Revision, "AIGW_INTEGRATION_PROTOCOL="+protocol, "AIGW_INTEGRATION_IMAGES="+map[bool]string{true: "1", false: "0"}[images], "AIGW_INTEGRATION_RICH="+map[bool]string{true: "1", false: "0"}[tools || images], "AIGW_INTEGRATION_DSN="+isolatedDSN.String(), "AIGW_INTEGRATION_ORIGIN="+faultProxy.URL, "AIGW_INTEGRATION_READY="+ready)
 		return start(command, ready)
 	}
 	controlURL, stopControl := child()
@@ -505,6 +522,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	cfg := testutil.MainlandConfig()
 	for i := range cfg.Models {
 		cfg.Models[i].NewAPIChannelID = 1
+		cfg.Models[i].NewAPIChannelRevision = manifest.Revision
 		cfg.Models[i].UpstreamModel = "governance-model"
 	}
 	directory, err := provider.NewGoverned(cfg)

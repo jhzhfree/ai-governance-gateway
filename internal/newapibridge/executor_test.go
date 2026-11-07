@@ -24,7 +24,7 @@ const token = "synthetic-internal-token"
 const reply = `{"id":"synthetic","object":"chat.completion","model":"backend-model","choices":[{"index":0,"message":{"role":"assistant","content":"synthetic reply"},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5}}`
 
 func evidence(w http.ResponseWriter, r *http.Request) {
-	for k, v := range map[string]string{"X-Aigw-Admission-Version": "2", "X-Aigw-Input-Limit": r.Header.Get("X-Aigw-Max-Input-Tokens"), "X-Aigw-Evidence-Version": "1", "X-Aigw-Request-Id": r.Header.Get("X-Aigw-Request-Id"), "X-Aigw-Attempt-Id": r.Header.Get("X-Aigw-Attempt-Id"), "X-Aigw-Usage-Source": "upstream", "X-Aigw-Physical-Attempts": "1"} {
+	for k, v := range map[string]string{"X-Aigw-Config-Version": "1", "X-Aigw-Channel-Revision": r.Header.Get("X-Aigw-Channel-Revision"), "X-Aigw-Admission-Version": "2", "X-Aigw-Input-Limit": r.Header.Get("X-Aigw-Max-Input-Tokens"), "X-Aigw-Evidence-Version": "1", "X-Aigw-Request-Id": r.Header.Get("X-Aigw-Request-Id"), "X-Aigw-Attempt-Id": r.Header.Get("X-Aigw-Attempt-Id"), "X-Aigw-Usage-Source": "upstream", "X-Aigw-Physical-Attempts": "1"} {
 		w.Header().Set(k, v)
 	}
 }
@@ -33,6 +33,7 @@ func catalog(t *testing.T) *provider.Catalog {
 	cfg := testutil.MainlandConfig()
 	for i := range cfg.Models {
 		cfg.Models[i].NewAPIChannelID = 1
+		cfg.Models[i].NewAPIChannelRevision = strings.Repeat("a", 64)
 		cfg.Models[i].AllowedTools = []string{"lookup"}
 	}
 	c, e := provider.NewGoverned(cfg)
@@ -54,7 +55,7 @@ func request() gateway.Request {
 	return gateway.Request{Model: "zhipu/fixture", MaxTokens: 8, Messages: []provider.Message{{Role: "user", Content: "synthetic"}}}
 }
 func TestIsolationEvidenceAndNoRedirectRetry(t *testing.T) {
-	for _, mode := range []string{"valid", "missing", "wrong-attempt", "duplicate", "estimated", "retry", "input-limit", "redirect"} {
+	for _, mode := range []string{"valid", "missing", "wrong-attempt", "duplicate", "estimated", "retry", "input-limit", "config-missing", "config-drift", "config-duplicate", "redirect"} {
 		t.Run(mode, func(t *testing.T) {
 			var calls atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -70,6 +71,12 @@ func TestIsolationEvidenceAndNoRedirectRetry(t *testing.T) {
 					evidence(w, r)
 				}
 				switch mode {
+				case "config-missing":
+					w.Header().Del("X-Aigw-Config-Version")
+				case "config-drift":
+					w.Header().Set("X-Aigw-Channel-Revision", strings.Repeat("b", 64))
+				case "config-duplicate":
+					w.Header().Add("X-Aigw-Channel-Revision", strings.Repeat("a", 64))
 				case "wrong-attempt":
 					w.Header().Set("X-Aigw-Attempt-Id", "wrong")
 				case "duplicate":

@@ -152,7 +152,7 @@ export AIGW_NEWAPI_ORIGIN=https://newapi.internal.example
 ./aigw-gateway --execution-engine=newapi --providers=/etc/aigw/reviewed-models.json
 ```
 
-`reviewed-models.json` 沿用现有 provider.Config：保留明确价格、上下文/输出上限和驻留依据；`upstream_model` 表示 new-api 中可选择的模型名称；每项还必须填写正整数 `newapi_channel_id`，绑定审核过的实际渠道。渠道选择不匹配时派发前拒绝，恢复事件也须匹配该 ID。渠道 ID 纳入价格/路由指纹；同名模型不能自动切换到另一个渠道。渠道内部 endpoint、映射、覆盖参数和账号的变更仍须按变更管理重新审核，建议新建渠道 ID 后更新审核目录；不能把 ID 相同当作第三方驻留证明。原生直连方法禁止使用这种无厂商凭证目录。首版目录以文件发布，修改后受控重启；供应商配置页不会代替 new-api 渠道管理。项目模型授权、Token、预算、终端准入、关键词和内容审计仍走原有企业 Handler。
+`reviewed-models.json` 沿用现有 provider.Config：保留明确价格、上下文/输出上限和驻留依据；`upstream_model` 表示 new-api 中可选择的模型名称；每项还必须填写正整数 `newapi_channel_id`，绑定审核过的实际渠道。渠道选择不匹配时派发前拒绝，恢复事件也须匹配该 ID。渠道 ID 纳入价格/路由指纹；同名模型不能自动切换到另一个渠道。渠道内部 endpoint、映射、覆盖参数和账号的变更必须重新审核，并更新必填 `newapi_channel_revision`（见渠道配置指纹章节）；不能把 ID 相同当作第三方驻留证明。原生直连方法禁止使用这种无厂商凭证目录。首版目录以文件发布，修改后受控重启；供应商配置页不会代替 new-api 渠道管理。项目模型授权、Token、预算、终端准入、关键词和内容审计仍走原有企业 Handler。
 
 ### 本轮验收与尚未完成的发布门禁
 
@@ -217,6 +217,7 @@ export AIGW_NEWAPI_ORIGIN=https://newapi.internal.example
   "provider": "reviewed-compatible",
   "upstream_model": "reviewed-model-alias",
   "newapi_channel_id": 17,
+  "newapi_channel_revision": "<审核后取得的64位小写十六进制指纹>",
   "price_version": "reviewed-v1",
   "input_per_million": 1000000,
   "output_per_million": 2000000,
@@ -380,3 +381,20 @@ export AIGW_NEWAPI_ORIGIN=https://newapi.internal.example
 Embeddings 数据面验证：relay/common、channel/OpenAI/Claude/DeepSeek、service 全部竞态回归通过；治理 controller 专项通过。持久账本三数据库新建/官方 rc48 基线升级矩阵 6 项全部通过（SQLite 3.50.4、MySQL 8.4.13、PostgreSQL 17.11），命令 `go test -race ./controller -run ^TestGovernanceJournalDatabaseMatrix$ -count=1 -timeout=180s -v`，实际运行 32.954 秒。模型包的早期过滤命令没有匹配测试，不计入验证证据。
 
 Embeddings 控制面完整门禁：固定 `7d06da50e22340da362b2d21c9dd8f7cb4a44d7e` 专用竞态 fixture，执行 `AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 bash scripts/verify.sh`，退出码 0。包含 v28 自动升级/事务回滚/约束漂移、全部后端竞态、Embedding/Chat/函数/图片双进程故障、17 项 OIDC 与 1 项本地登录浏览器（77.217 秒）、当前和旧版逻辑恢复（4.285 秒）。公开 OpenAPI 与 Go/TypeScript 类型一致。
+
+
+### 渠道配置指纹 v1
+
+审核目录每条模型必须配置 `newapi_channel_revision`。先部署支持 `X-Aigw-Config-Version: 1` 的数据面；使用既有服务身份，经可信 HTTPS 内部入口读取 `GET /internal/governance/v1/channels/{id}/revision`。响应只有渠道 ID、64 位小写指纹与 enabled，禁止返回账号、凭证、端点或完整配置，且设置 no-store。运维须在 new-api 管理界面核对端点、账号、模型列表、分组、参数、头部覆盖及安全设置，完成审批后把取得的指纹写入只读审核目录并受控重启控制面。示例占位符不能直接启动；不要把每次读取的最新指纹自动当成审批。
+
+指纹是以完整渠道凭证为密钥、带版本域的 HMAC-SHA256。完整渠道配置纳入承诺，包含类型、有效端点、账号/多 Key 集合、组织、模型、分组、状态、映射、参数/头部覆盖和设置；标签备注、测试模型、余额/用量/健康测试观测、轮询游标及发现模型的观测值排除。未知配置字段仍纳入审核。凭证轮换、Key 状态变化或配置变更均需要重新审核。指纹不能证明端点实际驻留位置或供应商业务合规。
+
+控制面把指纹绑定到不可变路由/价格版本及请求摘要，成功响应必须回显一致值。数据面在实际选中渠道时锁定、复制配置，再基于这一快照设置执行上下文；正式取得派发权前核验指纹。不匹配直接取消且不发送供应商 HTTP。原有禁止参数注入、透传、TLS 跳过、模型改写的规则仍然生效，审核指纹不会放开这些限制。
+
+readiness 每轮恢复检查后核对当前审核值，漂移会停止新推理；已经发出的历史请求仍按原绑定消费事件并结算。已在途请求使用其选中的审核快照，不承诺撤销在途请求。new-api 内存缓存启用时，选中快照以该缓存可见版本为准，管理变更须完成缓存刷新；数据库 manifest 与缓存不一致会拒绝服务，不能声称跨进程瞬时撤销。首版目录仍通过文件审核发布，未实现配置审批 UI。
+
+升级顺序：先数据面、再读取并审核配置指纹、最后控制面。数据面暂保留无指纹头的旧服务客户端兼容；升级后的控制面强制指纹与能力版本。内部服务令牌仅提供给控制面，网络 ACL 必须阻止其他客户端绕过控制面。数据库保持 v28，无修改已发布迁移。
+
+多 Key 限制：指纹包括完整 Key 集合及启用状态，但本轮受控派发仅支持单 Key 渠道。原生多 Key 轮询会回写 ChannelInfo，不能直接对审核快照调用并覆盖实时状态，因此在上下文建立时拒绝多 Key；须独立适配及竞态验收后再开放。可用多个单 Key 渠道分别审核，当前不提供跨渠道自动故障转移。
+
+渠道指纹阶段验证：数据面 `142c9f1059bd2a5f08c34581b2006ae982681ebb`，治理竞态回归及三数据库 fresh/rc48 升级 6 项通过（矩阵 23.797 秒）。控制面完整 `AIGW_VERIFY_RESTORE=1 bash scripts/verify.sh` 退出码 0，HTTP API 251.369 秒、bridge 179.845 秒、当前/旧版逻辑恢复 4.293 秒。最终固定上述数据面重新运行 bridge 全包竞态 169.396 秒通过，包含新增指纹缺失/重复/不符拒绝和所有双进程故障矩阵。子进程 helper 在主进程跳过、由真实子进程调用；未跳过双进程场景。没有修改公共 API/Web，本轮未重复浏览器测试；上轮 Embeddings 的 Web 门禁及两仓库远端 CI 已通过。本轮 CI 仍需按新提交单独核对。

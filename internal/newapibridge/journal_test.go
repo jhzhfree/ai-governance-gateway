@@ -22,6 +22,7 @@ func TestRecoveryReceiptAtomicReplayAndBinding(t *testing.T) {
 		cfgDirectory := testutil.MainlandConfig()
 		for i := range cfgDirectory.Models {
 			cfgDirectory.Models[i].NewAPIChannelID = 1
+			cfgDirectory.Models[i].NewAPIChannelRevision = strings.Repeat("a", 64)
 			cfgDirectory.Models[i].UpstreamModel = "backend-model"
 		}
 		directory, err := provider.NewGoverned(cfgDirectory)

@@ -53,19 +53,20 @@ func (r Residency) valid(now time.Time) bool {
 }
 
 type Model struct {
-	API              string    `json:"api,omitempty"`
-	AllowedTools     []string  `json:"allowed_tools,omitempty"`
-	AllowImages      bool      `json:"allow_images,omitempty"`
-	NewAPIChannelID  int       `json:"newapi_channel_id,omitempty"`
-	ID               string    `json:"id"`
-	Provider         string    `json:"provider"`
-	UpstreamModel    string    `json:"upstream_model"`
-	PriceVersion     string    `json:"price_version"`
-	InputPerMillion  int64     `json:"input_per_million"`
-	OutputPerMillion int64     `json:"output_per_million"`
-	MaxInputTokens   int64     `json:"max_input_tokens"`
-	MaxOutputTokens  int64     `json:"max_output_tokens"`
-	Residency        Residency `json:"residency"`
+	NewAPIChannelRevision string    `json:"newapi_channel_revision,omitempty"`
+	API                   string    `json:"api,omitempty"`
+	AllowedTools          []string  `json:"allowed_tools,omitempty"`
+	AllowImages           bool      `json:"allow_images,omitempty"`
+	NewAPIChannelID       int       `json:"newapi_channel_id,omitempty"`
+	ID                    string    `json:"id"`
+	Provider              string    `json:"provider"`
+	UpstreamModel         string    `json:"upstream_model"`
+	PriceVersion          string    `json:"price_version"`
+	InputPerMillion       int64     `json:"input_per_million"`
+	OutputPerMillion      int64     `json:"output_per_million"`
+	MaxInputTokens        int64     `json:"max_input_tokens"`
+	MaxOutputTokens       int64     `json:"max_output_tokens"`
+	Residency             Residency `json:"residency"`
 }
 type Config struct {
 	Version             int       `json:"version"`
@@ -113,6 +114,8 @@ var supplierPattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
 // ValidSupplierID validates reviewed directory identities, never credentials or endpoints.
 func ValidSupplierID(id string) bool { return id != "mock" && supplierPattern.MatchString(id) }
 
+var channelRevisionPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
+
 var pricePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$`)
 var modelPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$`)
 
@@ -154,7 +157,7 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	catalog := &Catalog{routes: map[string]*Route{}}
 	for _, m := range cfg.Models {
-		if (!requireCredential && m.NewAPIChannelID <= 0) || (requireCredential && (m.NewAPIChannelID != 0 || m.AllowImages || len(m.AllowedTools) != 0 || m.API != "")) {
+		if (!requireCredential && (m.NewAPIChannelID <= 0 || !channelRevisionPattern.MatchString(m.NewAPIChannelRevision))) || (requireCredential && (m.NewAPIChannelID != 0 || m.NewAPIChannelRevision != "" || m.AllowImages || len(m.AllowedTools) != 0 || m.API != "")) {
 			return nil, errors.New("newapi directory requires an explicit approved channel; native directories cannot specify one")
 		}
 		if len(m.AllowedTools) > 8 {
@@ -195,6 +198,7 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 			Input, Output, MaxInput, MaxOutput                       int64
 		}{m.ID, m.Provider, m.UpstreamModel, m.PriceVersion, p.Endpoint, p.Region, Currency, m.InputPerMillion, m.OutputPerMillion, m.MaxInputTokens, m.MaxOutputTokens})
 		if !requireCredential {
+			canonical = append(canonical, []byte("\nchannel-config-v1:"+m.NewAPIChannelRevision)...)
 			if embedding {
 				canonical = append(canonical, []byte("\nembeddings-v1")...)
 			}

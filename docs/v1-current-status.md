@@ -51,7 +51,7 @@ DeepSeek 能力与计费边界见 [接入说明](deepseek.md)。
 
 `feature/newapi-foundation-validation` 已启动，第一阶段为实验性接入契约与治理回归；尚未切换生产入口。详见 [new-api 落地进度](new-api-integration.md)。
 
-new-api 专项已推进到显式 `--execution-engine=newapi`：可信内部入口、原始计数完成钩子、事务 outbox、控制面价格快照/恢复收据、自动迁移 v26、readiness 和双进程 SIGKILL 联调已落地。当前客户端保持受限文本 Chat Completions，上游已验证 OpenAI 兼容、DeepSeek 和 Anthropic Messages，SSE 已支持 v2 实时内容传输；详细限制、配置和验证证据以 [接入文档最新章节](new-api-integration.md#已接通可信入口恢复消费与显式启动) 为准。默认入口及 V1.0 发布门禁未改变。
+new-api 专项已推进到显式 `--execution-engine=newapi`：可信内部入口、原始计数完成钩子、事务 outbox、控制面价格快照/恢复收据、自动迁移 v26、readiness 和双进程 SIGKILL 联调已落地。当前客户端支持受控 Chat Completions（含审核函数调用与内联图片）以及 input-only Embeddings，上游 Chat 已验证 OpenAI 兼容、DeepSeek 和 Anthropic Messages，SSE 已支持 v2 实时内容传输；详细限制、配置和验证证据以 [接入文档最新章节](new-api-integration.md#已接通可信入口恢复消费与显式启动) 为准。默认入口及 V1.0 发布门禁未改变。
 
 追加迁移 v27 支持 new-api 审核目录的独立供应商标识，贯穿执行记录、费用分析和账单对账；原生直连厂商和凭证白名单不变。实时 SSE、三协议故障矩阵、升级回滚及账单身份专项见接入文档。
 
@@ -65,3 +65,5 @@ new-api 工具阶段：客户端函数声明、结果关联、JSON/SSE 参数完
 输入准入 v2：显式 newapi 路径将审核输入上限绑定至请求指纹，数据面对实际转换请求做本地 token 估算，超限在派发前拒绝；控制面验证数据面能力及响应回显。支持受控文本、客户端函数和已审核内联图片；估算不替代供应商原始用量、精确 tokenizer 或独立图片/工具费率。升级须数据面先行，数据库仍为 v27。细节见 `docs/new-api-integration.md`。
 
 受控客户端工具新增目录级 `allowed_tools` 名称白名单，默认关闭；策略进入不可变路由版本，未审核工具在预留与派发前拒绝。不替代实际工具执行方的参数校验或用户/业务权限。
+
+渠道配置指纹 v1：审核目录要求显式渠道 HMAC 指纹；绑定请求与价格版本，数据面对选中配置快照复核。配置漂移停新请求，历史完成事件继续恢复结算。配置审批 UI、跨实例立即撤销、真实供应商和生产切换尚未验收。

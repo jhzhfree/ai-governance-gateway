@@ -25,12 +25,15 @@ import (
 
 var ErrUnavailable = errors.New("new-api execution unavailable")
 var ErrRecoveryPending = errors.New("new-api recovery requires reconciliation")
+var ErrConfigurationDrift = errors.New("reviewed channel configuration unavailable or changed")
 var ErrInvalid = errors.New("unsupported new-api execution request")
 var idPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{16,64}$`)
+var revisionPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 var modelPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_./:-]{0,127}$`)
 
 type Config struct {
 	RequireEmbeddings bool
+	Revisions         map[int]string
 	Origin            string
 	ServiceToken      string `json:"-"`
 	Models            map[string]string
@@ -44,6 +47,7 @@ func (Config) String() string   { return "[new-api configuration; credentials re
 func (Config) GoString() string { return "[new-api configuration; credentials redacted]" }
 
 type Executor struct {
+	revisions           map[int]string
 	requireEmbeddings   bool
 	origin, token       string
 	recoveryMu          sync.Mutex
@@ -99,6 +103,13 @@ func New(cfg Config) (*Executor, error) {
 			channels[alias] = cfg.Channels[alias]
 		}
 	}
+	revisions := map[int]string{}
+	for id, revision := range cfg.Revisions {
+		if id < 1 || !revisionPattern.MatchString(revision) {
+			return nil, ErrInvalid
+		}
+		revisions[id] = revision
+	}
 	root, cancel := context.WithCancel(context.Background())
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.DisableCompression = true
@@ -112,10 +123,10 @@ func New(cfg Config) (*Executor, error) {
 	recoveryTransport.MaxIdleConns = 2
 	recoveryTransport.ResponseHeaderTimeout = 5 * time.Second
 	recoveryClient := &http.Client{Transport: recoveryTransport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	return &Executor{requireEmbeddings: cfg.RequireEmbeddings, recoveryClient: recoveryClient, recoveryTransport: recoveryTransport, journal: cfg.Journal, origin: strings.TrimSuffix(cfg.Origin, "/"), token: cfg.ServiceToken, models: models, channels: channels, root: root, cancel: cancel, slots: make(chan struct{}, cfg.MaxConcurrent), transport: transport, client: &http.Client{Transport: transport, Timeout: 120 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
+	return &Executor{revisions: revisions, requireEmbeddings: cfg.RequireEmbeddings, recoveryClient: recoveryClient, recoveryTransport: recoveryTransport, journal: cfg.Journal, origin: strings.TrimSuffix(cfg.Origin, "/"), token: cfg.ServiceToken, models: models, channels: channels, root: root, cancel: cancel, slots: make(chan struct{}, cfg.MaxConcurrent), transport: transport, client: &http.Client{Transport: transport, Timeout: 120 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
 }
 func (e *Executor) Validate(route *provider.Route, req gateway.Request) error {
-	if route == nil || !route.Ready() || e.models[req.Model] == "" || !provider.ValidateRequest(req) || !route.AllowsTools(req) || ((route.API() == "embeddings") != req.IsEmbedding()) || (req.HasImages() && !route.AllowsImages()) {
+	if route == nil || !route.Ready() || !revisionPattern.MatchString(route.GovernanceChannelRevision()) || e.models[req.Model] == "" || !provider.ValidateRequest(req) || !route.AllowsTools(req) || ((route.API() == "embeddings") != req.IsEmbedding()) || (req.HasImages() && !route.AllowsImages()) {
 		return ErrInvalid
 	}
 	alias, _ := route.ExecutionModel()
@@ -187,6 +198,8 @@ func (e *Executor) Open(ctx context.Context, route *provider.Route, req gateway.
 	r.Header.Set("Authorization", "Bearer "+e.token)
 	inputLimit := strconv.FormatInt(route.PriceSnapshot().MaxInputTokens, 10)
 	r.Header.Set("X-Aigw-Admission-Version", "2")
+	r.Header.Set("X-Aigw-Config-Version", "1")
+	r.Header.Set("X-Aigw-Channel-Revision", route.GovernanceChannelRevision())
 	r.Header.Set("X-Aigw-Max-Input-Tokens", inputLimit)
 	r.Header.Set("Content-Type", "application/json")
 	r.Header.Set("Accept", "application/json")
@@ -206,6 +219,7 @@ func (e *Executor) Open(ctx context.Context, route *provider.Route, req gateway.
 		if req.IsEmbedding() {
 			prefix += "embeddings\x00"
 		}
+		prefix += "config-v1\x00" + route.GovernanceChannelRevision() + "\x00"
 		digest := sha256.Sum256(append([]byte(prefix), data...))
 		if err := e.journal.Bind(call, e.origin, e.models[req.Model], requestID, attemptID, hex.EncodeToString(digest[:]), route, req.MaxTokens); err != nil {
 			release()
@@ -228,7 +242,7 @@ func (e *Executor) Open(ctx context.Context, route *provider.Route, req gateway.
 	} else {
 		version = "1"
 	}
-	for key, want := range map[string]string{"X-Aigw-Admission-Version": "2", "X-Aigw-Input-Limit": inputLimit, "X-Aigw-Evidence-Version": version, "X-Aigw-Request-Id": requestID, "X-Aigw-Attempt-Id": attemptID, "X-Aigw-Usage-Source": "upstream", "X-Aigw-Physical-Attempts": "1"} {
+	for key, want := range map[string]string{"X-Aigw-Config-Version": "1", "X-Aigw-Channel-Revision": route.GovernanceChannelRevision(), "X-Aigw-Admission-Version": "2", "X-Aigw-Input-Limit": inputLimit, "X-Aigw-Evidence-Version": version, "X-Aigw-Request-Id": requestID, "X-Aigw-Attempt-Id": attemptID, "X-Aigw-Usage-Source": "upstream", "X-Aigw-Physical-Attempts": "1"} {
 		values := res.Header.Values(key)
 		valid = valid && len(values) == 1 && values[0] == want
 	}

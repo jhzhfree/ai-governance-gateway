@@ -26,7 +26,7 @@ func TestEmbeddingGovernanceAuditAndKeywordBoundary(t *testing.T) {
 		if json.NewDecoder(r.Body).Decode(&payload) != nil || len(payload["input"]) == 0 || len(payload["messages"]) != 0 || len(payload["max_tokens"]) != 0 {
 			t.Error("invalid embedding wire body")
 		}
-		for key, value := range map[string]string{"X-Aigw-Protocol": "embeddings", "X-Aigw-Admission-Version": "2", "X-Aigw-Input-Limit": r.Header.Get("X-Aigw-Max-Input-Tokens"), "X-Aigw-Evidence-Version": "1", "X-Aigw-Request-Id": r.Header.Get("X-Aigw-Request-Id"), "X-Aigw-Attempt-Id": r.Header.Get("X-Aigw-Attempt-Id"), "X-Aigw-Usage-Source": "upstream", "X-Aigw-Physical-Attempts": "1"} {
+		for key, value := range map[string]string{"X-Aigw-Config-Version": "1", "X-Aigw-Channel-Revision": r.Header.Get("X-Aigw-Channel-Revision"), "X-Aigw-Protocol": "embeddings", "X-Aigw-Admission-Version": "2", "X-Aigw-Input-Limit": r.Header.Get("X-Aigw-Max-Input-Tokens"), "X-Aigw-Evidence-Version": "1", "X-Aigw-Request-Id": r.Header.Get("X-Aigw-Request-Id"), "X-Aigw-Attempt-Id": r.Header.Get("X-Aigw-Attempt-Id"), "X-Aigw-Usage-Source": "upstream", "X-Aigw-Physical-Attempts": "1"} {
 			w.Header().Set(key, value)
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -42,6 +42,7 @@ func TestEmbeddingGovernanceAuditAndKeywordBoundary(t *testing.T) {
 	for i := range cfg.Models {
 		cfg.Models[i].API = "embeddings"
 		cfg.Models[i].NewAPIChannelID = 1
+		cfg.Models[i].NewAPIChannelRevision = strings.Repeat("a", 64)
 		cfg.Models[i].UpstreamModel = "backend-model"
 		cfg.Models[i].MaxOutputTokens = 0
 		cfg.Models[i].OutputPerMillion = 0

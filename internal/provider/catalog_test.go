@@ -169,6 +169,7 @@ func TestGovernedSupplierIdentityDoesNotBorrowNativeProfile(t *testing.T) {
 	cfg.Models[0].Provider = "reviewed-compatible"
 	cfg.Models[0].ID = "reviewed-compatible/fixture"
 	cfg.Models[0].NewAPIChannelID = 17
+	cfg.Models[0].NewAPIChannelRevision = strings.Repeat("a", 64)
 	catalog, err := provider.NewGoverned(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -191,6 +192,7 @@ func TestGovernedSupplierIdentityDoesNotBorrowNativeProfile(t *testing.T) {
 		t.Fatal("unbound channel accepted")
 	}
 	cfg.Models[0].NewAPIChannelID = 17
+	cfg.Models[0].NewAPIChannelRevision = strings.Repeat("a", 64)
 	cfg.Models[0].Residency.Region = "unreviewed"
 	if _, err := provider.NewGoverned(cfg); err == nil {
 		t.Fatal("supplier identity bypassed residency evidence")
@@ -200,5 +202,36 @@ func TestGovernedSupplierIdentityDoesNotBorrowNativeProfile(t *testing.T) {
 	cfg.Models[0].ID = "https://supplier.example/fixture"
 	if _, err := provider.NewGoverned(cfg); err == nil {
 		t.Fatal("invalid supplier identifier accepted")
+	}
+}
+
+func TestGovernedChannelRevisionRequiredAndVersioned(t *testing.T) {
+	cfg := testutil.MainlandConfig()
+	for i := range cfg.Models {
+		cfg.Models[i].NewAPIChannelID = 1
+		cfg.Models[i].NewAPIChannelRevision = strings.Repeat("a", 64)
+	}
+	approved, err := provider.NewGoverned(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, _ := approved.Find(cfg.Models[0].ID)
+	for _, invalid := range []string{"", strings.Repeat("A", 64), strings.Repeat("a", 63)} {
+		cfg.Models[0].NewAPIChannelRevision = invalid
+		if _, err := provider.NewGoverned(cfg); err == nil {
+			t.Fatal("unreviewed revision accepted")
+		}
+	}
+	cfg.Models[0].NewAPIChannelRevision = strings.Repeat("b", 64)
+	updated, err := provider.NewGoverned(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, _ := updated.Find(cfg.Models[0].ID)
+	if first.PriceVersion() == second.PriceVersion() {
+		t.Fatal("revision missing from immutable price binding")
+	}
+	if first.GovernanceChannelRevision() != strings.Repeat("a", 64) {
+		t.Fatal("review mutated after construction")
 	}
 }

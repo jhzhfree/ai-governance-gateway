@@ -44,6 +44,7 @@ func providerExecutorSetupConfig(t *testing.T, supplier http.Handler, executor g
 		cfg := testutil.MainlandConfig()
 		for i := range cfg.Models {
 			cfg.Models[i].NewAPIChannelID = 1
+			cfg.Models[i].NewAPIChannelRevision = strings.Repeat("a", 64)
 			cfg.Models[i].UpstreamModel = "backend-model"
 			cfg.Models[i].AllowImages = true
 			cfg.Models[i].AllowedTools = []string{"lookup"}
@@ -315,7 +316,7 @@ func clientToolFixture(t *testing.T) fixture {
 		if json.NewDecoder(r.Body).Decode(&body) != nil || !strings.Contains(string(body["tools"]), "lookup") {
 			t.Error("tool declaration dropped")
 		}
-		for key, value := range map[string]string{"X-Aigw-Admission-Version": "2", "X-Aigw-Input-Limit": r.Header.Get("X-Aigw-Max-Input-Tokens"), "X-Aigw-Evidence-Version": "1", "X-Aigw-Request-Id": r.Header.Get("X-Aigw-Request-Id"), "X-Aigw-Attempt-Id": r.Header.Get("X-Aigw-Attempt-Id"), "X-Aigw-Usage-Source": "upstream", "X-Aigw-Physical-Attempts": "1"} {
+		for key, value := range map[string]string{"X-Aigw-Config-Version": "1", "X-Aigw-Channel-Revision": r.Header.Get("X-Aigw-Channel-Revision"), "X-Aigw-Admission-Version": "2", "X-Aigw-Input-Limit": r.Header.Get("X-Aigw-Max-Input-Tokens"), "X-Aigw-Evidence-Version": "1", "X-Aigw-Request-Id": r.Header.Get("X-Aigw-Request-Id"), "X-Aigw-Attempt-Id": r.Header.Get("X-Aigw-Attempt-Id"), "X-Aigw-Usage-Source": "upstream", "X-Aigw-Physical-Attempts": "1"} {
 			w.Header().Set(key, value)
 		}
 		w.Header().Set("Content-Type", "application/json")

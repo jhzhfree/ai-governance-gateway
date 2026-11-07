@@ -76,6 +76,7 @@ func TestImageApprovalChangesImmutableRouteIdentity(t *testing.T) {
 	cfg := testutil.MainlandConfig()
 	for i := range cfg.Models {
 		cfg.Models[i].NewAPIChannelID = 1
+		cfg.Models[i].NewAPIChannelRevision = strings.Repeat("a", 64)
 	}
 	plain, err := provider.NewGoverned(cfg)
 	if err != nil {

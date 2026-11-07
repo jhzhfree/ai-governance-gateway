@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ func TestGovernedDirectoryAndRecoveryReadiness(t *testing.T) {
 	cfgDirectory := testutil.MainlandConfig()
 	for i := range cfgDirectory.Models {
 		cfgDirectory.Models[i].NewAPIChannelID = 1
+		cfgDirectory.Models[i].NewAPIChannelRevision = strings.Repeat("a", 64)
 	}
 	directory, err := provider.NewGoverned(cfgDirectory)
 	if err != nil {
@@ -30,16 +32,26 @@ func TestGovernedDirectoryAndRecoveryReadiness(t *testing.T) {
 	if _, err := route.Open(context.Background(), request()); err == nil {
 		t.Fatal("credential-free route performed native execution")
 	}
-	var available, admissionV2 atomic.Bool
+	var available, admissionV2, drift atomic.Bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer "+token {
 			t.Error("service credential missing")
+		}
+		if strings.Contains(r.URL.Path, "/channels/") {
+			w.Header().Set("X-Aigw-Config-Version", "1")
+			revision := strings.Repeat("a", 64)
+			if drift.Load() {
+				revision = strings.Repeat("b", 64)
+			}
+			w.Write([]byte(`{"channel_id":1,"enabled":true,"revision":"` + revision + `"}`))
+			return
 		}
 		if available.Load() {
 			w.Header().Set("X-Aigw-Events-Version", "1")
 			w.Header().Set("X-Aigw-Paging-Version", "1")
 			if admissionV2.Load() {
 				w.Header().Set("X-Aigw-Admission-Version", "2")
+				w.Header().Set("X-Aigw-Config-Version", "1")
 			}
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -60,6 +72,7 @@ func TestGovernedDirectoryAndRecoveryReadiness(t *testing.T) {
 	embeddingConfig := testutil.MainlandConfig()
 	for i := range embeddingConfig.Models {
 		embeddingConfig.Models[i].NewAPIChannelID = 1
+		embeddingConfig.Models[i].NewAPIChannelRevision = strings.Repeat("a", 64)
 		embeddingConfig.Models[i].API = "embeddings"
 		embeddingConfig.Models[i].MaxOutputTokens = 0
 		embeddingConfig.Models[i].OutputPerMillion = 0
@@ -80,8 +93,24 @@ func TestGovernedDirectoryAndRecoveryReadiness(t *testing.T) {
 	if !runtime.Ready() {
 		t.Fatal("authenticated healthy endpoint not ready")
 	}
-	available.Store(false)
+	drift.Store(true)
 	deadline := time.Now().Add(7 * time.Second)
+	for runtime.Ready() && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if runtime.Ready() {
+		t.Fatal("configuration drift did not stop readiness")
+	}
+	drift.Store(false)
+	deadline = time.Now().Add(7 * time.Second)
+	for !runtime.Ready() && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !runtime.Ready() {
+		t.Fatal("reviewed configuration restoration did not recover")
+	}
+	available.Store(false)
+	deadline = time.Now().Add(7 * time.Second)
 	for runtime.Ready() && time.Now().Before(deadline) {
 		time.Sleep(20 * time.Millisecond)
 	}

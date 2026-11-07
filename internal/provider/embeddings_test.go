@@ -23,6 +23,7 @@ func TestEmbeddingContractAndInputOnlyPrice(t *testing.T) {
 	for i := range cfg.Models {
 		cfg.Models[i].API = "embeddings"
 		cfg.Models[i].NewAPIChannelID = 1
+		cfg.Models[i].NewAPIChannelRevision = strings.Repeat("a", 64)
 		cfg.Models[i].MaxOutputTokens = 0
 		cfg.Models[i].OutputPerMillion = 0
 	}
