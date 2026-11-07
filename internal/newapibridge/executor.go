@@ -24,6 +24,7 @@ import (
 )
 
 var ErrUnavailable = errors.New("new-api execution unavailable")
+var ErrRecoveryPending = errors.New("new-api recovery requires reconciliation")
 var ErrInvalid = errors.New("unsupported new-api execution request")
 var idPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{16,64}$`)
 var modelPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_./:-]{0,127}$`)
@@ -42,18 +43,21 @@ func (Config) String() string   { return "[new-api configuration; credentials re
 func (Config) GoString() string { return "[new-api configuration; credentials redacted]" }
 
 type Executor struct {
-	origin, token string
-	journal       *Journal
-	models        map[string]string
-	channels      map[string]int
-	client        *http.Client
-	transport     *http.Transport
-	root          context.Context
-	cancel        context.CancelFunc
-	mu            sync.Mutex
-	closed        bool
-	active        sync.WaitGroup
-	slots         chan struct{}
+	origin, token       string
+	recoveryMu          sync.Mutex
+	recoveryCursor      string
+	recoveryCycleFailed bool
+	journal             *Journal
+	models              map[string]string
+	channels            map[string]int
+	client              *http.Client
+	transport           *http.Transport
+	root                context.Context
+	cancel              context.CancelFunc
+	mu                  sync.Mutex
+	closed              bool
+	active              sync.WaitGroup
+	slots               chan struct{}
 }
 
 var _ gateway.ProviderExecutor = (*Executor)(nil)

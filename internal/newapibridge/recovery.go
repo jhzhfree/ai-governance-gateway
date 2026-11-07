@@ -11,6 +11,11 @@ import (
 // ReconcileOnce acknowledges only after committing an idempotent receipt and
 // ledger update together. A poison event is retained; unrelated events proceed.
 func (e *Executor) ReconcileOnce(ctx context.Context) error {
+	e.recoveryMu.Lock()
+	defer e.recoveryMu.Unlock()
+	if ctx.Err() != nil {
+		return ErrUnavailable
+	}
 	if e.journal == nil {
 		return ErrInvalid
 	}
@@ -41,7 +46,11 @@ func (e *Executor) ReconcileOnce(ctx context.Context) error {
 			failed = true
 		}
 	}
-	req, err := http.NewRequestWithContext(ctx, "GET", e.origin+"/internal/governance/v1/events", nil)
+	path := "/internal/governance/v1/events"
+	if e.recoveryCursor != "" {
+		path += "/after/" + e.recoveryCursor
+	}
+	req, err := http.NewRequestWithContext(ctx, "GET", e.origin+path, nil)
 	if err != nil {
 		return ErrInvalid
 	}
@@ -51,7 +60,8 @@ func (e *Executor) ReconcileOnce(ctx context.Context) error {
 		return ErrUnavailable
 	}
 	defer res.Body.Close()
-	if res.StatusCode != 200 || len(res.Header.Values("X-Aigw-Events-Version")) != 1 || res.Header.Get("X-Aigw-Events-Version") != "1" {
+	if res.StatusCode != 200 || len(res.Header.Values("X-Aigw-Events-Version")) != 1 || res.Header.Get("X-Aigw-Events-Version") != "1" || len(res.Header.Values("X-Aigw-Paging-Version")) != 1 || res.Header.Get("X-Aigw-Paging-Version") != "1" {
+		e.recoveryCursor = ""
 		return ErrUnavailable
 	}
 	data, err := io.ReadAll(io.LimitReader(res.Body, (256<<10)+1))
@@ -60,6 +70,16 @@ func (e *Executor) ReconcileOnce(ctx context.Context) error {
 	}
 	var events []Event
 	if json.Unmarshal(data, &events) != nil || len(events) > 100 {
+		return ErrInvalid
+	}
+	next := ""
+	cursors := res.Header.Values("X-Aigw-Next-Cursor")
+	if len(events) == 100 {
+		if len(cursors) != 1 || !idPattern.MatchString(cursors[0]) || cursors[0] != events[len(events)-1].AttemptID || cursors[0] == e.recoveryCursor {
+			return ErrInvalid
+		}
+		next = cursors[0]
+	} else if len(cursors) != 0 {
 		return ErrInvalid
 	}
 	for _, event := range events {
@@ -83,8 +103,11 @@ func (e *Executor) ReconcileOnce(ctx context.Context) error {
 			failed = true
 		}
 	}
+	failed = failed || e.recoveryCycleFailed
+	e.recoveryCursor = next
+	e.recoveryCycleFailed = failed && next != ""
 	if failed {
-		return ErrUnavailable
+		return ErrRecoveryPending
 	}
 	return nil
 }

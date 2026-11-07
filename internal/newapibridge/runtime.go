@@ -2,6 +2,7 @@ package newapibridge
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 	"time"
 
@@ -40,13 +41,13 @@ func NewRuntime(ctx context.Context, cfg Config, directory *provider.Catalog) (*
 	setup, cancel := context.WithTimeout(ctx, 15*time.Second)
 	err = executor.ReconcileOnce(setup)
 	cancel()
-	if err != nil {
+	if err != nil && !errors.Is(err, ErrRecoveryPending) {
 		executor.Close()
 		return nil, ErrUnavailable
 	}
 	worker, stop := context.WithCancel(ctx)
 	runtime := &Runtime{Executor: executor, directory: directory, cancel: stop, done: make(chan struct{})}
-	runtime.healthy.Store(true)
+	runtime.healthy.Store(err == nil)
 	go func() {
 		defer close(runtime.done)
 		ticker := time.NewTicker(5 * time.Second)

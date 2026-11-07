@@ -37,6 +37,7 @@ func TestGovernedDirectoryAndRecoveryReadiness(t *testing.T) {
 		}
 		if available.Load() {
 			w.Header().Set("X-Aigw-Events-Version", "1")
+			w.Header().Set("X-Aigw-Paging-Version", "1")
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`[]`))
