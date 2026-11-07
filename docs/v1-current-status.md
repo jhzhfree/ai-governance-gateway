@@ -45,3 +45,7 @@ DeepSeek 能力与计费边界见 [接入说明](deepseek.md)。
 原生 Linux 候选发行包的构建、校验与部署衔接见 [候选包说明](linux-package.md)。
 
 面向用户、实施和技术评估的当前 [产品文档中心](product/README.md) 包含 17 个页面操作手册、技术规格及部署验收手册。
+
+## new-api 专项验证分支
+
+`feature/newapi-foundation-validation` 已启动，第一阶段为实验性接入契约与治理回归；尚未切换生产入口。详见 [new-api 落地进度](new-api-integration.md)。

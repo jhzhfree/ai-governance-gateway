@@ -172,3 +172,11 @@
 核验了当前页面导航、组织交接/密码校验、预算错误及 UTC 轮转、供应商/设备/审计/系统配置和命令实现。修正文档中的密码长度口径为至少 12 个 Unicode 字符、最多 256 UTF-8 字节；明确交接仅面向已有成员、24 小时有效期、原 owner 降为 admin。新文档全部相对文件链接存在，17 个导航页面均有独立操作章节，Markdown 差异检查通过。页面布局是明确标注的文字示意，未伪造截图或实机验收证据。
 
 本轮仅修改文档，没有业务代码、数据库或 Web 行为变更，不重复运行后端/浏览器测试。未将当前分支标为正式 V1.0 或作生产容量/合规承诺。
+
+## new-api 底座验证第一阶段（独立分支）
+
+企业分支 `feature/newapi-foundation-validation` 从 f3db909 创建；new-api 分支 `feature/enterprise-governance-integration` 固定 e034390，尚未修改该 fork 代码。新增 `internal/newapibridge` 实验执行器：独立服务凭证、固定 origin/模型映射、请求/attempt 关联、证据版本/来源/物理次数严格检查、有界并发、取消与关闭，不自动重试或跟随重定向。原生产入口没有启用该执行器；普通 new-api 尚不具备此证据契约，必须先完成后端实际事实与持久事件改造，不能伪造 header。见 [落地计划](new-api-integration.md)。
+
+完整 `AIGW_VERIFY_WEB=0 GOMAXPROCS=4 bash scripts/verify.sh` 退出码 0，239 个主模块顶层测试及执行模块各包（49 个测试）通过，无失败或跳过，含真实隔离 PostgreSQL、race/vet、API/模块检查。最后补强 origin 边界与预算拒绝子场景后，newapibridge 全包 race 再验通过（6.728 秒），vet 通过。有效 JSON/SSE 结算、缺证据/缺 usage/缺 DONE 保留 uncertain 占额、额度不足不派发均有回归。日志 `/workspace/.onboarding/logs/newapi-foundation-verify.log`、`newapi-bridge-budget-final.log`。未修改 Web，本轮不重复浏览器。
+
+实际 new-api 在当前 Go 1.27.3 环境构建和 --help 检查成功，日志 `newapi-validation-build.log`、`newapi-validation-help.log`；不是其完整数据库/协议测试通过。未启动外部管理服务、未接入真实供应商或复制 new-api 代码进企业主模块，未发布商业版本。真实双进程推理与后端证据/outbox 仍待下一阶段。
