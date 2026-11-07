@@ -24,7 +24,7 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 		return
 	}
 	route, ok := h.Providers.Find(req.Model)
-	if !ok || !provider.ValidateRequest(req) || ((req.HasTools() || req.HasParts()) && h.Executor == nil) {
+	if !ok || !provider.ValidateRequest(req) || ((req.IsEmbedding() || req.HasTools() || req.HasParts()) && h.Executor == nil) || (ok && (route.API() == "embeddings") != req.IsEmbedding()) {
 		problem(w, 400, "unsupported_request", id)
 		return
 	}
@@ -171,6 +171,33 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 		data, err := io.ReadAll(io.LimitReader(response.Body, (1<<20)+1))
 		if err != nil || len(data) > 1<<20 {
 			reply(502, "upstream_response_incomplete")
+			return
+		}
+		if req.IsEmbedding() {
+			value, usage, err := provider.NormalizeEmbedding(data, req)
+			if err != nil {
+				reply(502, "upstream_protocol_error")
+				return
+			}
+			actual, err := route.ValidateUsage(usage, 0)
+			if err != nil {
+				reply(502, "upstream_usage_invalid")
+				return
+			}
+			trace.usage(*usage.PromptTokens, 0)
+			outcome = circuit.Success
+			if settle(actual) != nil {
+				reply(503, "settlement_failed")
+				return
+			}
+			if trace.complete() != nil {
+				reply(503, "metadata_finalize_failed")
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Cache-Control", "no-store")
+			_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(2 * time.Second))
+			_ = json.NewEncoder(w).Encode(value)
 			return
 		}
 		value, err := provider.NormalizeRequest(data, req, id)

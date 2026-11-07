@@ -30,6 +30,7 @@ var idPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{16,64}$`)
 var modelPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_./:-]{0,127}$`)
 
 type Config struct {
+	RequireEmbeddings bool
 	Origin            string
 	ServiceToken      string `json:"-"`
 	Models            map[string]string
@@ -43,6 +44,7 @@ func (Config) String() string   { return "[new-api configuration; credentials re
 func (Config) GoString() string { return "[new-api configuration; credentials redacted]" }
 
 type Executor struct {
+	requireEmbeddings   bool
 	origin, token       string
 	recoveryMu          sync.Mutex
 	recoveryCursor      string
@@ -110,10 +112,10 @@ func New(cfg Config) (*Executor, error) {
 	recoveryTransport.MaxIdleConns = 2
 	recoveryTransport.ResponseHeaderTimeout = 5 * time.Second
 	recoveryClient := &http.Client{Transport: recoveryTransport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	return &Executor{recoveryClient: recoveryClient, recoveryTransport: recoveryTransport, journal: cfg.Journal, origin: strings.TrimSuffix(cfg.Origin, "/"), token: cfg.ServiceToken, models: models, channels: channels, root: root, cancel: cancel, slots: make(chan struct{}, cfg.MaxConcurrent), transport: transport, client: &http.Client{Transport: transport, Timeout: 120 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
+	return &Executor{requireEmbeddings: cfg.RequireEmbeddings, recoveryClient: recoveryClient, recoveryTransport: recoveryTransport, journal: cfg.Journal, origin: strings.TrimSuffix(cfg.Origin, "/"), token: cfg.ServiceToken, models: models, channels: channels, root: root, cancel: cancel, slots: make(chan struct{}, cfg.MaxConcurrent), transport: transport, client: &http.Client{Transport: transport, Timeout: 120 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
 }
 func (e *Executor) Validate(route *provider.Route, req gateway.Request) error {
-	if route == nil || !route.Ready() || e.models[req.Model] == "" || !provider.ValidateRequest(req) || !route.AllowsTools(req) || (req.HasImages() && !route.AllowsImages()) {
+	if route == nil || !route.Ready() || e.models[req.Model] == "" || !provider.ValidateRequest(req) || !route.AllowsTools(req) || ((route.API() == "embeddings") != req.IsEmbedding()) || (req.HasImages() && !route.AllowsImages()) {
 		return ErrInvalid
 	}
 	alias, _ := route.ExecutionModel()
@@ -164,12 +166,20 @@ func (e *Executor) Open(ctx context.Context, route *provider.Route, req gateway.
 	if req.Stream {
 		payload["stream_options"] = map[string]bool{"include_usage": true}
 	}
+	path := "/internal/governance/v1/chat/completions"
+	if req.IsEmbedding() {
+		path = "/internal/governance/v1/embeddings"
+		payload = map[string]any{"model": e.models[req.Model], "input": req.Input, "encoding_format": "float"}
+		if req.Dimensions != nil {
+			payload["dimensions"] = *req.Dimensions
+		}
+	}
 	data, err := json.Marshal(payload)
 	if err != nil {
 		release()
 		return nil, ErrInvalid
 	}
-	r, err := http.NewRequestWithContext(call, http.MethodPost, e.origin+"/internal/governance/v1/chat/completions", bytes.NewReader(data))
+	r, err := http.NewRequestWithContext(call, http.MethodPost, e.origin+path, bytes.NewReader(data))
 	if err != nil {
 		release()
 		return nil, ErrInvalid
@@ -192,7 +202,11 @@ func (e *Executor) Open(ctx context.Context, route *provider.Route, req gateway.
 	// Only the dedicated internal service token is sent; route vendor credentials
 	// and caller Authorization/Cookie/forwarded headers are never copied.
 	if e.journal != nil {
-		digest := sha256.Sum256(append([]byte(strconv.Itoa(e.channels[req.Model])+"\x00v2\x00"+inputLimit+"\x00"), data...))
+		prefix := strconv.Itoa(e.channels[req.Model]) + "\x00v2\x00" + inputLimit + "\x00"
+		if req.IsEmbedding() {
+			prefix += "embeddings\x00"
+		}
+		digest := sha256.Sum256(append([]byte(prefix), data...))
 		if err := e.journal.Bind(call, e.origin, e.models[req.Model], requestID, attemptID, hex.EncodeToString(digest[:]), route, req.MaxTokens); err != nil {
 			release()
 			return nil, ErrUnavailable
@@ -206,6 +220,9 @@ func (e *Executor) Open(ctx context.Context, route *provider.Route, req gateway.
 	version := res.Header.Get("X-Aigw-Evidence-Version")
 	live := req.Stream && version == "2"
 	valid := res.StatusCode == http.StatusOK
+	if req.IsEmbedding() {
+		valid = valid && len(res.Header.Values("X-Aigw-Protocol")) == 1 && res.Header.Get("X-Aigw-Protocol") == "embeddings"
+	}
 	if live {
 		valid = valid && strings.HasPrefix(res.Header.Get("Content-Type"), "text/event-stream")
 	} else {

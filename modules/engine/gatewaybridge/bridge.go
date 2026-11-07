@@ -35,7 +35,7 @@ func New(route *provider.Route, executor execution.Executor) (*Binding, error) {
 }
 
 func (b *Binding) Validate(route *provider.Route, req provider.Request) error {
-	if b == nil || route == nil || !route.Ready() || route.PriceVersion() != b.price || route.ExecutionIdentity() != b.revision || req.Model != b.alias || req.MaxTokens < 16 || !provider.ValidateRequest(req) || req.HasTools() || req.HasParts() {
+	if b == nil || route == nil || !route.Ready() || route.PriceVersion() != b.price || route.ExecutionIdentity() != b.revision || req.Model != b.alias || req.MaxTokens < 16 || !provider.ValidateRequest(req) || req.IsEmbedding() || req.HasTools() || req.HasParts() {
 		return execution.ErrInvalidRequest
 	}
 	if _, err := route.Bound(req.MaxTokens); err != nil {

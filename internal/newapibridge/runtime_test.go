@@ -57,6 +57,21 @@ func TestGovernedDirectoryAndRecoveryReadiness(t *testing.T) {
 		t.Fatal("old data plane without input admission accepted")
 	}
 	admissionV2.Store(true)
+	embeddingConfig := testutil.MainlandConfig()
+	for i := range embeddingConfig.Models {
+		embeddingConfig.Models[i].NewAPIChannelID = 1
+		embeddingConfig.Models[i].API = "embeddings"
+		embeddingConfig.Models[i].MaxOutputTokens = 0
+		embeddingConfig.Models[i].OutputPerMillion = 0
+	}
+	embeddingDirectory, err := provider.NewGoverned(embeddingConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if old, err := newapibridge.NewRuntime(context.Background(), cfg, embeddingDirectory); err == nil {
+		old.Close()
+		t.Fatal("embedding directory accepted old protocol capability")
+	}
 	runtime, err := newapibridge.NewRuntime(context.Background(), cfg, directory)
 	if err != nil {
 		t.Fatal(err)

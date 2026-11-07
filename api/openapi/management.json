@@ -11729,6 +11729,127 @@
         ],
         "summary": "finishSystemNetwork"
       }
+    },
+    "/v1/embeddings": {
+      "post": {
+        "operationId": "createEmbeddings",
+        "description": "Reviewed newapi input-only text embeddings. At most 16 nonempty strings, 16 KiB per string, 64 KiB request body. Float vectors only, 1–4096 dimensions. Applies authorization, device admission, budget, input keywords and optional encrypted content audit. Output text policies reject before dispatch because vectors cannot be text-inspected. Complete raw prompt/total usage required; no retries or estimated settlement.",
+        "security": [
+          {
+            "projectKey": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Present when supplier circuit blocks dispatch; positive seconds, no capacity guarantee.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Validated vectors and raw input-token usage, delivered after settlement and audit completion.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Budget or project admission limit exceeded. Admission rejections include a positive Retry-After in seconds and occur before budget reservation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Conservative retry delay for admission denials.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream failure before streaming starts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmbeddingRequest"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -12690,12 +12811,19 @@
           "max_output_tokens": {
             "type": "integer",
             "format": "int64",
-            "minimum": 1
+            "minimum": 0
           },
           "allow_images": {
             "type": "boolean",
             "default": false,
             "description": "Reviewed inline image input capability in newapi mode; not a guarantee of image-content moderation."
+          },
+          "api": {
+            "type": "string",
+            "enum": [
+              "embeddings"
+            ],
+            "description": "When present, this reviewed model is input-only Embeddings. Omitted means Chat."
           }
         }
       },
@@ -16834,6 +16962,132 @@
             }
           }
         ]
+      },
+      "EmbeddingRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "model",
+          "input"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "input": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 16384
+              },
+              {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 16,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 16384
+                }
+              }
+            ]
+          },
+          "encoding_format": {
+            "type": "string",
+            "enum": [
+              "float"
+            ],
+            "default": "float"
+          },
+          "dimensions": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          }
+        }
+      },
+      "EmbeddingItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "object",
+          "index",
+          "embedding"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "embedding"
+            ]
+          },
+          "index": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 15
+          },
+          "embedding": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 4096,
+            "items": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        }
+      },
+      "EmbeddingResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "object",
+          "model",
+          "data",
+          "usage"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "list"
+            ]
+          },
+          "model": {
+            "type": "string"
+          },
+          "data": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 16,
+            "items": {
+              "$ref": "#/components/schemas/EmbeddingItem"
+            }
+          },
+          "usage": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "prompt_tokens",
+              "total_tokens"
+            ],
+            "properties": {
+              "prompt_tokens": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 1
+              },
+              "total_tokens": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 1
+              }
+            }
+          }
+        }
       }
     }
   }

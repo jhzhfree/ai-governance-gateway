@@ -9,6 +9,7 @@ import (
 // RevertGovernedSuppliersMigration reconstructs v26 only in isolated fixtures.
 func RevertGovernedSuppliersMigration(t testing.TB, pool *pgxpool.Pool) {
 	t.Helper()
+	RevertEmbeddingMigration(t, pool)
 	_, err := pool.Exec(context.Background(), `
  ALTER TABLE inference_attempts DROP CONSTRAINT inference_attempts_provider_check;
  ALTER TABLE inference_attempts ADD CONSTRAINT inference_attempts_provider_check CHECK(provider IN ('mock','aliyun','volcengine','zhipu','deepseek'));

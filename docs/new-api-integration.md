@@ -161,7 +161,7 @@ export AIGW_NEWAPI_ORIGIN=https://newapi.internal.example
 - 企业迁移专项验证 v25→v26、连续启动、历史占额保留、失败 DDL/历史回滚和新表漂移阻断。恢复收据插入失败时预算同步回滚，并发重复投递只结算一次。
 - 双进程联调使用实际 new-api 路由/迁移/鉴权/Relay 和企业 Handler/恢复器；授权与模型上游为合成 fixture，不是生产身份/供应商验收。JSON 与 SSE 均通过。控制面在数据面持久完成、成功响应尚被故障代理扣留时被 SIGKILL，重启恢复三笔结算，共 48 微元，物理请求仍为 3 次。
 - 数据面在供应商已观察到第 4 次请求、尚无完成证据时被 SIGKILL；同一 SQLite 数据重启后，保留 1 笔 uncertain、288 微元占额，既有支出仍 48 微元，物理请求仍为 4 次。fixture 显式设置原生重试次数为 3，治理模式仍不重试。
-- CI 固定使用 new-api `ba305e7754a1fe37a2d76050e440ec95387bfe89` 构建进程 fixture，设置 `TEST_NEWAPI_SERVER_BINARY` 才计作完成该联调；不配置时的 skip 不是验收通过。
+- CI 固定使用 new-api `7d06da50e22340da362b2d21c9dd8f7cb4a44d7e` 构建进程 fixture，设置 `TEST_NEWAPI_SERVER_BINARY` 才计作完成该联调；不配置时的 skip 不是验收通过。
 
 默认执行器仍为 native；本轮没有切换生产流量、发布 V1.0 标签或宣称 AGPL 商业许可问题已解决。目标部署实时流式延迟验收、生产容量与跨主机故障、真实 IdP/终端/供应商账号、安装升级和备份恢复的联合验收仍属于发布门禁。后续协议扩展必须逐项提供用量与审计证据，不能直接开放全部原生功能。
 
@@ -272,7 +272,7 @@ export AIGW_NEWAPI_ORIGIN=https://newapi.internal.example
 | --- | --- | --- |
 | 客户端函数调用 | 原文本 DTO/响应归一化丢失调用参数与结果；现由下节实现补齐 | 本阶段 |
 | 图片理解输入 | 内容数组、图片边界、审计语义、图片费用事实与外部 URL 获取风险 | 已完成有界内联图片；语义护栏与细分价格仍待扩展 |
-| Embeddings | 独立请求/响应契约、无 completion token 的计费事实与内容审计 | 图片输入之后评估并实现 |
+| Embeddings | 已实现有界文本批量、浮点向量、input-only 账本、审计与双进程恢复 | 真实目标模型/维度/账单仍待验收 |
 | Responses / 原生 Messages / Gemini 公共 API | 多协议事件到同一账本和审计的完整映射 | 分协议推进，不能仅增加路由别名 |
 | 音频、图片生成、视频/异步任务、供应商托管工具 | 秒/张/任务/工具等非 token 计费、异步完成与恢复、二进制审计 | 先设计新的计量与预留上界，当前继续拒绝 |
 | 企业增强 | 自建标准 OIDC Provider、语义护栏、KMS/SIEM、集中工具授权、规模化归档 | 不把现有本地登录/关键词/客户端声明校验表述为这些能力 |
@@ -353,3 +353,30 @@ export AIGW_NEWAPI_ORIGIN=https://newapi.internal.example
 这是模型目录级的函数名准入，不是工具服务器、MCP 网关或用户/动作级 RBAC。它不认证函数实现，不批准业务对象或参数，不校验任意 JSON Schema。客户端仍须在执行前检查参数 schema、调用者权限和业务条件；托管搜索/代码执行工具仍拒绝。无需数据库迁移，仍为 v27。
 
 工具白名单阶段完整门禁通过：固定 `ba305e775` 数据面 fixture，执行 `AIGW_VERIFY_RESTORE=1 bash scripts/verify.sh`，退出码 0，覆盖全部后端竞态、默认/未审核拒绝、策略不可变与版本、原始费用/加密审计、三协议函数及双协议图片故障矩阵、当前/旧版逻辑恢复。公共 API 类型未改变。
+
+
+### 受控文本 Embeddings
+
+模型目录显式设置 `"api": "embeddings"`，`output_per_million` 与 `max_output_tokens` 必须同时为 0；`input_per_million` 保持正的审核价格，`max_input_tokens` 是整批输入的审核上限。不可同时开启图片或客户端工具。公共模型管理目录返回 `api: embeddings`，省略该字段仍为 Chat。该模式仅走审核的 new-api OpenAI 兼容渠道（type 1），不因通用 DTO 存在就宣称 DeepSeek/Anthropic 提供 Embeddings。
+
+```json
+{"model":"reviewed-compatible/embedding","input":["第一条合成文本","第二条合成文本"],"encoding_format":"float","dimensions":1024}
+```
+
+请求发送至 `POST /v1/embeddings`，同样使用项目 Key/设备准入、模型权限、预算、限流熔断和审计链。允许单字符串或最多 16 个非空字符串，每项最多 16 KiB、完整请求体最多 64 KiB。拒绝 token-ID 数组、媒体、user 透传、stream、工具与未知字段。可选 dimensions 为 1–4096，目标模型是否支持维度参数必须审核；encoding_format 只允许 float。数据面在转换后按每项文本估算输入，每项估算不超过 8192，整批不超过目录上限；仍非供应商精确 tokenizer 或账单。
+
+响应必须是 list，具有与输入数量一一对应的唯一 index、非空有限浮点向量、统一维度，指定 dimensions 时须相符。每个向量最多 4096 维，整个供应商响应最多 1 MiB；这些独立上限不保证所有最大值组合都可用，高维批量需要缩小批次。返回值按 index 排序并使用客户端模型别名，去除其他供应商字段。拒绝 base64 向量、缺少 index、缺项、重复索引、非数值、维度不一致和缺失/冲突用量。
+
+原始 Embeddings 用量必须明确含 prompt_tokens/total_tokens，二者相等且为正；completion_tokens 缺省或显式 0 只在此协议成立，不能用于放宽 Chat 的完整证据要求。输入用量乘以审核输入价格结算，不虚构输出 token、输出费用或 max_tokens。协议名纳入请求指纹并由数据面响应回显；配置 Embeddings 的新版控制面还检查 `X-Aigw-Embeddings-Version: 1` 能力，旧数据面不能让它就绪。
+
+启用项目内容审计后，加密请求记录标记 protocol=embeddings 并保存输入，响应保存归一化向量；均受捕获上限、截断、查看授权与保留策略约束。向量可能携带敏感信息，不能因不是自然语言而免于数据治理。输入关键词照常检查；存在任何 output/both 文本策略时在派发前返回 embedding_output_policy_unsupported，不对向量伪造文本审核，也不改写向量数值。向量结构验收与供应商费用事实分离：若供应商用量完整但结果格式不可交付，恢复账本仍可能据事实结算，不能无依据退款。
+
+新增 v28 追加迁移，放宽执行绑定中的输出价/上限至 0 并要求两者成对为 0 或同时为正，保留既有 Chat 约束。启动自动升级、事务回滚、校验和与漂移检查保留；不能把回退二进制等同数据库自动降级。先升级数据面，再启动控制面升级数据库。历史 Chat 记录、价格快照和 outbox 恢复兼容。
+
+已验证合成 Embeddings 两次正常完成、控制面完成证据前 SIGKILL 与重启恢复、数据面已派发后 SIGKILL 的未知占额、无派发取消墓碑。三笔完成分别 2 input token、合计 12 微元；第四笔未知派发保留 256 微元，不增加物理调用。生产能力仍需要真实供应商账号、目标模型维度、原始账单与容量验收。
+
+协议参考：[OpenAI Embeddings API](https://developers.openai.com/api/reference/resources/embeddings/methods/create)。本产品限制比该通用接口更窄，不等于完整兼容其所有输入和编码格式。
+
+Embeddings 数据面验证：relay/common、channel/OpenAI/Claude/DeepSeek、service 全部竞态回归通过；治理 controller 专项通过。持久账本三数据库新建/官方 rc48 基线升级矩阵 6 项全部通过（SQLite 3.50.4、MySQL 8.4.13、PostgreSQL 17.11），命令 `go test -race ./controller -run ^TestGovernanceJournalDatabaseMatrix$ -count=1 -timeout=180s -v`，实际运行 32.954 秒。模型包的早期过滤命令没有匹配测试，不计入验证证据。
+
+Embeddings 控制面完整门禁：固定 `7d06da50e22340da362b2d21c9dd8f7cb4a44d7e` 专用竞态 fixture，执行 `AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 bash scripts/verify.sh`，退出码 0。包含 v28 自动升级/事务回滚/约束漂移、全部后端竞态、Embedding/Chat/函数/图片双进程故障、17 项 OIDC 与 1 项本地登录浏览器（77.217 秒）、当前和旧版逻辑恢复（4.285 秒）。公开 OpenAPI 与 Go/TypeScript 类型一致。

@@ -156,6 +156,21 @@ const (
 	DeviceStateRevoked DeviceState = "revoked"
 )
 
+// Defines values for EmbeddingItemObject.
+const (
+	Embedding EmbeddingItemObject = "embedding"
+)
+
+// Defines values for EmbeddingRequestEncodingFormat.
+const (
+	Float EmbeddingRequestEncodingFormat = "float"
+)
+
+// Defines values for EmbeddingResponseObject.
+const (
+	EmbeddingResponseObjectList EmbeddingResponseObject = "list"
+)
+
 // Defines values for ExecutionAttemptOutcome.
 const (
 	ExecutionAttemptOutcomeCanceled   ExecutionAttemptOutcome = "canceled"
@@ -193,7 +208,7 @@ const (
 
 // Defines values for InferenceModelListObject.
 const (
-	List InferenceModelListObject = "list"
+	InferenceModelListObjectList InferenceModelListObject = "list"
 )
 
 // Defines values for InferenceRequestMessagesRole.
@@ -303,6 +318,11 @@ const (
 	MemberRecordRoleDeveloper MemberRecordRole = "developer"
 	MemberRecordRoleOwner     MemberRecordRole = "owner"
 	MemberRecordRoleViewer    MemberRecordRole = "viewer"
+)
+
+// Defines values for ModelInfoApi.
+const (
+	Embeddings ModelInfoApi = "embeddings"
 )
 
 // Defines values for ModelInfoCurrency.
@@ -1077,6 +1097,52 @@ type DeviceSessionPage struct {
 	NextCursor string          `json:"next_cursor"`
 }
 
+// EmbeddingItem defines model for EmbeddingItem.
+type EmbeddingItem struct {
+	Embedding []float64           `json:"embedding"`
+	Index     int                 `json:"index"`
+	Object    EmbeddingItemObject `json:"object"`
+}
+
+// EmbeddingItemObject defines model for EmbeddingItem.Object.
+type EmbeddingItemObject string
+
+// EmbeddingRequest defines model for EmbeddingRequest.
+type EmbeddingRequest struct {
+	Dimensions     *int                            `json:"dimensions,omitempty"`
+	EncodingFormat *EmbeddingRequestEncodingFormat `json:"encoding_format,omitempty"`
+	Input          EmbeddingRequest_Input          `json:"input"`
+	Model          string                          `json:"model"`
+}
+
+// EmbeddingRequestEncodingFormat defines model for EmbeddingRequest.EncodingFormat.
+type EmbeddingRequestEncodingFormat string
+
+// EmbeddingRequestInput0 defines model for .
+type EmbeddingRequestInput0 = string
+
+// EmbeddingRequestInput1 defines model for .
+type EmbeddingRequestInput1 = []string
+
+// EmbeddingRequest_Input defines model for EmbeddingRequest.Input.
+type EmbeddingRequest_Input struct {
+	union json.RawMessage
+}
+
+// EmbeddingResponse defines model for EmbeddingResponse.
+type EmbeddingResponse struct {
+	Data   []EmbeddingItem         `json:"data"`
+	Model  string                  `json:"model"`
+	Object EmbeddingResponseObject `json:"object"`
+	Usage  struct {
+		PromptTokens int64 `json:"prompt_tokens"`
+		TotalTokens  int64 `json:"total_tokens"`
+	} `json:"usage"`
+}
+
+// EmbeddingResponseObject defines model for EmbeddingResponse.Object.
+type EmbeddingResponseObject string
+
 // Error defines model for Error.
 type Error struct {
 	Error struct {
@@ -1550,7 +1616,10 @@ type MemberRecordRole string
 // ModelInfo defines model for ModelInfo.
 type ModelInfo struct {
 	// AllowImages Reviewed inline image input capability in newapi mode; not a guarantee of image-content moderation.
-	AllowImages      *bool             `json:"allow_images,omitempty"`
+	AllowImages *bool `json:"allow_images,omitempty"`
+
+	// Api When present, this reviewed model is input-only Embeddings. Omitted means Chat.
+	Api              *ModelInfoApi     `json:"api,omitempty"`
 	Currency         ModelInfoCurrency `json:"currency"`
 	Id               string            `json:"id"`
 	InputPerMillion  int64             `json:"input_per_million"`
@@ -1563,6 +1632,9 @@ type ModelInfo struct {
 	Provider string          `json:"provider"`
 	Region   ModelInfoRegion `json:"region"`
 }
+
+// ModelInfoApi When present, this reviewed model is input-only Embeddings. Omitted means Chat.
+type ModelInfoApi string
 
 // ModelInfoCurrency defines model for ModelInfo.Currency.
 type ModelInfoCurrency string
@@ -2379,6 +2451,9 @@ type ResetLocalUserPasswordJSONRequestBody = ResetLocalPassword
 // StreamMockChatJSONRequestBody defines body for StreamMockChat for application/json ContentType.
 type StreamMockChatJSONRequestBody = InferenceRequest
 
+// CreateEmbeddingsJSONRequestBody defines body for CreateEmbeddings for application/json ContentType.
+type CreateEmbeddingsJSONRequestBody = EmbeddingRequest
+
 // AsChatContentPart0 returns the union data inside the ChatContentPart as a ChatContentPart0
 func (t ChatContentPart) AsChatContentPart0() (ChatContentPart0, error) {
 	var body ChatContentPart0
@@ -2499,6 +2574,68 @@ func (t *ChatContentPart) UnmarshalJSON(b []byte) error {
 		}
 	}
 
+	return err
+}
+
+// AsEmbeddingRequestInput0 returns the union data inside the EmbeddingRequest_Input as a EmbeddingRequestInput0
+func (t EmbeddingRequest_Input) AsEmbeddingRequestInput0() (EmbeddingRequestInput0, error) {
+	var body EmbeddingRequestInput0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEmbeddingRequestInput0 overwrites any union data inside the EmbeddingRequest_Input as the provided EmbeddingRequestInput0
+func (t *EmbeddingRequest_Input) FromEmbeddingRequestInput0(v EmbeddingRequestInput0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEmbeddingRequestInput0 performs a merge with any union data inside the EmbeddingRequest_Input, using the provided EmbeddingRequestInput0
+func (t *EmbeddingRequest_Input) MergeEmbeddingRequestInput0(v EmbeddingRequestInput0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsEmbeddingRequestInput1 returns the union data inside the EmbeddingRequest_Input as a EmbeddingRequestInput1
+func (t EmbeddingRequest_Input) AsEmbeddingRequestInput1() (EmbeddingRequestInput1, error) {
+	var body EmbeddingRequestInput1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEmbeddingRequestInput1 overwrites any union data inside the EmbeddingRequest_Input as the provided EmbeddingRequestInput1
+func (t *EmbeddingRequest_Input) FromEmbeddingRequestInput1(v EmbeddingRequestInput1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEmbeddingRequestInput1 performs a merge with any union data inside the EmbeddingRequest_Input, using the provided EmbeddingRequestInput1
+func (t *EmbeddingRequest_Input) MergeEmbeddingRequestInput1(v EmbeddingRequestInput1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t EmbeddingRequest_Input) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *EmbeddingRequest_Input) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
 	return err
 }
 

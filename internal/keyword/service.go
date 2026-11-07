@@ -254,3 +254,17 @@ func minimumWidth(r *syntax.Regexp) int {
 	}
 	return 0
 }
+
+// AllowsOpaqueOutput fails closed when a configured text-output policy cannot
+// inspect a vector or other non-text response.
+func (s *Session) AllowsOpaqueOutput() bool {
+	if s == nil {
+		return true
+	}
+	for _, rule := range s.rules {
+		if rule.Direction != "input" {
+			return false
+		}
+	}
+	return true
+}

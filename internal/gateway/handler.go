@@ -92,7 +92,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.models(w, r, id)
 		return
 	}
-	if r.URL.Path != "/v1/chat/completions" {
+	if r.URL.Path != "/v1/chat/completions" && r.URL.Path != "/v1/embeddings" {
 		problem(w, 404, "not_found", id)
 		return
 	}
@@ -122,12 +122,29 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !allowedDevice {
 		return
 	}
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	limit := int64(1 << 20)
+	if r.URL.Path == "/v1/embeddings" {
+		limit = 64 << 10
+	}
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, limit))
 	dec.DisallowUnknownFields()
-	if err := dec.Decode(&req); err != nil {
+	if r.URL.Path == "/v1/embeddings" {
+		var payload provider.EmbeddingRequest
+		if dec.Decode(&payload) != nil {
+			problem(w, 400, "invalid_request", id)
+			return
+		}
+		var err error
+		req, err = payload.Request()
+		if err != nil {
+			problem(w, 400, "invalid_request", id)
+			return
+		}
+	} else if err := dec.Decode(&req); err != nil {
 		problem(w, 400, "invalid_request", id)
 		return
 	}
+
 	if dec.Decode(&struct{}{}) != io.EOF {
 		problem(w, 400, "invalid_request", id)
 		return
@@ -141,7 +158,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.serveProvider(w, r, id, token, req)
 		return
 	}
-	if req.HasTools() || req.HasParts() || req.Model != "mock-text" || !req.Stream || req.MaxTokens < 1 || req.MaxTokens > 8 || len(req.Messages) != 1 || req.Messages[0].Role != "user" {
+	if req.IsEmbedding() || req.HasTools() || req.HasParts() || req.Model != "mock-text" || !req.Stream || req.MaxTokens < 1 || req.MaxTokens > 8 || len(req.Messages) != 1 || req.Messages[0].Role != "user" {
 		problem(w, 400, "unsupported_mock_request", id)
 		return
 	}

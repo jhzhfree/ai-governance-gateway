@@ -16,12 +16,16 @@ type Message struct {
 	ToolCallID string        `json:"tool_call_id,omitempty"`
 }
 type Request struct {
-	Tools      []Tool    `json:"tools,omitempty"`
-	ToolChoice string    `json:"tool_choice,omitempty"`
-	Model      string    `json:"model"`
-	Stream     bool      `json:"stream"`
-	MaxTokens  int       `json:"max_tokens"`
-	Messages   []Message `json:"messages"`
+	API            string    `json:"-"`
+	Input          []string  `json:"input,omitempty"`
+	EncodingFormat string    `json:"encoding_format,omitempty"`
+	Dimensions     *int      `json:"dimensions,omitempty"`
+	Tools          []Tool    `json:"tools,omitempty"`
+	ToolChoice     string    `json:"tool_choice,omitempty"`
+	Model          string    `json:"model"`
+	Stream         bool      `json:"stream"`
+	MaxTokens      int       `json:"max_tokens"`
+	Messages       []Message `json:"messages"`
 }
 type Usage struct {
 	PromptTokens     *int64 `json:"prompt_tokens"`
@@ -51,6 +55,12 @@ type Response struct {
 }
 
 func ValidateRequest(req Request) bool {
+	if req.IsEmbedding() {
+		return validEmbeddingRequest(req)
+	}
+	if req.API != "" || req.Input != nil || req.EncodingFormat != "" || req.Dimensions != nil {
+		return false
+	}
 	if len(req.Messages) < 1 || len(req.Messages) > 64 || !validateTools(req) {
 		return false
 	}
@@ -65,7 +75,7 @@ func ValidateRequest(req Request) bool {
 	return true
 }
 func (r *Route) Open(ctx context.Context, req Request) (*http.Response, error) {
-	if !r.Ready() || r.key == "" || req.HasTools() || req.HasParts() {
+	if req.IsEmbedding() || !r.Ready() || r.key == "" || req.HasTools() || req.HasParts() {
 		return nil, errors.New("mainland residency review expired")
 	}
 	payload := map[string]any{"model": r.model.UpstreamModel, "max_tokens": req.MaxTokens, "stream": req.Stream, "messages": req.Messages}

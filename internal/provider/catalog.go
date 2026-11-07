@@ -53,6 +53,7 @@ func (r Residency) valid(now time.Time) bool {
 }
 
 type Model struct {
+	API              string    `json:"api,omitempty"`
 	AllowedTools     []string  `json:"allowed_tools,omitempty"`
 	AllowImages      bool      `json:"allow_images,omitempty"`
 	NewAPIChannelID  int       `json:"newapi_channel_id,omitempty"`
@@ -72,6 +73,7 @@ type Config struct {
 	Models              []Model   `json:"models"`
 }
 type ModelInfo struct {
+	API              string `json:"api,omitempty"`
 	AllowImages      bool   `json:"allow_images,omitempty"`
 	ID               string `json:"id"`
 	Provider         string `json:"provider"`
@@ -152,7 +154,7 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	catalog := &Catalog{routes: map[string]*Route{}}
 	for _, m := range cfg.Models {
-		if (!requireCredential && m.NewAPIChannelID <= 0) || (requireCredential && (m.NewAPIChannelID != 0 || m.AllowImages || len(m.AllowedTools) != 0)) {
+		if (!requireCredential && m.NewAPIChannelID <= 0) || (requireCredential && (m.NewAPIChannelID != 0 || m.AllowImages || len(m.AllowedTools) != 0 || m.API != "")) {
 			return nil, errors.New("newapi directory requires an explicit approved channel; native directories cannot specify one")
 		}
 		if len(m.AllowedTools) > 8 {
@@ -165,6 +167,10 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 				return nil, errors.New("invalid approved client tool")
 			}
 		}
+		embedding := m.API == "embeddings"
+		if (m.API != "" && !embedding) || (embedding && (m.AllowImages || len(m.AllowedTools) > 0 || m.MaxOutputTokens != 0 || m.OutputPerMillion != 0)) {
+			return nil, errors.New("invalid model API capability")
+		}
 		p, ok := profiles[m.Provider]
 		// The data plane owns the reviewed upstream endpoint. A new-api
 		// directory may name a reviewed supplier without inventing a native
@@ -173,7 +179,7 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 			p = Profile{ID: m.Provider, Region: "cn-mainland"}
 			ok = true
 		}
-		if !ok || !strings.HasPrefix(m.ID, m.Provider+"/") || !modelPattern.MatchString(m.ID) || !upstreamPattern.MatchString(m.UpstreamModel) || !pricePattern.MatchString(m.PriceVersion) || !m.Residency.valid(time.Now()) || m.MaxInputTokens < 1 || m.MaxInputTokens > 2000000 || m.MaxOutputTokens < 1 || m.MaxOutputTokens > 1000000 || m.InputPerMillion <= 0 || m.OutputPerMillion <= 0 || m.InputPerMillion > MaxAmount || m.OutputPerMillion > MaxAmount {
+		if !ok || !strings.HasPrefix(m.ID, m.Provider+"/") || !modelPattern.MatchString(m.ID) || !upstreamPattern.MatchString(m.UpstreamModel) || !pricePattern.MatchString(m.PriceVersion) || !m.Residency.valid(time.Now()) || m.MaxInputTokens < 1 || m.MaxInputTokens > 2000000 || (!embedding && m.MaxOutputTokens < 1) || m.MaxOutputTokens > 1000000 || m.InputPerMillion <= 0 || (!embedding && m.OutputPerMillion <= 0) || m.InputPerMillion > MaxAmount || m.OutputPerMillion > MaxAmount {
 			return nil, errors.New("model requires a supported mainland supplier, explicit prices, token bounds and current residency evidence")
 		}
 		if _, exists := catalog.routes[m.ID]; exists {
@@ -189,6 +195,9 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 			Input, Output, MaxInput, MaxOutput                       int64
 		}{m.ID, m.Provider, m.UpstreamModel, m.PriceVersion, p.Endpoint, p.Region, Currency, m.InputPerMillion, m.OutputPerMillion, m.MaxInputTokens, m.MaxOutputTokens})
 		if !requireCredential {
+			if embedding {
+				canonical = append(canonical, []byte("\nembeddings-v1")...)
+			}
 			if len(m.AllowedTools) > 0 {
 				tools, _ := json.Marshal(m.AllowedTools)
 				canonical = append(canonical, []byte("\napproved-client-tools-v1:")...)
@@ -224,7 +233,7 @@ func (c *Catalog) Models() []ModelInfo {
 	for _, r := range c.routes {
 		if r.Ready() {
 			m := r.model
-			result = append(result, ModelInfo{m.AllowImages, m.ID, m.Provider, Currency, r.profile.Region, r.fingerprint, m.InputPerMillion, m.OutputPerMillion, m.MaxInputTokens, m.MaxOutputTokens})
+			result = append(result, ModelInfo{m.API, m.AllowImages, m.ID, m.Provider, Currency, r.profile.Region, r.fingerprint, m.InputPerMillion, m.OutputPerMillion, m.MaxInputTokens, m.MaxOutputTokens})
 		}
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
@@ -251,7 +260,7 @@ func (r *Route) Cost(input, output int64) (int64, error) {
 
 // Bound reserves the full configured input/context bound, never a guessed tokenizer count.
 func (r *Route) Bound(maxOutput int) (int64, error) {
-	if maxOutput < 1 || int64(maxOutput) > r.model.MaxOutputTokens {
+	if (r.API() == "embeddings" && maxOutput != 0) || (r.API() != "embeddings" && maxOutput < 1) || int64(maxOutput) > r.model.MaxOutputTokens {
 		return 0, errors.New("unsupported max_tokens")
 	}
 	return r.Cost(r.model.MaxInputTokens, int64(maxOutput))

@@ -28,6 +28,9 @@ func NewRuntime(ctx context.Context, cfg Config, directory *provider.Catalog) (*
 	cfg.Channels = make(map[string]int)
 	for _, route := range directory.ExecutionRoutes() {
 		alias, model := route.ExecutionModel()
+		if route.API() == "embeddings" {
+			cfg.RequireEmbeddings = true
+		}
 		cfg.Models[alias] = model
 		if route.GovernanceChannelID() <= 0 {
 			return nil, ErrInvalid

@@ -18,6 +18,18 @@ func (h *Handler) beginKeywords(w http.ResponseWriter, r *http.Request, id strin
 		return nil, true
 	}
 	session, err := h.Keywords.Begin(r.Context(), scope.Organization, scope.Project, id, req.Stream)
+	if err == nil && req.IsEmbedding() {
+		if !session.AllowsOpaqueOutput() {
+			problem(w, 403, "embedding_output_policy_unsupported", id)
+			return nil, false
+		}
+		for _, input := range req.Input {
+			_, err = session.Process(r.Context(), "input", input)
+			if err != nil {
+				break
+			}
+		}
+	}
 	if err == nil {
 		for _, m := range req.Messages {
 			_, err = session.Process(r.Context(), "input", m.Content)

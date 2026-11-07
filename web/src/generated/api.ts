@@ -1832,6 +1832,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/embeddings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Reviewed newapi input-only text embeddings. At most 16 nonempty strings, 16 KiB per string, 64 KiB request body. Float vectors only, 1–4096 dimensions. Applies authorization, device admission, budget, input keywords and optional encrypted content audit. Output text policies reject before dispatch because vectors cannot be text-inspected. Complete raw prompt/total usage required; no retries or estimated settlement. */
+        post: operations["createEmbeddings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2067,6 +2084,11 @@ export interface components {
              * @default false
              */
             allow_images: boolean;
+            /**
+             * @description When present, this reviewed model is input-only Embeddings. Omitted means Chat.
+             * @enum {string}
+             */
+            api?: "embeddings";
         };
         ModelPage: {
             data: components["schemas"]["ModelInfo"][];
@@ -3089,6 +3111,34 @@ export interface components {
             /** @enum {unknown} */
             type?: "image_url";
         });
+        EmbeddingRequest: {
+            model: string;
+            input: string | string[];
+            /**
+             * @default float
+             * @enum {string}
+             */
+            encoding_format: "float";
+            dimensions?: number;
+        };
+        EmbeddingItem: {
+            /** @enum {string} */
+            object: "embedding";
+            index: number;
+            embedding: number[];
+        };
+        EmbeddingResponse: {
+            /** @enum {string} */
+            object: "list";
+            model: string;
+            data: components["schemas"]["EmbeddingItem"][];
+            usage: {
+                /** Format: int64 */
+                prompt_tokens: number;
+                /** Format: int64 */
+                total_tokens: number;
+            };
+        };
     };
     responses: never;
     parameters: never;
@@ -11324,6 +11374,97 @@ export interface operations {
             /** @description Service unavailable */
             503: {
                 headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    createEmbeddings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmbeddingRequest"];
+            };
+        };
+        responses: {
+            /** @description Validated vectors and raw input-token usage, delivered after settlement and audit completion. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmbeddingResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Budget or project admission limit exceeded. Admission rejections include a positive Retry-After in seconds and occur before budget reservation. */
+            429: {
+                headers: {
+                    /** @description Conservative retry delay for admission denials. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Upstream failure before streaming starts */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    /** @description Present when supplier circuit blocks dispatch; positive seconds, no capacity guarantee. */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {

@@ -55,6 +55,12 @@ func TestNewAPIControlHelper(t *testing.T) {
 		}
 		cfg.Models[i].NewAPIChannelID = 1
 		cfg.Models[i].AllowedTools = []string{"lookup"}
+		if os.Getenv("AIGW_INTEGRATION_PROTOCOL") == "embedding" {
+			cfg.Models[i].API = "embeddings"
+			cfg.Models[i].MaxOutputTokens = 0
+			cfg.Models[i].OutputPerMillion = 0
+			cfg.Models[i].AllowedTools = nil
+		}
 		cfg.Models[i].AllowImages = os.Getenv("AIGW_INTEGRATION_IMAGES") == "1"
 		if os.Getenv("AIGW_INTEGRATION_RICH") == "1" {
 			cfg.Models[i].MaxInputTokens = 1024
@@ -96,7 +102,11 @@ func TestNewAPITwoProcessImages(t *testing.T) {
 		t.Run(protocol, func(t *testing.T) { testNewAPITwoProcessRecovery(t, protocol, false, true) })
 	}
 }
+func TestNewAPITwoProcessEmbeddings(t *testing.T) {
+	testNewAPITwoProcessRecovery(t, "embedding", false, false)
+}
 func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images bool) {
+	embedding := protocol == "embedding"
 	expectedHeld := int64(288)
 	if tools || images {
 		expectedHeld = 2080
@@ -104,6 +114,10 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	expectedSpent := int64(48)
 	if images {
 		expectedSpent = 108
+	}
+	if embedding {
+		expectedHeld = 256
+		expectedSpent = 12
 	}
 	binary := os.Getenv("TEST_NEWAPI_SERVER_BINARY")
 	if binary == "" {
@@ -139,6 +153,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 			return
 		}
 		var req struct {
+			Input     []string          `json:"input"`
 			Tools     []json.RawMessage `json:"tools"`
 			Messages  json.RawMessage   `json:"messages"`
 			Stream    bool              `json:"stream"`
@@ -146,6 +161,16 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 		}
 		if json.NewDecoder(r.Body).Decode(&req) != nil {
 			w.WriteHeader(400)
+			return
+		}
+		if embedding {
+			if r.URL.Path != "/v1/embeddings" || len(req.Input) != 2 || req.MaxTokens != 0 || req.Stream {
+				t.Error("invalid embedding wire request")
+				w.WriteHeader(400)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			write(`{"object":"list","model":"governance-model","data":[{"object":"embedding","index":0,"embedding":[0.1,0.2]},{"object":"embedding","index":1,"embedding":[0.3,0.4]}],"usage":{"prompt_tokens":2,"total_tokens":2}}`)
 			return
 		}
 		if tools && (len(req.Tools) != 1 || !strings.Contains(string(req.Tools[0]), "lookup") || !strings.Contains(string(req.Messages), "synthetic result")) {
@@ -285,6 +310,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	}
 	root := t.TempDir()
 	native := exec.Command(binary)
+	native.Dir = root
 	native.Env = append(os.Environ(), "GOVERNANCE_FIXTURE_DIR="+root, "GOVERNANCE_FIXTURE_UPSTREAM="+upstream.URL, "GOVERNANCE_FIXTURE_PROTOCOL="+protocol)
 	nativeURL, stopNative := start(native, filepath.Join(root, "address"))
 	defer stopNative()
@@ -296,14 +322,14 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	var releaseOnce sync.Once
 	defer releaseOnce.Do(func() { close(release) })
 	proxy.ModifyResponse = func(res *http.Response) error {
-		if res.StatusCode != 200 && strings.HasSuffix(res.Request.URL.Path, "/chat/completions") {
+		if res.StatusCode != 200 && (strings.HasSuffix(res.Request.URL.Path, "/chat/completions") || strings.HasSuffix(res.Request.URL.Path, "/embeddings")) {
 			body, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
 			res.Body.Close()
 			res.Body = io.NopCloser(bytes.NewReader(body))
 			t.Logf("synthetic native status=%d body=%s", res.StatusCode, body)
 		}
 
-		if pause.Load() && strings.HasSuffix(res.Request.URL.Path, "/chat/completions") && res.StatusCode == 200 {
+		if pause.Load() && (strings.HasSuffix(res.Request.URL.Path, "/chat/completions") || strings.HasSuffix(res.Request.URL.Path, "/embeddings")) && res.StatusCode == 200 {
 			body, err := io.ReadAll(res.Body)
 			res.Body.Close()
 			if err != nil {
@@ -333,6 +359,9 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	}
 	controlURL, stopControl := child()
 	call := func(origin string, stream bool) (int, []byte) {
+		if embedding {
+			stream = false
+		}
 		req := request()
 		if protocol == "anthropic" {
 			req.Model = "reviewed-compatible/fixture"
@@ -347,7 +376,12 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 			req.Messages = append(req.Messages, provider.Message{Role: "assistant", ToolCalls: []provider.ToolCall{{ID: "call_old", Type: "function", Function: provider.FunctionCall{Name: "lookup", Arguments: `{"q":"prior"}`}}}}, provider.Message{Role: "tool", ToolCallID: "call_old", Content: "synthetic result"})
 		}
 		data, _ := json.Marshal(req)
-		r, _ := http.NewRequest("POST", origin+"/v1/chat/completions", bytes.NewReader(data))
+		path := "/v1/chat/completions"
+		if embedding {
+			path = "/v1/embeddings"
+			data, _ = json.Marshal(map[string]any{"model": req.Model, "input": []string{"synthetic one", "synthetic two"}, "dimensions": 2, "encoding_format": "float"})
+		}
+		r, _ := http.NewRequest("POST", origin+path, bytes.NewReader(data))
 		r.Header.Set("Authorization", "Bearer synthetic-project-key")
 		r.Header.Set("Content-Type", "application/json")
 		client := &http.Client{Timeout: 20 * time.Second}
@@ -449,6 +483,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 		t.Fatal("data-plane termination did not return")
 	}
 	restartedNative := exec.Command(binary)
+	restartedNative.Dir = root
 	restartedNative.Env = append(os.Environ(), "GOVERNANCE_FIXTURE_DIR="+root, "GOVERNANCE_FIXTURE_UPSTREAM="+upstream.URL, "GOVERNANCE_FIXTURE_PROTOCOL="+protocol, "GOVERNANCE_FIXTURE_LISTEN="+target.Host)
 	_, stopNativeAgain := start(restartedNative, filepath.Join(root, "address"))
 	defer stopNativeAgain()

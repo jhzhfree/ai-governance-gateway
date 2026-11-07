@@ -34,6 +34,9 @@ func providerSetup(t *testing.T, supplier http.Handler, wrap ...func(gateway.Led
 	return providerExecutorSetup(t, supplier, nil, wrap...)
 }
 func providerExecutorSetup(t *testing.T, supplier http.Handler, executor gateway.ProviderExecutor, wrap ...func(gateway.Ledger) gateway.Ledger) fixture {
+	return providerExecutorSetupConfig(t, supplier, executor, nil, wrap...)
+}
+func providerExecutorSetupConfig(t *testing.T, supplier http.Handler, executor gateway.ProviderExecutor, override *provider.Config, wrap ...func(gateway.Ledger) gateway.Ledger) fixture {
 	t.Helper()
 	pool, ledger, _ := testutil.Database(t)
 	catalog, _ := testutil.MainlandCatalog(t, supplier)
@@ -44,6 +47,9 @@ func providerExecutorSetup(t *testing.T, supplier http.Handler, executor gateway
 			cfg.Models[i].UpstreamModel = "backend-model"
 			cfg.Models[i].AllowImages = true
 			cfg.Models[i].AllowedTools = []string{"lookup"}
+		}
+		if override != nil {
+			cfg = *override
 		}
 		var err error
 		catalog, err = provider.NewGoverned(cfg)
