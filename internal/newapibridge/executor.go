@@ -32,6 +32,7 @@ var revisionPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 var modelPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_./:-]{0,127}$`)
 
 type Config struct {
+	RequireTariff     bool
 	RequireEmbeddings bool
 	Revisions         map[int]string
 	Origin            string
@@ -47,6 +48,7 @@ func (Config) String() string   { return "[new-api configuration; credentials re
 func (Config) GoString() string { return "[new-api configuration; credentials redacted]" }
 
 type Executor struct {
+	requireTariff       bool
 	revisions           map[int]string
 	requireEmbeddings   bool
 	origin, token       string
@@ -123,7 +125,7 @@ func New(cfg Config) (*Executor, error) {
 	recoveryTransport.MaxIdleConns = 2
 	recoveryTransport.ResponseHeaderTimeout = 5 * time.Second
 	recoveryClient := &http.Client{Transport: recoveryTransport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	return &Executor{revisions: revisions, requireEmbeddings: cfg.RequireEmbeddings, recoveryClient: recoveryClient, recoveryTransport: recoveryTransport, journal: cfg.Journal, origin: strings.TrimSuffix(cfg.Origin, "/"), token: cfg.ServiceToken, models: models, channels: channels, root: root, cancel: cancel, slots: make(chan struct{}, cfg.MaxConcurrent), transport: transport, client: &http.Client{Transport: transport, Timeout: 120 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
+	return &Executor{requireTariff: cfg.RequireTariff, revisions: revisions, requireEmbeddings: cfg.RequireEmbeddings, recoveryClient: recoveryClient, recoveryTransport: recoveryTransport, journal: cfg.Journal, origin: strings.TrimSuffix(cfg.Origin, "/"), token: cfg.ServiceToken, models: models, channels: channels, root: root, cancel: cancel, slots: make(chan struct{}, cfg.MaxConcurrent), transport: transport, client: &http.Client{Transport: transport, Timeout: 120 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
 }
 func (e *Executor) Validate(route *provider.Route, req gateway.Request) error {
 	if route == nil || !route.Ready() || !revisionPattern.MatchString(route.GovernanceChannelRevision()) || e.models[req.Model] == "" || !provider.ValidateRequest(req) || !route.AllowsTools(req) || ((route.API() == "embeddings") != req.IsEmbedding()) || (req.HasImages() && !route.AllowsImages()) {
@@ -197,6 +199,9 @@ func (e *Executor) Open(ctx context.Context, route *provider.Route, req gateway.
 	}
 	r.Header.Set("Authorization", "Bearer "+e.token)
 	inputLimit := strconv.FormatInt(route.PriceSnapshot().MaxInputTokens, 10)
+	if route.RequiresCacheEvidence() {
+		r.Header.Set("X-Aigw-Tariff-Version", "1")
+	}
 	r.Header.Set("X-Aigw-Admission-Version", "2")
 	r.Header.Set("X-Aigw-Config-Version", "1")
 	r.Header.Set("X-Aigw-Channel-Revision", route.GovernanceChannelRevision())
@@ -220,6 +225,9 @@ func (e *Executor) Open(ctx context.Context, route *provider.Route, req gateway.
 			prefix += "embeddings\x00"
 		}
 		prefix += "config-v1\x00" + route.GovernanceChannelRevision() + "\x00"
+		if route.RequiresCacheEvidence() {
+			prefix += "tariff-v1\x00"
+		}
 		digest := sha256.Sum256(append([]byte(prefix), data...))
 		if err := e.journal.Bind(call, e.origin, e.models[req.Model], requestID, attemptID, hex.EncodeToString(digest[:]), route, req.MaxTokens); err != nil {
 			release()
@@ -234,6 +242,9 @@ func (e *Executor) Open(ctx context.Context, route *provider.Route, req gateway.
 	version := res.Header.Get("X-Aigw-Evidence-Version")
 	live := req.Stream && version == "2"
 	valid := res.StatusCode == http.StatusOK
+	if route.RequiresCacheEvidence() {
+		valid = valid && len(res.Header.Values("X-Aigw-Tariff-Version")) == 1 && res.Header.Get("X-Aigw-Tariff-Version") == "1"
+	}
 	if req.IsEmbedding() {
 		valid = valid && len(res.Header.Values("X-Aigw-Protocol")) == 1 && res.Header.Get("X-Aigw-Protocol") == "embeddings"
 	}

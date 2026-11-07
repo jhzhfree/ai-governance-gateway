@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"math/big"
 	"net/http"
 	"os"
 	"regexp"
@@ -53,20 +52,21 @@ func (r Residency) valid(now time.Time) bool {
 }
 
 type Model struct {
-	NewAPIChannelRevision string    `json:"newapi_channel_revision,omitempty"`
-	API                   string    `json:"api,omitempty"`
-	AllowedTools          []string  `json:"allowed_tools,omitempty"`
-	AllowImages           bool      `json:"allow_images,omitempty"`
-	NewAPIChannelID       int       `json:"newapi_channel_id,omitempty"`
-	ID                    string    `json:"id"`
-	Provider              string    `json:"provider"`
-	UpstreamModel         string    `json:"upstream_model"`
-	PriceVersion          string    `json:"price_version"`
-	InputPerMillion       int64     `json:"input_per_million"`
-	OutputPerMillion      int64     `json:"output_per_million"`
-	MaxInputTokens        int64     `json:"max_input_tokens"`
-	MaxOutputTokens       int64     `json:"max_output_tokens"`
-	Residency             Residency `json:"residency"`
+	CachePricing          *CachePricing `json:"cache_pricing,omitempty"`
+	NewAPIChannelRevision string        `json:"newapi_channel_revision,omitempty"`
+	API                   string        `json:"api,omitempty"`
+	AllowedTools          []string      `json:"allowed_tools,omitempty"`
+	AllowImages           bool          `json:"allow_images,omitempty"`
+	NewAPIChannelID       int           `json:"newapi_channel_id,omitempty"`
+	ID                    string        `json:"id"`
+	Provider              string        `json:"provider"`
+	UpstreamModel         string        `json:"upstream_model"`
+	PriceVersion          string        `json:"price_version"`
+	InputPerMillion       int64         `json:"input_per_million"`
+	OutputPerMillion      int64         `json:"output_per_million"`
+	MaxInputTokens        int64         `json:"max_input_tokens"`
+	MaxOutputTokens       int64         `json:"max_output_tokens"`
+	Residency             Residency     `json:"residency"`
 }
 type Config struct {
 	Version             int       `json:"version"`
@@ -74,17 +74,18 @@ type Config struct {
 	Models              []Model   `json:"models"`
 }
 type ModelInfo struct {
-	API              string `json:"api,omitempty"`
-	AllowImages      bool   `json:"allow_images,omitempty"`
-	ID               string `json:"id"`
-	Provider         string `json:"provider"`
-	Currency         string `json:"currency"`
-	Region           string `json:"region"`
-	PriceVersion     string `json:"price_version"`
-	InputPerMillion  int64  `json:"input_per_million"`
-	OutputPerMillion int64  `json:"output_per_million"`
-	MaxInputTokens   int64  `json:"max_input_tokens"`
-	MaxOutputTokens  int64  `json:"max_output_tokens"`
+	CachePricing     *CachePricing `json:"cache_pricing,omitempty"`
+	API              string        `json:"api,omitempty"`
+	AllowImages      bool          `json:"allow_images,omitempty"`
+	ID               string        `json:"id"`
+	Provider         string        `json:"provider"`
+	Currency         string        `json:"currency"`
+	Region           string        `json:"region"`
+	PriceVersion     string        `json:"price_version"`
+	InputPerMillion  int64         `json:"input_per_million"`
+	OutputPerMillion int64         `json:"output_per_million"`
+	MaxInputTokens   int64         `json:"max_input_tokens"`
+	MaxOutputTokens  int64         `json:"max_output_tokens"`
 }
 
 func MockInfo() ModelInfo {
@@ -160,6 +161,12 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 		if (!requireCredential && (m.NewAPIChannelID <= 0 || !channelRevisionPattern.MatchString(m.NewAPIChannelRevision))) || (requireCredential && (m.NewAPIChannelID != 0 || m.NewAPIChannelRevision != "" || m.AllowImages || len(m.AllowedTools) != 0 || m.API != "")) {
 			return nil, errors.New("newapi directory requires an explicit approved channel; native directories cannot specify one")
 		}
+		if m.CachePricing != nil {
+			if requireCredential || m.API != "" || !m.CachePricing.valid() {
+				return nil, errors.New("cache pricing requires governed Chat with explicit nonnegative bounded rates")
+			}
+			m.CachePricing = m.CachePricing.clone()
+		}
 		if len(m.AllowedTools) > 8 {
 			return nil, errors.New("too many approved client tools")
 		}
@@ -197,6 +204,11 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 			ID, Provider, Model, Version, Endpoint, Region, Currency string
 			Input, Output, MaxInput, MaxOutput                       int64
 		}{m.ID, m.Provider, m.UpstreamModel, m.PriceVersion, p.Endpoint, p.Region, Currency, m.InputPerMillion, m.OutputPerMillion, m.MaxInputTokens, m.MaxOutputTokens})
+		if m.CachePricing != nil {
+			prices, _ := json.Marshal(m.CachePricing)
+			canonical = append(canonical, []byte("\ncache-tariff-v1:")...)
+			canonical = append(canonical, prices...)
+		}
 		if !requireCredential {
 			canonical = append(canonical, []byte("\nchannel-config-v1:"+m.NewAPIChannelRevision)...)
 			if embedding {
@@ -237,7 +249,7 @@ func (c *Catalog) Models() []ModelInfo {
 	for _, r := range c.routes {
 		if r.Ready() {
 			m := r.model
-			result = append(result, ModelInfo{m.API, m.AllowImages, m.ID, m.Provider, Currency, r.profile.Region, r.fingerprint, m.InputPerMillion, m.OutputPerMillion, m.MaxInputTokens, m.MaxOutputTokens})
+			result = append(result, ModelInfo{CachePricing: m.CachePricing.clone(), API: m.API, AllowImages: m.AllowImages, ID: m.ID, Provider: m.Provider, Currency: Currency, Region: r.profile.Region, PriceVersion: r.fingerprint, InputPerMillion: m.InputPerMillion, OutputPerMillion: m.OutputPerMillion, MaxInputTokens: m.MaxInputTokens, MaxOutputTokens: m.MaxOutputTokens})
 		}
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
@@ -251,15 +263,7 @@ func (r *Route) Cost(input, output int64) (int64, error) {
 	if input < 0 || output < 0 || input > r.model.MaxInputTokens || output > r.model.MaxOutputTokens {
 		return 0, errors.New("supplier usage exceeds configured bounds")
 	}
-	in := new(big.Int).Mul(big.NewInt(input), big.NewInt(r.model.InputPerMillion))
-	out := new(big.Int).Mul(big.NewInt(output), big.NewInt(r.model.OutputPerMillion))
-	in.Add(in, out)
-	in.Add(in, big.NewInt(999999))
-	in.Quo(in, big.NewInt(1000000))
-	if !in.IsInt64() || in.Int64() > MaxAmount {
-		return 0, errors.New("configured price exceeds safe accounting range")
-	}
-	return in.Int64(), nil
+	return TokenCost(input, output, 0, 0, r.model.InputPerMillion, r.model.OutputPerMillion, nil)
 }
 
 // Bound reserves the full configured input/context bound, never a guessed tokenizer count.
@@ -267,11 +271,33 @@ func (r *Route) Bound(maxOutput int) (int64, error) {
 	if (r.API() == "embeddings" && maxOutput != 0) || (r.API() != "embeddings" && maxOutput < 1) || int64(maxOutput) > r.model.MaxOutputTokens {
 		return 0, errors.New("unsupported max_tokens")
 	}
-	return r.Cost(r.model.MaxInputTokens, int64(maxOutput))
+	price := r.model.InputPerMillion
+	if r.model.CachePricing != nil {
+		price = max(price, r.model.CachePricing.ReadPerMillion, r.model.CachePricing.WritePerMillion)
+	}
+	return TokenCost(r.model.MaxInputTokens, int64(maxOutput), 0, 0, price, r.model.OutputPerMillion, nil)
 }
 func (r *Route) ValidateUsage(u *Usage, maxOutput int) (int64, error) {
 	if u == nil || u.PromptTokens == nil || u.CompletionTokens == nil || u.TotalTokens == nil || *u.PromptTokens < 1 || *u.CompletionTokens < 0 || *u.CompletionTokens > int64(maxOutput) || *u.PromptTokens > r.model.MaxInputTokens || *u.TotalTokens != *u.PromptTokens+*u.CompletionTokens {
 		return 0, errors.New("invalid supplier usage")
+	}
+	if details := u.PromptTokensDetails; details != nil {
+		read, write := int64(0), int64(0)
+		if details.CachedTokens != nil {
+			read = *details.CachedTokens
+		}
+		if details.CachedCreationTokens != nil {
+			write = *details.CachedCreationTokens
+		}
+		if read < 0 || write < 0 || read > *u.PromptTokens || write > *u.PromptTokens-read {
+			return 0, errors.New("invalid cache quantities")
+		}
+	}
+	if r.model.CachePricing != nil {
+		if u.PromptTokensDetails == nil || u.PromptTokensDetails.CachedTokens == nil || u.PromptTokensDetails.CachedCreationTokens == nil {
+			return 0, errors.New("missing original cache quantities")
+		}
+		return TokenCost(*u.PromptTokens, *u.CompletionTokens, *u.PromptTokensDetails.CachedTokens, *u.PromptTokensDetails.CachedCreationTokens, r.model.InputPerMillion, r.model.OutputPerMillion, r.model.CachePricing)
 	}
 	return r.Cost(*u.PromptTokens, *u.CompletionTokens)
 }

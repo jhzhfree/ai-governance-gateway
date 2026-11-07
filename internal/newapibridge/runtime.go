@@ -29,6 +29,9 @@ func NewRuntime(ctx context.Context, cfg Config, directory *provider.Catalog) (*
 	cfg.Revisions = make(map[int]string)
 	for _, route := range directory.ExecutionRoutes() {
 		alias, model := route.ExecutionModel()
+		if route.RequiresCacheEvidence() {
+			cfg.RequireTariff = true
+		}
 		if route.API() == "embeddings" {
 			cfg.RequireEmbeddings = true
 		}

@@ -27,10 +27,15 @@ type Request struct {
 	MaxTokens      int       `json:"max_tokens"`
 	Messages       []Message `json:"messages"`
 }
+type InputTokenDetails struct {
+	CachedTokens         *int64 `json:"cached_tokens"`
+	CachedCreationTokens *int64 `json:"cached_creation_tokens,omitempty"`
+}
 type Usage struct {
-	PromptTokens     *int64 `json:"prompt_tokens"`
-	CompletionTokens *int64 `json:"completion_tokens"`
-	TotalTokens      *int64 `json:"total_tokens"`
+	PromptTokensDetails *InputTokenDetails `json:"prompt_tokens_details,omitempty"`
+	PromptTokens        *int64             `json:"prompt_tokens"`
+	CompletionTokens    *int64             `json:"completion_tokens"`
+	TotalTokens         *int64             `json:"total_tokens"`
 }
 type Delta struct {
 	ToolCalls        []ToolCall `json:"tool_calls,omitempty"`

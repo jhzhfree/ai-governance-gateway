@@ -91,6 +91,12 @@ const (
 	BudgetApprovalStateRejected BudgetApprovalState = "rejected"
 )
 
+// Defines values for CacheBillingDetailsVersion.
+const (
+	CacheBillingDetailsVersionN0 CacheBillingDetailsVersion = 0
+	CacheBillingDetailsVersionN1 CacheBillingDetailsVersion = 1
+)
+
 // Defines values for ChangeDeviceState.
 const (
 	ChangeDeviceStateActive  ChangeDeviceState = "active"
@@ -235,7 +241,7 @@ const (
 
 // Defines values for InferenceResponseChoicesIndex.
 const (
-	N0 InferenceResponseChoicesIndex = 0
+	InferenceResponseChoicesIndexN0 InferenceResponseChoicesIndex = 0
 )
 
 // Defines values for InferenceResponseChoicesMessageRole.
@@ -752,6 +758,28 @@ type BudgetChangePage struct {
 type BudgetCycle struct {
 	Enabled  bool  `json:"enabled"`
 	Revision int64 `json:"revision"`
+}
+
+// CacheBilling defines model for CacheBilling.
+type CacheBilling struct {
+	DetailsVersion   CacheBillingDetailsVersion `json:"details_version"`
+	InputPerMillion  int64                      `json:"input_per_million"`
+	InputTokens      *int64                     `json:"input_tokens"`
+	OutputPerMillion int64                      `json:"output_per_million"`
+	OutputTokens     *int64                     `json:"output_tokens"`
+	ReadPerMillion   int64                      `json:"read_per_million"`
+	ReadTokens       *int64                     `json:"read_tokens"`
+	WritePerMillion  int64                      `json:"write_per_million"`
+	WriteTokens      *int64                     `json:"write_tokens"`
+}
+
+// CacheBillingDetailsVersion defines model for CacheBilling.DetailsVersion.
+type CacheBillingDetailsVersion int
+
+// CachePricing Reviewed newapi enterprise cache tariff. Omitted means uniform input pricing; explicit zero is a free category.
+type CachePricing struct {
+	ReadPerMillion  int64 `json:"read_per_million"`
+	WritePerMillion int64 `json:"write_per_million"`
 }
 
 // ChangeDevice defines model for ChangeDevice.
@@ -1354,9 +1382,13 @@ type InferenceResponseObject string
 
 // InferenceUsage defines model for InferenceUsage.
 type InferenceUsage struct {
-	CompletionTokens int64 `json:"completion_tokens"`
-	PromptTokens     int64 `json:"prompt_tokens"`
-	TotalTokens      int64 `json:"total_tokens"`
+	CompletionTokens    int64 `json:"completion_tokens"`
+	PromptTokens        int64 `json:"prompt_tokens"`
+	PromptTokensDetails *struct {
+		CachedCreationTokens *int64 `json:"cached_creation_tokens,omitempty"`
+		CachedTokens         *int64 `json:"cached_tokens,omitempty"`
+	} `json:"prompt_tokens_details,omitempty"`
+	TotalTokens int64 `json:"total_tokens"`
 }
 
 // Inspection Read-only repeatable-read diagnostic snapshot. Organization totals only for org owner/admin. Aged records are review candidates, not proof of abandoned provider work. No refunds, replay or balance correction.
@@ -1619,7 +1651,10 @@ type ModelInfo struct {
 	AllowImages *bool `json:"allow_images,omitempty"`
 
 	// Api When present, this reviewed model is input-only Embeddings. Omitted means Chat.
-	Api              *ModelInfoApi     `json:"api,omitempty"`
+	Api *ModelInfoApi `json:"api,omitempty"`
+
+	// CachePricing Reviewed newapi enterprise cache tariff. Omitted means uniform input pricing; explicit zero is a free category.
+	CachePricing     *CachePricing     `json:"cache_pricing,omitempty"`
 	Currency         ModelInfoCurrency `json:"currency"`
 	Id               string            `json:"id"`
 	InputPerMillion  int64             `json:"input_per_million"`
@@ -1843,6 +1878,7 @@ type RequestRecord struct {
 
 	// Attempt One durable attempt per reserved request; no retries. Completed means valid upstream result and durable local accounting/metadata, not client receipt. Unfinished can include crashed processes. Timing is wall-clock gateway execution time including accounting and metadata writes. Null on old or unrecorded requests.
 	Attempt      *ExecutionAttempt  `json:"attempt"`
+	CacheBilling *CacheBilling      `json:"cache_billing,omitempty"`
 	CreatedAt    time.Time          `json:"created_at"`
 	Currency     string             `json:"currency"`
 	Period       string             `json:"period"`

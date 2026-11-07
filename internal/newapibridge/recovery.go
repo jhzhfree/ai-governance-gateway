@@ -60,7 +60,7 @@ func (e *Executor) ReconcileOnce(ctx context.Context) error {
 		return ErrUnavailable
 	}
 	defer res.Body.Close()
-	if len(res.Header.Values("X-Aigw-Config-Version")) != 1 || res.Header.Get("X-Aigw-Config-Version") != "1" || (e.requireEmbeddings && (len(res.Header.Values("X-Aigw-Embeddings-Version")) != 1 || res.Header.Get("X-Aigw-Embeddings-Version") != "1")) || res.StatusCode != 200 || len(res.Header.Values("X-Aigw-Admission-Version")) != 1 || res.Header.Get("X-Aigw-Admission-Version") != "2" || len(res.Header.Values("X-Aigw-Events-Version")) != 1 || res.Header.Get("X-Aigw-Events-Version") != "1" || len(res.Header.Values("X-Aigw-Paging-Version")) != 1 || res.Header.Get("X-Aigw-Paging-Version") != "1" {
+	if (e.requireTariff && (len(res.Header.Values("X-Aigw-Tariff-Version")) != 1 || res.Header.Get("X-Aigw-Tariff-Version") != "1")) || len(res.Header.Values("X-Aigw-Config-Version")) != 1 || res.Header.Get("X-Aigw-Config-Version") != "1" || (e.requireEmbeddings && (len(res.Header.Values("X-Aigw-Embeddings-Version")) != 1 || res.Header.Get("X-Aigw-Embeddings-Version") != "1")) || res.StatusCode != 200 || len(res.Header.Values("X-Aigw-Admission-Version")) != 1 || res.Header.Get("X-Aigw-Admission-Version") != "2" || len(res.Header.Values("X-Aigw-Events-Version")) != 1 || res.Header.Get("X-Aigw-Events-Version") != "1" || len(res.Header.Values("X-Aigw-Paging-Version")) != 1 || res.Header.Get("X-Aigw-Paging-Version") != "1" {
 		e.recoveryCursor = ""
 		return ErrUnavailable
 	}

@@ -193,6 +193,30 @@ export function RequestPanel({
                     <dd>未记录；不推测历史结果</dd>
                   </>
                 )}
+                {detail.data.cache_billing && (
+                  <>
+                    <dt>冻结输入 / 输出费率（微人民币/百万 token）</dt>
+                    <dd>
+                      {detail.data.cache_billing.input_per_million} /{' '}
+                      {detail.data.cache_billing.output_per_million}
+                    </dd>
+                    <dt>审核缓存费率（微人民币/百万 token）</dt>
+                    <dd>
+                      读 {detail.data.cache_billing.read_per_million} / 写{' '}
+                      {detail.data.cache_billing.write_per_million}
+                    </dd>
+                    <dt>回执输入总量 / 输出 token</dt>
+                    <dd>
+                      {detail.data.cache_billing.input_tokens ?? '未取得'} /{' '}
+                      {detail.data.cache_billing.output_tokens ?? '未取得'}
+                    </dd>
+                    <dt>原始缓存读 / 写 token</dt>
+                    <dd>
+                      {detail.data.cache_billing.read_tokens ?? '未取得'} /{' '}
+                      {detail.data.cache_billing.write_tokens ?? '未取得'}
+                    </dd>
+                  </>
+                )}
                 <dt>账本状态</dt>
                 <dd>{states[detail.data.state]}</dd>
                 <dt>预算周期 / 单位</dt>

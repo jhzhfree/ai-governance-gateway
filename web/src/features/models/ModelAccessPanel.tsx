@@ -148,6 +148,12 @@ export function ModelAccessPanel({
                       微人民币 · 按配置费率计价
                     </small>
                   )}
+                  {model.cache_pricing && (
+                    <small>
+                      缓存读 {model.cache_pricing.read_per_million} / 写{' '}
+                      {model.cache_pricing.write_per_million} 微人民币/百万 token
+                    </small>
+                  )}
                 </span>
               </label>
             ))}

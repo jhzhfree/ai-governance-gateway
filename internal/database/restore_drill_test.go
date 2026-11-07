@@ -68,8 +68,8 @@ func TestLogicalBackupRestore(t *testing.T) {
 
 			if !previous {
 				execSQL(t, pool, `INSERT INTO inference_attempts(attempt_id,request_id,model,provider,region,stream) VALUES('restore_attempt_12345','settled','reviewed-compatible/fixture','reviewed-compatible','cn-mainland',false)`)
-				execSQL(t, pool, `INSERT INTO newapi_execution_bindings(attempt_id,request_id,backend,model,channel_id,fingerprint,price_version,input_price,output_price,max_input,max_output,recovery_complete) VALUES('restore_attempt_12345','settled','https://synthetic.invalid','fixture-model',1,repeat('a',64),'synthetic-v1',2000000,4000000,128,8,true)`)
-				execSQL(t, pool, `INSERT INTO newapi_execution_receipts(attempt_id,state,input_tokens,output_tokens,actual) VALUES('restore_attempt_12345','completed',4,8,40)`)
+				execSQL(t, pool, `INSERT INTO newapi_execution_bindings(attempt_id,request_id,backend,model,channel_id,fingerprint,price_version,input_price,output_price,max_input,max_output,recovery_complete,cache_read_price,cache_write_price) VALUES('restore_attempt_12345','settled','https://synthetic.invalid','fixture-model',1,repeat('a',64),'synthetic-v1',2000000,4000000,128,8,true,1000000,3000000)`)
+				execSQL(t, pool, `INSERT INTO newapi_execution_receipts(attempt_id,state,input_tokens,output_tokens,actual,cache_details_version,cache_read_tokens,cache_write_tokens) VALUES('restore_attempt_12345','completed',4,8,40,1,1,1)`)
 			}
 			var schema string
 			if err := pool.QueryRow(ctx, "SELECT current_schema()").Scan(&schema); err != nil {

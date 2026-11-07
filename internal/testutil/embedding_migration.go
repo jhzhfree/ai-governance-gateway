@@ -9,6 +9,7 @@ import (
 // RevertEmbeddingMigration restores only the new v28 layer in disposable tests.
 func RevertEmbeddingMigration(t testing.TB, pool *pgxpool.Pool) {
 	t.Helper()
+	RevertCacheTariffMigration(t, pool)
 	_, err := pool.Exec(context.Background(), `ALTER TABLE newapi_execution_bindings DROP CONSTRAINT newapi_execution_bindings_output_pair_check;
  ALTER TABLE newapi_execution_bindings DROP CONSTRAINT newapi_execution_bindings_output_price_check;
  ALTER TABLE newapi_execution_bindings DROP CONSTRAINT newapi_execution_bindings_max_output_check;

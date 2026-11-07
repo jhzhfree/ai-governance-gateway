@@ -2057,6 +2057,7 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
             attempt: components["schemas"]["ExecutionAttempt"];
+            cache_billing?: components["schemas"]["CacheBilling"];
         };
         RequestPage: {
             data: components["schemas"]["RequestRecord"][];
@@ -2089,6 +2090,7 @@ export interface components {
              * @enum {string}
              */
             api?: "embeddings";
+            cache_pricing?: components["schemas"]["CachePricing"];
         };
         ModelPage: {
             data: components["schemas"]["ModelInfo"][];
@@ -2101,6 +2103,12 @@ export interface components {
             completion_tokens: number;
             /** Format: int64 */
             total_tokens: number;
+            prompt_tokens_details?: {
+                /** Format: int64 */
+                cached_tokens?: number;
+                /** Format: int64 */
+                cached_creation_tokens?: number;
+            };
         };
         InferenceResponse: {
             id: string;
@@ -3138,6 +3146,33 @@ export interface components {
                 /** Format: int64 */
                 total_tokens: number;
             };
+        };
+        /** @description Reviewed newapi enterprise cache tariff. Omitted means uniform input pricing; explicit zero is a free category. */
+        CachePricing: {
+            /** Format: int64 */
+            read_per_million: number;
+            /** Format: int64 */
+            write_per_million: number;
+        };
+        CacheBilling: {
+            /** Format: int64 */
+            input_per_million: number;
+            /** Format: int64 */
+            output_per_million: number;
+            /** Format: int64 */
+            read_per_million: number;
+            /** Format: int64 */
+            write_per_million: number;
+            /** @enum {integer} */
+            details_version: 0 | 1;
+            /** Format: int64 */
+            input_tokens: number | null;
+            /** Format: int64 */
+            output_tokens: number | null;
+            /** Format: int64 */
+            read_tokens: number | null;
+            /** Format: int64 */
+            write_tokens: number | null;
         };
     };
     responses: never;

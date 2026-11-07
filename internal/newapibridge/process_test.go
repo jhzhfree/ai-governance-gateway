@@ -56,6 +56,9 @@ func TestNewAPIControlHelper(t *testing.T) {
 		cfg.Models[i].NewAPIChannelID = 1
 		cfg.Models[i].NewAPIChannelRevision = os.Getenv("AIGW_INTEGRATION_REVISION")
 		cfg.Models[i].AllowedTools = []string{"lookup"}
+		if os.Getenv("AIGW_INTEGRATION_CACHE") == "1" {
+			cfg.Models[i].CachePricing = &provider.CachePricing{ReadPerMillion: 500000, WritePerMillion: 3000000}
+		}
 		if os.Getenv("AIGW_INTEGRATION_PROTOCOL") == "embedding" {
 			cfg.Models[i].API = "embeddings"
 			cfg.Models[i].MaxOutputTokens = 0
@@ -106,7 +109,14 @@ func TestNewAPITwoProcessImages(t *testing.T) {
 func TestNewAPITwoProcessEmbeddings(t *testing.T) {
 	testNewAPITwoProcessRecovery(t, "embedding", false, false)
 }
-func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images bool) {
+func TestNewAPITwoProcessCacheTariffs(t *testing.T) {
+	for _, protocol := range []string{"openai", "deepseek", "anthropic"} {
+		t.Run(protocol, func(t *testing.T) { testNewAPITwoProcessRecovery(t, protocol, false, false, true) })
+	}
+	t.Run("openai-tools", func(t *testing.T) { testNewAPITwoProcessRecovery(t, "openai", true, false, true) })
+}
+func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images bool, cacheFlags ...bool) {
+	cache := len(cacheFlags) > 0 && cacheFlags[0]
 	embedding := protocol == "embedding"
 	expectedHeld := int64(288)
 	if tools || images {
@@ -119,6 +129,16 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	if embedding {
 		expectedHeld = 256
 		expectedSpent = 12
+	}
+	if cache {
+		expectedHeld = 416
+		if tools || images {
+			expectedHeld = 3104
+		}
+		expectedSpent = 45
+		if protocol == "anthropic" {
+			expectedSpent = 99
+		}
 	}
 	binary := os.Getenv("TEST_NEWAPI_SERVER_BINARY")
 	if binary == "" {
@@ -138,6 +158,18 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
 		write := func(data string) (int, error) {
+			if cache {
+				if protocol == "anthropic" {
+					data = strings.ReplaceAll(data, `"input_tokens":2`, `"input_tokens":2,"cache_read_input_tokens":4,"cache_creation_input_tokens":5`)
+				} else {
+					extra := `"prompt_tokens":2,"prompt_tokens_details":{"cached_tokens":1,"cached_creation_tokens":0}`
+					if protocol == "deepseek" {
+						extra += `,"prompt_cache_hit_tokens":1,"prompt_cache_miss_tokens":1`
+					}
+					data = strings.ReplaceAll(data, `"prompt_tokens":2`, extra)
+				}
+			}
+
 			if images {
 				data = strings.ReplaceAll(data, `"input_tokens":2`, `"input_tokens":12`)
 				data = strings.ReplaceAll(data, `"prompt_tokens":2`, `"prompt_tokens":12`)
@@ -371,7 +403,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	child := func() (string, func()) {
 		ready := filepath.Join(t.TempDir(), "ready")
 		command := exec.Command(os.Args[0], "-test.run=^TestNewAPIControlHelper$")
-		command.Env = append(os.Environ(), "AIGW_INTEGRATION_CHILD=1", "AIGW_INTEGRATION_REVISION="+manifest.Revision, "AIGW_INTEGRATION_PROTOCOL="+protocol, "AIGW_INTEGRATION_IMAGES="+map[bool]string{true: "1", false: "0"}[images], "AIGW_INTEGRATION_RICH="+map[bool]string{true: "1", false: "0"}[tools || images], "AIGW_INTEGRATION_DSN="+isolatedDSN.String(), "AIGW_INTEGRATION_ORIGIN="+faultProxy.URL, "AIGW_INTEGRATION_READY="+ready)
+		command.Env = append(os.Environ(), "AIGW_INTEGRATION_CHILD=1", "AIGW_INTEGRATION_CACHE="+map[bool]string{true: "1", false: "0"}[cache], "AIGW_INTEGRATION_REVISION="+manifest.Revision, "AIGW_INTEGRATION_PROTOCOL="+protocol, "AIGW_INTEGRATION_IMAGES="+map[bool]string{true: "1", false: "0"}[images], "AIGW_INTEGRATION_RICH="+map[bool]string{true: "1", false: "0"}[tools || images], "AIGW_INTEGRATION_DSN="+isolatedDSN.String(), "AIGW_INTEGRATION_ORIGIN="+faultProxy.URL, "AIGW_INTEGRATION_READY="+ready)
 		return start(command, ready)
 	}
 	controlURL, stopControl := child()

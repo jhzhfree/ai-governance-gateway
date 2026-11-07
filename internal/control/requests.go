@@ -16,7 +16,20 @@ import (
 
 // RequestRecord exposes accounting metadata only. State does not acknowledge
 // delivery to the downstream client; rejected requests without a hold are absent.
+type CacheBilling struct {
+	InputPerMillion  int64  `json:"input_per_million"`
+	OutputPerMillion int64  `json:"output_per_million"`
+	ReadPerMillion   int64  `json:"read_per_million"`
+	WritePerMillion  int64  `json:"write_per_million"`
+	DetailsVersion   int    `json:"details_version"`
+	InputTokens      *int64 `json:"input_tokens"`
+	OutputTokens     *int64 `json:"output_tokens"`
+	ReadTokens       *int64 `json:"read_tokens"`
+	WriteTokens      *int64 `json:"write_tokens"`
+}
+
 type RequestRecord struct {
+	CacheBilling *CacheBilling      `json:"cache_billing,omitempty"`
 	Attempt      *execution.Attempt `json:"attempt"`
 	RequestID    string             `json:"request_id"`
 	Period       string             `json:"period"`
@@ -60,15 +73,25 @@ func requestCursor(cursor string) (time.Time, string, error) {
 
 const recordColumns = `r.request_id,r.period_id,r.currency,r.price_version,r.state,r.reserved,r.actual,r.created_at,r.updated_at,
  CASE WHEN a.attempt_id IS NULL THEN NULL ELSE jsonb_build_object(
- 'attempt_id',a.attempt_id,'request_id',a.request_id,'model',a.model,'provider',a.provider,'region',a.region,'stream',a.stream,'outcome',a.outcome,'error_code',a.error_code,'upstream_status',a.upstream_status,'input_tokens',a.input_tokens,'output_tokens',a.output_tokens,'started_at',a.started_at,'finished_at',a.finished_at,'duration_ms',a.duration_ms) END`
-const recordFrom = ` FROM budget_reservations r LEFT JOIN inference_attempts a ON a.request_id=r.request_id `
+ 'attempt_id',a.attempt_id,'request_id',a.request_id,'model',a.model,'provider',a.provider,'region',a.region,'stream',a.stream,'outcome',a.outcome,'error_code',a.error_code,'upstream_status',a.upstream_status,'input_tokens',a.input_tokens,'output_tokens',a.output_tokens,'started_at',a.started_at,'finished_at',a.finished_at,'duration_ms',a.duration_ms) END,
+ CASE WHEN b.cache_read_price IS NULL THEN NULL ELSE jsonb_build_object(
+ 'input_per_million',b.input_price,'output_per_million',b.output_price,'read_per_million',b.cache_read_price,'write_per_million',b.cache_write_price,
+ 'details_version',COALESCE(e.cache_details_version,0),'input_tokens',e.input_tokens,'output_tokens',e.output_tokens,
+ 'read_tokens',CASE WHEN e.cache_details_version=1 THEN e.cache_read_tokens ELSE NULL END,
+ 'write_tokens',CASE WHEN e.cache_details_version=1 THEN e.cache_write_tokens ELSE NULL END) END`
+const recordFrom = ` FROM budget_reservations r LEFT JOIN inference_attempts a ON a.request_id=r.request_id LEFT JOIN newapi_execution_bindings b ON b.attempt_id=a.attempt_id LEFT JOIN newapi_execution_receipts e ON e.attempt_id=b.attempt_id `
 
 func scanRecord(row interface{ Scan(...any) error }, item *RequestRecord, extras ...any) error {
-	var metadata []byte
-	args := []any{&item.RequestID, &item.Period, &item.Currency, &item.PriceVersion, &item.State, &item.Reserved, &item.Actual, &item.CreatedAt, &item.UpdatedAt, &metadata}
+	var metadata, cache []byte
+	args := []any{&item.RequestID, &item.Period, &item.Currency, &item.PriceVersion, &item.State, &item.Reserved, &item.Actual, &item.CreatedAt, &item.UpdatedAt, &metadata, &cache}
 	args = append(args, extras...)
 	if err := row.Scan(args...); err != nil {
 		return err
+	}
+	if cache != nil {
+		if err := json.Unmarshal(cache, &item.CacheBilling); err != nil {
+			return err
+		}
 	}
 	if metadata != nil {
 		var attempt execution.Attempt
