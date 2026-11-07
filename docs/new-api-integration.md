@@ -83,6 +83,19 @@ new-api 分支已提交并推送 [5edfa3883](https://github.com/jhzhfree/new-api
 
 合成 TLS 上游开启 HTTP/2，验证网关实际只使用 HTTP/1；成功、503、307 与接收请求后断连四种情形都只收到一次物理请求，重定向目标不被访问，第二次调用被拒绝。测试另外修复了原有并行 header 测试修改全局 Gin mode 的竞争，保留并行执行与全部业务断言。
 
-最终执行边界竞态回归命令：`go test -race ./relay/common ./relay/channel ./relay/channel/openai ./service -count=1`。四包通过，JSON 结果记录 796 条 pass（含子测试）、2 条 skip；跳过的是原有固定价格计费 MySQL/PostgreSQL 可选矩阵，**不计作已验证的数据库兼容性**。控制器完整竞态套件的 Redis fixture 问题仍未解决，不能以该范围的成功替代它。
+最终执行边界竞态回归命令：`go test -race ./relay/common ./relay/channel ./relay/channel/openai ./service -count=1`。四包通过，JSON 结果记录 796 条 pass（含子测试）、2 条 skip；跳过的是原有固定价格计费 MySQL/PostgreSQL 可选矩阵，**不计作已验证的数据库兼容性**。该阶段的控制器完整竞态套件仍有 Redis fixture 问题；后续修复与独立验证见下一节。
 
 为该 fork 分支增加独立 GitHub Actions 验证流程：执行上述竞态范围、controller 普通功能回归和构建；没有部署或发布步骤。Web embed 占位仅服务于 CI 编译检查，不是可交付产品 UI。
+
+
+### 控制器竞态缺口闭环与三库基线
+
+[本阶段提交 df9de6d5f](https://github.com/jhzhfree/new-api/commit/df9de6d5f) 在测试 fixture 切换全局配置、关闭数据库之前等待已经提交的后台任务结束，避免异步缓存更新读取被恢复的配置。未改动生产数据库查询、模型或迁移，也没有降低原有断言或关闭竞态检测。
+
+- `go test -race ./controller -count=1 -timeout=15m`：通过，478.884 秒；JSON 记录 1467 条 pass（含子测试）、36 条可选环境 skip。这个结果不代表所有可选数据库/外部服务矩阵均已覆盖。
+- 单独为预扣费和固定价格矩阵配置全部所需 DSN，执行 `go test -race ./controller ./service -run 'TestPreConsumePolicyDatabaseMatrix|TestFixedPriceBillingDatabaseMatrix' -count=1`：116 条 pass（含子测试），**0 skip、0 fail**。
+- 实际数据库版本：SQLite 3.50.4、MySQL 8.4.13、PostgreSQL 17.11。固定价格矩阵的 MySQL/PostgreSQL 主库和日志库分别隔离；所有实例均为本地合成数据测试环境，不使用生产数据库。
+- 环境变量须区分：预扣费使用 `TEST_MYSQL_DSN` / `TEST_POSTGRES_DSN`；固定价格使用 `TEST_FIXED_MYSQL_DSN` / `TEST_FIXED_POSTGRES_DSN`，独立日志库另用 `TEST_FIXED_MYSQL_LOG_DSN` / `TEST_FIXED_POSTGRES_LOG_DSN`。只设置前一对不会启用后一套矩阵。凭证不进入仓库。
+- CI 已升级为 controller 完整竞态检查，包超时 15 分钟，任务预算 30 分钟，覆盖原有较慢的密码校验测试。此前 `22623f75a` 的[远端 CI 已通过](https://github.com/jhzhfree/new-api/actions/runs/42325936340)；新的提交须以对应 run 结果为准。
+
+本阶段是执行事实、单次调用保护和测试基础的落地。**整个底座替换尚未完成**：可信入口尚未绑定 guard，持久 attempt/outbox、故障恢复与双进程联调、控制面模型目录和厂商凭证解耦、正式启动配置/readiness/UI 尚待实现。本轮三库计费测试也不替代新增 schema 后必须进行的“旧版本升级、重复启动、数据保留”专项验收。
