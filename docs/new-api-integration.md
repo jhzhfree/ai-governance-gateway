@@ -522,3 +522,17 @@ Responses 初始化元数据现在合并一次有界审计检查点，每流减�
 协议参考：[Messages API](https://platform.claude.com/docs/en/api/messages)。本地实现和固定 SDK 测试仅验证上述子集，不代表其他 SDK/API 版本或真实供应商已验收。
 
 Messages 完整门禁：固定 d7ae87e36 数据面竞态 fixture，Python 3.12.14 的两套固定 SDK venv，执行 `AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 AIGW_VERIFY_SDK=1 bash scripts/verify.sh`，退出码 0。HTTP API 306.244 秒、bridge 456.138 秒；17 项 OIDC＋1 项本地身份浏览器 78.522 秒；当前/旧版恢复 5.013 秒；最终两套 SDK/Responses/Messages 门禁 29.979 秒。后端 race/vet、生成契约、Web 冻结依赖/类型/Lint/构建通过。测试仅使用本地真实数据库和合成供应商，不代表真实商业账户或目标 32 GB 主机验收。
+
+### 缓存写入时长原始证据（数据面先行）
+
+数据面 `600c8a707` 新增 opt-in `X-Aigw-Tariff-Version: 2`，请求指纹绑定 tariff-v2。v1 请求/响应与聚合费率语义保留；事件发现仍提供 v1 兼容头，并额外公布 `X-Aigw-Tariff-Versions: 1,2`。v2 只表示原始计量能力，此阶段控制面尚未启用独立时长价格。
+
+Anthropic 从原始 usage.cache_creation 读取 ephemeral_5m_input_tokens 与 ephemeral_1h_input_tokens，正写入量必须有完整、非负、有界且与聚合写入相等的明细。部分/未知时长不能被当作已知 v2；明确矛盾、负数或越界拒绝证据。已知总写入为零时可证明两类均为零；OpenAI/DeepSeek 当前只在已取得缓存明细且写入为零时支持这一证明，不凭空为正写入量分配时长。JSON/SSE 完成必须等到原始证据与持久回执成功。
+
+原生 attempt/outbox 追加 5 分钟/1 小时计数，完成版本 v2 验证两者之和等于聚合写入量。旧 v0/v1 行迁移默认零，但版本仍表示未取得时长明细，不得将默认值用于历史细分计价。幂等校验包括两类计数，分布改变即冲突，即使聚合数相同；缺少正写入时长证据的已派发请求保持 dispatched，不作无派发取消或自动重试。新的规范化响应只对 v2 添加 cached_creation_tokens_details，v1 不增加该对象。
+
+验证：SQLite 3.50.4、MySQL 8.4.13、PostgreSQL 17.11 的 fresh/官方 rc48 升级六项通过（矩阵 21.46 秒）；另从 d7ae87e36 的真实启动迁移二进制创建旧聚合回执，三库升级通过（12.36 秒）。验证保留旧计数/索引/唯一性、重复迁移、新版本幂等与分布冲突。后者首次 SQLite 失败来自测试夹具复用了 GORM Create(map) 修改过的 map，带入内部 @id 返回键；已独立构造两张表的合成数据，复跑三库均通过，没有据失败结果宣称升级完成。
+
+控制面 5704f50 对新版数据面的旧费率兼容验证：Responses/Messages 六类双进程恢复场景 121.190 秒，聚合缓存费率含工具场景 67.840 秒通过；原始计数、双控制面接管与未知占额保留不变。数据面最终 JSON/SSE/原始证据专项通过（controller 7.541 秒），相关包 vet 通过。均为合成供应商与专用数据库。
+
+升级顺序：先部署此数据面，再部署支持新价格快照和回执版本的控制面；所有旧恢复消费者退出后才能启用 v2 费率。旧控制面不能消费 v2 完成事件，禁止混跑后直接打开新计量。独立时长定价、控制面自动迁移与展示在下一阶段落实，不将数据面证据阶段称作细分计费已经完成。依据：[供应商缓存时长与原始计数说明](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)。
