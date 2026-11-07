@@ -463,6 +463,8 @@ Prometheus 为 Embeddings 增加独立、固定的 `route="embeddings"` 标签�
 
 ### 无状态文本 Responses 公共协议
 
+本节记录首个非流式阶段；后续 `stream:true` 支持和终止门禁见文末。
+
 增加 `POST /v1/responses` 的明确受控子集：它把文本请求规范化到现有审核 Chat 执行契约，再将经过用量验证、费用结算、关键字策略和元数据完成门禁的输出转换为 Responses 对象。只适用于显式 newapi 审核渠道，不开放原生/Bifrost 直连或原生 Responses 透传。接口参考 [OpenAI Responses 创建契约](https://developers.openai.com/api/reference/python/resources/responses/methods/create)，不宣称全量兼容。
 
 ```json
@@ -487,3 +489,16 @@ Prometheus 为 Embeddings 增加独立、固定的 `route="embeddings"` 标签�
 SDK 门禁：隔离 Python 3.12.14 / OpenAI SDK 3.46.0 调用真实控制面 HTTP 与 PostgreSQL fixture、合成 new-api 对端，验证 `responses.create(..., store=False, max_output_tokens=16)`、`output_text`、状态和原始用量，物理请求恰好一次。客户端明确 `max_retries=0`；本公共入口不提供跨 HTTP 重试的业务幂等键，不应在未知结果时自动重发。`scripts/responses-sdk-requirements.txt` 固定测试依赖，不属于产品运行依赖。可用隔离 venv 安装该文件，设置 `AIGW_SDK_PYTHON` 与专用 `TEST_DATABASE_URL` 后运行 `go test -race -tags sdk_e2e ./internal/httpapi -run '^TestResponses' -count=1 -timeout=120s`。本轮该门禁 7.702 秒通过；不代表其他 SDK 版本、流式/工具子集或真实供应商已验收。
 
 Responses 完整门禁：固定 `d7ae87e36` 数据面，`AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 bash scripts/verify.sh` 退出码 0；HTTP API 259.555 秒、bridge 391.319 秒，17 项 OIDC 与 1 项本地身份浏览器共 75.515 秒，当前/旧版恢复 4.516 秒。后端 race/vet、生成契约、冻结 Web 依赖、类型/Lint/构建均通过。SDK tagged gate 随后独立通过，脚本新增 `AIGW_VERIFY_SDK=1` 和固定测试 Python 环境接线，远端 CI 将运行此组合；本地不把独立 SDK 测试误写为已经运行过整段组合脚本。公共接口无状态/非流式边界保持，未发布 V1.0 或切换生产入口。
+
+
+### Responses 实时文本流与审计完成门禁
+
+在上述无状态文本子集上开放 `stream:true`。请求仍要求 `store:false`，且不接受工具、媒体、历史会话、后台任务或未审核参数。仍通过同一个受控 Chat 执行器，使用真实原始用量和 v2 流完成证明，不把完成后缓冲结果伪装成实时流。
+
+输出采用命名 Responses 事件、连续 sequence_number 和稳定 resp_/msg_ 标识：created/in_progress、output_item/content_part.added、output_text.delta，随后是文本/内容/消息 done，最终 response.completed 或 response.incomplete。文本增量实时释放；终止事件只在原始完成证明、账本结算、元数据完成和内容审计封存后释放。无原始证明保留 uncertain 占额；审计封存失败时真实供应商费用仍结算，但替换终止事件为 error。中途审计检查点失败时不发送未持久化增量，连接可直接结束，不伪造成功事件。客户端必须观察有效终止事件，不能把 HTTP 200 或单个 output_item.done 当作整次成功。
+
+本子集不发送 Chat 的 `[DONE]` 标记。累计文本上限 1 MiB、序列化事件上限 2 MiB，上游仍受原流的总量/单帧限制；超限可导致已经发送部分文本后中断。实时输出不能撤回已交付文本；原有禁止不安全流式脱敏等策略继续拒绝。内容审计记录实际事件字节，重复的聚合 done/终止内容也计入捕获上限，截断仍明确显示。
+
+验证覆盖：实际 PostgreSQL 下的早期增量与尚未结算占额、缺少完成证明、封存失败、增量检查点失败不泄漏未提交文本；固定 SDK 的原始事件迭代与高级 responses.stream()/get_final_response()。SDK 高级测试首次误用该版本不存在的 text_stream 属性，改为正式事件迭代，并补全协议必需的空 logprobs 列表后通过（单 SDK 门禁 3.977 秒）。三协议真实进程故障测试切为 JSON＋实时 Responses SSE，组合缓存、多 Key 与双控制面恢复，54.501 秒通过。完整门禁随后记录；这不等于工具、多模态或所有 Responses 状态功能已实现。
+
+Responses 流式完整门禁：固定 `d7ae87e36` 数据面与上述 SDK venv，运行 `AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 AIGW_VERIFY_SDK=1 bash scripts/verify.sh`，退出码 0。HTTP API 262.670 秒、bridge 393.405 秒；17 项 OIDC＋1 项本地身份浏览器 78.677 秒；当前/旧版恢复 4.504 秒；最终 SDK/Responses 门禁 19.274 秒，包含高级流聚合、缺证据不得获取成功最终响应、长度截断、检查点及封存失败。后端 race/vet、生成契约与 Web 冻结依赖/类型/Lint/构建全部通过。未使用真实收费账户，未执行生产切流。

@@ -11,7 +11,7 @@
 | 路由/运行治理 | 四家供应商配置和凭证托管、发布、模型发现；共享限流/熔断；Web/CLI/TUI；指标 | 真实四家供应商兼容；生产容量、跨主机故障/恢复；已有本机双进程 SIGKILL、双控制面恢复接管与 12 秒流回归 |
 | 系统管理 | 独立系统管理员、CPU/内存/cgroup、网卡/DNS 监控；本机代理、IPv4/DNS 临时变更/确认/回退、操作审计 | 真实 NetworkManager VM、重启/断电恢复、外部配置并发；首版仅允许的普通以太网 |
 | 升级 | 版本化 SQL、启动自动迁移、事务锁/校验和/漂移检查；显式只检查模式 | 当前 schema v29，已覆盖隔离逻辑备份恢复与升级门禁；生产密钥/跨主机/规模演练及兼容矩阵仍待验收；自动迁移不是自动降级 |
-| new-api 数据面 | 三类审核渠道、单次持久派发、原始用量 outbox、实时 SSE 完成证明、恢复幂等/公平分页；函数与内联图片、输入估算准入 | 已完成审核配置指纹、Embeddings、缓存读写细分费率；受控随机/进程内轮询多 Key 已适配；Responses 已增加无状态非流式文本子集；其他公共协议、计量单位及按 Key 分账尚未开放；真实供应商/跨主机验收 |
+| new-api 数据面 | 三类审核渠道、单次持久派发、原始用量 outbox、实时 SSE 完成证明、恢复幂等/公平分页；函数与内联图片、输入估算准入 | 已完成审核配置指纹、Embeddings、缓存读写细分费率；受控随机/进程内轮询多 Key 已适配；Responses 已增加无状态文本 JSON/实时 SSE 子集；其他公共协议、计量单位及按 Key 分账尚未开放；真实供应商/跨主机验收 |
 | 可替换执行器 | Bifrost 独立模块、请求边界、取消/关闭/过载；治理桥接、严格原始 SSE、四家参数契约、凭证快照工厂、有界池、原子发布/排空、一致快照与受管同步刷新 | 独立入口可显式启用；默认原生保留；生产负载/外部系统门禁待验收 |
 
 ## 本阶段交付
@@ -51,7 +51,7 @@ DeepSeek 能力与计费边界见 [接入说明](deepseek.md)。
 
 `feature/newapi-foundation-validation` 已启动，第一阶段为实验性接入契约与治理回归；尚未切换生产入口。详见 [new-api 落地进度](new-api-integration.md)。
 
-new-api 专项已推进到显式 `--execution-engine=newapi`：可信内部入口、原始计数完成钩子、事务 outbox、控制面价格快照/恢复收据、自动迁移 v26、readiness 和双进程 SIGKILL 联调已落地。当前客户端支持受控 Chat Completions（含审核函数调用与内联图片）、input-only Embeddings 以及无状态非流式文本 Responses 子集，上游 Chat 已验证 OpenAI 兼容、DeepSeek 和 Anthropic Messages，SSE 已支持 v2 实时内容传输；详细限制、配置和验证证据以 [接入文档最新章节](new-api-integration.md#已接通可信入口恢复消费与显式启动) 为准。默认入口及 V1.0 发布门禁未改变。
+new-api 专项已推进到显式 `--execution-engine=newapi`：可信内部入口、原始计数完成钩子、事务 outbox、控制面价格快照/恢复收据、自动迁移 v26、readiness 和双进程 SIGKILL 联调已落地。当前客户端支持受控 Chat Completions（含审核函数调用与内联图片）、input-only Embeddings 以及无状态文本 Responses（JSON/实时 SSE）子集，上游 Chat 已验证 OpenAI 兼容、DeepSeek 和 Anthropic Messages，SSE 已支持 v2 实时内容传输；详细限制、配置和验证证据以 [接入文档最新章节](new-api-integration.md#已接通可信入口恢复消费与显式启动) 为准。默认入口及 V1.0 发布门禁未改变。
 
 追加迁移 v27 支持 new-api 审核目录的独立供应商标识，贯穿执行记录、费用分析和账单对账；原生直连厂商和凭证白名单不变。实时 SSE、三协议故障矩阵、升级回滚及账单身份专项见接入文档。
 

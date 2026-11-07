@@ -310,6 +310,6 @@ new-api 模式下供应商密钥由数据面管理。客户端继续调用 `/v1/
 
 ### 无状态文本 Responses
 
-审核 newapi Chat 模型也可通过 `POST /v1/responses` 的受控文本子集调用。必须显式提供 `store:false`、`model`、字符串 `input` 和 `max_output_tokens`（至少 16 且不超过目录上限），可提供字符串 `instructions`。当前不支持流式、工具、图片、后台任务、会话或历史响应检索；未知字段会拒绝，不会被静默丢弃。项目 Key 与受控设备身份沿用原治理链，终端代理已允许此路径。
+审核 newapi Chat 模型也可通过 `POST /v1/responses` 的受控文本子集调用。必须显式提供 `store:false`、`model`、字符串 `input` 和 `max_output_tokens`（至少 16 且不超过目录上限），可提供字符串 `instructions`。当前支持 stream:true 实时文本，不支持工具、图片、后台任务、会话或历史响应检索；未知字段会拒绝，不会被静默丢弃。项目 Key 与受控设备身份沿用原治理链，终端代理已允许此路径。
 
 `store:false` 表示不提供 Responses 历史存储/检索，不关闭项目明确开启的企业内容审计。审计记录包含协议标记、规范化请求和实际公开响应，依旧受加密、捕获上限、独立授权与保留策略约束。返回的 input/output token 来自供应商原始证据；未知缓存/推理细项不填写假零。请求示例与限制见 [Responses 接入](../new-api-integration.md#无状态文本-responses-公共协议)。

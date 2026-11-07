@@ -431,11 +431,6 @@ const (
 	ResponsesCreateRequestStoreFalse ResponsesCreateRequestStore = false
 )
 
-// Defines values for ResponsesCreateRequestStream.
-const (
-	ResponsesCreateRequestStreamFalse ResponsesCreateRequestStream = false
-)
-
 // Defines values for ResponsesOutputMessageRole.
 const (
 	Assistant ResponsesOutputMessageRole = "assistant"
@@ -481,7 +476,7 @@ const (
 
 // Defines values for ResponsesResultStore.
 const (
-	False ResponsesResultStore = false
+	ResponsesResultStoreFalse ResponsesResultStore = false
 )
 
 // Defines values for RouteStatusState.
@@ -1969,7 +1964,7 @@ type ResponsesCreateRequest struct {
 	MaxOutputTokens int                               `json:"max_output_tokens"`
 	Model           string                            `json:"model"`
 	Store           ResponsesCreateRequestStore       `json:"store"`
-	Stream          *ResponsesCreateRequestStream     `json:"stream"`
+	Stream          *bool                             `json:"stream"`
 }
 
 // ResponsesCreateRequestBackground defines model for ResponsesCreateRequest.Background.
@@ -1977,9 +1972,6 @@ type ResponsesCreateRequestBackground bool
 
 // ResponsesCreateRequestStore defines model for ResponsesCreateRequest.Store.
 type ResponsesCreateRequestStore bool
-
-// ResponsesCreateRequestStream defines model for ResponsesCreateRequest.Stream.
-type ResponsesCreateRequestStream bool
 
 // ResponsesOutputMessage defines model for ResponsesOutputMessage.
 type ResponsesOutputMessage struct {

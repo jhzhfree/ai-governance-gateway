@@ -19,10 +19,10 @@ type ResponsesRequest struct {
 }
 
 func (r ResponsesRequest) Request() (Request, error) {
-	if r.Store == nil || *r.Store || r.Stream || r.Background || r.MaxOutputTokens < 16 || len(r.Input) == 0 || len(r.Input) > 16<<10 || len(r.Instructions) > 16<<10 {
+	if r.Store == nil || *r.Store || r.Background || r.MaxOutputTokens < 16 || len(r.Input) == 0 || len(r.Input) > 16<<10 || len(r.Instructions) > 16<<10 {
 		return Request{}, errors.New("unsupported responses request")
 	}
-	req := Request{Model: r.Model, MaxTokens: r.MaxOutputTokens}
+	req := Request{Model: r.Model, MaxTokens: r.MaxOutputTokens, Stream: r.Stream}
 	if r.Instructions != "" {
 		req.Messages = append(req.Messages, Message{Role: "system", Content: r.Instructions})
 	}

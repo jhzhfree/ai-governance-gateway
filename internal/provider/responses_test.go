@@ -16,7 +16,6 @@ func TestResponsesStatelessTextAndEvidence(t *testing.T) {
 	for name, mutate := range map[string]func(*ResponsesRequest){
 		"missing store": func(r *ResponsesRequest) { r.Store = nil },
 		"stored":        func(r *ResponsesRequest) { yes := true; r.Store = &yes },
-		"stream":        func(r *ResponsesRequest) { r.Stream = true },
 		"background":    func(r *ResponsesRequest) { r.Background = true },
 		"empty":         func(r *ResponsesRequest) { r.Input = "" },
 		"large":         func(r *ResponsesRequest) { r.Input = strings.Repeat("x", (16<<10)+1) },

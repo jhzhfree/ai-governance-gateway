@@ -15,12 +15,14 @@ import (
 // auditWriter observes normalized gateway output, never supplier headers or credentials.
 type auditWriter struct {
 	http.ResponseWriter
-	capture               *contentaudit.Capture
-	ctx                   context.Context
-	failed                bool
-	status                int
-	stream, started, done bool
-	buffer                bytes.Buffer
+	capture                *contentaudit.Capture
+	ctx                    context.Context
+	failed                 bool
+	status                 int
+	stream, started, done  bool
+	buffer                 bytes.Buffer
+	terminal, failureFrame []byte
+	holdTerminal           bool
 }
 
 func (w *auditWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
@@ -28,6 +30,15 @@ func (w *auditWriter) WriteHeader(status int) {
 	if w.status == 0 {
 		w.status = status
 	}
+}
+func (w *auditWriter) writeTerminal(data, failure []byte) (int, error) {
+	if w.done {
+		return 0, contentaudit.ErrUnavailable
+	}
+	w.holdTerminal = true
+	defer func() { w.holdTerminal = false }()
+	w.failureFrame = bytes.Clone(failure)
+	return w.Write(data)
 }
 func (w *auditWriter) Write(data []byte) (int, error) {
 	if w.status == 0 {
@@ -47,7 +58,8 @@ func (w *auditWriter) Write(data []byte) (int, error) {
 	_ = http.NewResponseController(w.ResponseWriter).SetWriteDeadline(time.Now().Add(2 * time.Second))
 	if strings.HasPrefix(w.Header().Get("Content-Type"), "text/event-stream") {
 		w.stream = true
-		if bytes.Equal(data, []byte("data: [DONE]\n\n")) {
+		if w.holdTerminal || bytes.Equal(data, []byte("data: [DONE]\n\n")) {
+			w.terminal = bytes.Clone(data)
 			w.done = true
 			return len(data), nil
 		}
@@ -128,7 +140,13 @@ func (h *Handler) capture(w http.ResponseWriter, r *http.Request, id, token stri
 		if err != nil || wrapped.failed {
 			h.report(id, "content_audit_seal_failed")
 			if wrapped.started {
-				_, _ = w.Write([]byte("data: {\"error\":{\"code\":\"content_audit_unavailable\"}}\n\n"))
+				if r.URL.Path == "/v1/responses" {
+					if len(wrapped.failureFrame) > 0 {
+						_, _ = w.Write(wrapped.failureFrame)
+					}
+				} else {
+					_, _ = w.Write([]byte("data: {\"error\":{\"code\":\"content_audit_unavailable\"}}\n\n"))
+				}
 				_ = http.NewResponseController(w).Flush()
 			} else {
 				problem(w, 503, "content_audit_unavailable", id)
@@ -137,7 +155,7 @@ func (h *Handler) capture(w http.ResponseWriter, r *http.Request, id, token stri
 		}
 		if wrapped.stream {
 			if wrapped.done {
-				_, _ = w.Write([]byte("data: [DONE]\n\n"))
+				_, _ = w.Write(wrapped.terminal)
 				_ = http.NewResponseController(w).Flush()
 			}
 			return

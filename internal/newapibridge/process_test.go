@@ -478,7 +478,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	}
 
 	call := func(origin string, stream bool) (int, []byte) {
-		if embedding || option.responses {
+		if embedding {
 			stream = false
 		}
 		req := request()
@@ -502,7 +502,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 		}
 		if option.responses {
 			path = "/v1/responses"
-			data, _ = json.Marshal(map[string]any{"model": req.Model, "input": "synthetic responses input", "max_output_tokens": 16, "store": false})
+			data, _ = json.Marshal(map[string]any{"model": req.Model, "input": "synthetic responses input", "max_output_tokens": 16, "store": false, "stream": stream})
 		}
 		r, _ := http.NewRequest("POST", origin+path, bytes.NewReader(data))
 		r.Header.Set("Authorization", "Bearer synthetic-project-key")
@@ -540,7 +540,11 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 			}
 			releaseStream()
 			tail, readErr := io.ReadAll(reader)
-			if readErr != nil || !strings.Contains(string(tail), "[DONE]") {
+			terminalMarker := "[DONE]"
+			if option.responses {
+				terminalMarker = `"type":"response.completed"`
+			}
+			if readErr != nil || !strings.Contains(string(tail), terminalMarker) {
 				t.Fatalf("verified stream did not finish: %v, synthetic response: %s%s", readErr, first, tail)
 			}
 			return res.StatusCode, append([]byte(first), tail...)

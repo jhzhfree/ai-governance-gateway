@@ -1858,7 +1858,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Reviewed newapi stateless, non-stream text Responses subset, executed through the governed Chat contract. Explicit store=false required; input is one nonempty string, optional instructions, max_output_tokens >=16 within reviewed route bound. 16 KiB per text and 64 KiB body. No tools, media, background, streaming, previous-response/conversation state or retrieval. Normal authorization/device/budget/keywords and consented encrypted content audit still apply; store=false disables API response history, not enterprise audit. Usage comes from original supplier evidence; unknown cache/reasoning details are not fabricated. No retry. */
+        /** @description Reviewed newapi stateless text Responses subset, executed through the governed Chat contract. Explicit store=false required; string input and optional instructions, max_output_tokens >=16 within reviewed route bound. 16 KiB per text and 64 KiB request. JSON or stream=true SSE; no tools, media, background, previous-response/conversation state or retrieval. Standard authorization/device/budget/keywords and consented content audit apply; store=false does not disable enterprise audit. SSE text deltas are live; completed/incomplete terminal events require original completion proof, settlement and audit seal. Missing proof retains uncertain funds. Aggregate text <=1 MiB, emitted event <=2 MiB; failure may close without a terminal event. No retry or fabricated usage details. */
         post: operations["createStatelessTextResponse"];
         delete?: never;
         options?: never;
@@ -3198,8 +3198,7 @@ export interface components {
             max_output_tokens: number;
             /** @enum {boolean} */
             store: false;
-            /** @enum {boolean|null} */
-            stream?: false | null;
+            stream?: boolean | null;
             /** @enum {boolean|null} */
             background?: false | null;
         };
@@ -11603,13 +11602,18 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Settled and audited response, or explicit incomplete status for length/content filter */
+            /** @description JSON result after settlement/audit, or live SSE with completed/incomplete terminal events gated on original evidence, settlement and audit seal. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ResponsesResult"];
+                    /**
+                     * @example event: response.output_text.delta
+                     *     data: {"type":"response.output_text.delta","item_id":"msg_example","output_index":0,"content_index":0,"delta":"synthetic","logprobs":[],"sequence_number":4}
+                     */
+                    "text/event-stream": string;
                 };
             };
             /** @description Invalid input */

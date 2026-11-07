@@ -19,13 +19,25 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/testutil"
 )
 
-func responsesFixture(t *testing.T) (fixture, *atomic.Int32) {
+type responsesFixtureOptions struct {
+	release      <-chan struct{}
+	omitProof    bool
+	extraDelta   bool
+	finishReason string
+}
+
+func responsesFixture(t *testing.T, options ...responsesFixtureOptions) (fixture, *atomic.Int32) {
+	var option responsesFixtureOptions
+	if len(options) > 0 {
+		option = options[0]
+	}
 	var calls atomic.Int32
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
 		var payload struct {
 			Model     string                           `json:"model"`
 			MaxTokens int                              `json:"max_tokens"`
+			Stream    bool                             `json:"stream"`
 			Messages  []struct{ Role, Content string } `json:"messages"`
 		}
 		if json.NewDecoder(r.Body).Decode(&payload) != nil || r.URL.Path != "/internal/governance/v1/chat/completions" || payload.MaxTokens != 16 || len(payload.Messages) != 2 || payload.Messages[0].Role != "system" {
@@ -33,6 +45,33 @@ func responsesFixture(t *testing.T) (fixture, *atomic.Int32) {
 		}
 		for key, value := range map[string]string{"X-Aigw-Config-Version": "1", "X-Aigw-Channel-Revision": r.Header.Get("X-Aigw-Channel-Revision"), "X-Aigw-Admission-Version": "2", "X-Aigw-Input-Limit": r.Header.Get("X-Aigw-Max-Input-Tokens"), "X-Aigw-Evidence-Version": "1", "X-Aigw-Request-Id": r.Header.Get("X-Aigw-Request-Id"), "X-Aigw-Attempt-Id": r.Header.Get("X-Aigw-Attempt-Id"), "X-Aigw-Usage-Source": "upstream", "X-Aigw-Physical-Attempts": "1"} {
 			w.Header().Set(key, value)
+		}
+		if payload.Stream {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Header().Set("X-Aigw-Evidence-Version", "2")
+			w.Header().Set("Trailer", "X-Aigw-Completion")
+			io.WriteString(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"synthetic response text\"},\"finish_reason\":null}]}\n\n")
+			w.(http.Flusher).Flush()
+			if option.release != nil {
+				select {
+				case <-option.release:
+				case <-r.Context().Done():
+					return
+				}
+			}
+			if option.extraDelta {
+				io.WriteString(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"uncommitted-second\"},\"finish_reason\":null}]}\n\n")
+			}
+			finish := "stop"
+			if option.finishReason != "" {
+				finish = option.finishReason
+			}
+			finishFrame, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{"index": 0, "delta": map[string]any{}, "finish_reason": finish}}})
+			io.WriteString(w, "data: "+string(finishFrame)+"\n\ndata: {\"choices\":[],\"usage\":{\"prompt_tokens\":2,\"completion_tokens\":3,\"total_tokens\":5}}\n\ndata: [DONE]\n\n")
+			if !option.omitProof {
+				w.Header().Set("X-Aigw-Completion", "completed")
+			}
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		io.WriteString(w, `{"id":"backend","object":"chat.completion","model":"backend-model","choices":[{"index":0,"message":{"role":"assistant","content":"synthetic response text"},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5}}`)
@@ -94,7 +133,7 @@ func TestResponsesGovernanceAuditAndStatelessBoundary(t *testing.T) {
 		t.Fatal("audit protocol semantics lost")
 	}
 	f.request("invalid-project-key", "POST", "/v1/responses", payload, 401)
-	for field, value := range map[string]any{"store": true, "stream": true, "background": true, "previous_response_id": "resp_previous", "tools": []any{}, "input": []string{"unsupported array"}} {
+	for field, value := range map[string]any{"store": true, "stream_options": map[string]any{}, "background": true, "previous_response_id": "resp_previous", "tools": []any{}, "input": []string{"unsupported array"}} {
 		copy := map[string]any{}
 		for k, v := range payload {
 			copy[k] = v
@@ -115,6 +154,9 @@ func TestResponsesGovernanceAuditAndStatelessBoundary(t *testing.T) {
 	if !strings.Contains(string(redacted), "[REDACTED]") || strings.Contains(string(redacted), "synthetic response text") {
 		t.Fatal("responses bypassed output policy")
 	}
+	payload["stream"] = true
+	f.request(key.Secret, "POST", "/v1/responses", payload, 400)
+	delete(payload, "stream")
 	f.request(f.token("alice"), "PUT", policyPath, map[string]any{"expected_revision": 1, "rules": []keyword.Rule{{ID: "deny", Kind: "literal", Pattern: "synthetic", Direction: "input", Action: "block"}}}, 200)
 	f.request(key.Secret, "POST", "/v1/responses", payload, 403)
 	f.request(f.token("alice"), "PUT", policyPath, map[string]any{"expected_revision": 2, "rules": []keyword.Rule{}}, 200)

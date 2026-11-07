@@ -247,6 +247,9 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 		}
 		return
 	}
+	if r.URL.Path == "/v1/responses" {
+		w = &responsesStreamWriter{ResponseWriter: w, request: req, id: id}
+	}
 	outcome = streamProvider(w, response.Body, req, id, route, settle, h.report, trace, ctx, guard)
 }
 
@@ -329,7 +332,10 @@ func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id strin
 					return circuit.Neutral
 				}
 			}
-			_ = write("[DONE]")
+			if err := write("[DONE]"); err != nil {
+				report(id, "downstream_write_failed")
+				return circuit.Neutral
+			}
 			return circuit.Success
 		}
 		value, err := provider.NormalizeRequest([]byte(data), req, id)
