@@ -59,6 +59,8 @@ func routeFamily(path string) string {
 	switch path {
 	case "/v1/chat/completions":
 		return "chat"
+	case "/v1/embeddings":
+		return "embeddings"
 	case "/v1/models":
 		return "models"
 	default:
@@ -97,7 +99,7 @@ func (r *Registry) prometheus() string {
 	defer r.mu.Unlock()
 	var s strings.Builder
 	s.WriteString("# HELP aigw_gateway_requests_total Gateway HTTP responses including denied authentication.\n# TYPE aigw_gateway_requests_total counter\n")
-	for _, route := range []string{"chat", "models", "other"} {
+	for _, route := range []string{"chat", "embeddings", "models", "other"} {
 		for _, class := range []string{"2xx", "3xx", "4xx", "5xx", "other"} {
 			v, ok := r.ingress[ingressKey{route, class}]
 			if !ok {
@@ -107,7 +109,7 @@ func (r *Registry) prometheus() string {
 		}
 	}
 	s.WriteString("# HELP aigw_gateway_request_duration_seconds Gateway handler duration, including full streaming lifetime.\n# TYPE aigw_gateway_request_duration_seconds histogram\n")
-	for _, route := range []string{"chat", "models", "other"} {
+	for _, route := range []string{"chat", "embeddings", "models", "other"} {
 		for _, class := range []string{"2xx", "3xx", "4xx", "5xx", "other"} {
 			v, ok := r.ingress[ingressKey{route, class}]
 			if !ok {

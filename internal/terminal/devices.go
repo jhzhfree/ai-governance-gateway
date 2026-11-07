@@ -168,7 +168,7 @@ func (p *deviceProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "local_authentication_required", 401)
 		return
 	}
-	if r.URL.RawQuery != "" || !((r.Method == "POST" && r.URL.Path == "/v1/chat/completions") || (r.Method == "GET" && r.URL.Path == "/v1/models")) {
+	if r.URL.RawQuery != "" || !((r.Method == "POST" && (r.URL.Path == "/v1/chat/completions" || r.URL.Path == "/v1/embeddings")) || (r.Method == "GET" && r.URL.Path == "/v1/models")) {
 		http.NotFound(w, r)
 		return
 	}
@@ -179,7 +179,11 @@ func (p *deviceProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "local_concurrency_exceeded", 429)
 		return
 	}
-	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 64<<10))
+	limit := int64(64 << 10)
+	if r.URL.Path == "/v1/chat/completions" {
+		limit = 1 << 20
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, limit))
 	if err != nil {
 		http.Error(w, "request_too_large", 413)
 		return
