@@ -140,3 +140,11 @@
 新增真实 Unix socket 异常响应与监控异常输入测试；最终 systemhost race 回归通过（1.275 秒），最后结果校验代码通过 vet。17 个 OIDC 浏览器场景全部通过（74.106 秒），包含真实 PostgreSQL/OIDC、Unix 代理 fixture 和确认后复读 DNS。本轮未修改前端，未重复冻结安装/构建及本地登录浏览器；上一阶段已有对应通过证据。日志位于 `/workspace/.onboarding/logs/system-hardening-targeted.log`、`system-hardening-browser.log`。完整 `AIGW_VERIFY_WEB=0 GOMAXPROCS=4 bash scripts/verify.sh` 退出码 0，234 个主模块顶层测试和执行模块各包（49 个测试）通过，无失败或跳过，覆盖真实隔离 PostgreSQL、race/vet、模块和 API 契约；日志 `system-hardening-verify.log`。最后追加的响应结果绑定校验另经上述 systemhost race/vet 与浏览器流程复验。
 
 仍未进行真实 NetworkManager 虚拟机网络切换及失联回退验收，没有修改开发机网络或发布生产版本。
+
+## 数据库逻辑备份恢复演练阶段
+
+基线 ab758da；系统管理提交 59e5fee 的远端 run 42316462913 已确认 success，ab758da 的 run 42318108140 在本轮检查时仍在运行。新增独立 `scripts/verify-restore.sh`，并通过 `AIGW_VERIFY_RESTORE=1` 接入根门禁；普通 CI 不默认启用，不能宣称每次 CI 已进行备份恢复。演练只处理 testutil 新建的随机 schema，保留源 fixture 后恢复，不接受生产 schema 或外部备份输入。无新迁移，自动启动升级保持至 0025。详见 [备份恢复说明](backup-restore.md)。
+
+两条真实 PostgreSQL 17.11 逻辑备份/恢复路径分别覆盖当前 0025 和构造的 0024 fixture；比较全部 fixture 表和序列摘要、检查截断备份失败无残留、执行旧备份恢复后的升级，并验证费用 settled/reserved/dispatched/uncertain 状态和占用保留、系统审计 identity 继续写入。首轮发现 libpq 不展开 PGDATABASE 中的完整 URI，已改为受限 URI 字段到子进程环境映射，凭证不进入 argv/输出；首次失败不计入通过。独立 race 演练最终通过（3.695 秒），脚本缺少测试数据库的失败分支及带 restore_e2e 标签的 vet 通过。
+
+没有运行真实密钥解密、生产备份、跨主机或大数据量恢复；没有修改 Web 或执行付费模型调用。本轮不重复浏览器测试，上一轮已有 17 个 OIDC 场景通过证据。完整 `AIGW_VERIFY_RESTORE=1 AIGW_VERIFY_WEB=0 GOMAXPROCS=4 bash scripts/verify.sh` 退出码 0：234 个主模块顶层测试、执行模块各包（49 个测试）和 1 个恢复顶层测试（2 条版本路径）全部通过，无失败或跳过，包含真实 PostgreSQL、race/vet、模块与 API 契约。完整证据日志 `/workspace/.onboarding/logs/restore-stage-verify.log`，独立演练日志 `restore-drill.log`。

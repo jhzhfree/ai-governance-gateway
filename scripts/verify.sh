@@ -71,3 +71,9 @@ if [[ "${AIGW_VERIFY_WEB:-0}" == 1 ]]; then
   npm --prefix web run build
   "$go_bin" test -mod=readonly -race -tags=web_e2e -run '^Test(ConsoleBrowser|LocalConsoleBrowser)$' -count=1 -timeout=240s -v ./internal/browser
 fi
+
+# Optional recovery gate requires compatible local PostgreSQL client tools.
+# It operates only on generated fixture schemas in the dedicated test database.
+if [[ "${AIGW_VERIFY_RESTORE:-0}" == 1 ]]; then
+  GO_BIN="$go_bin" bash scripts/verify-restore.sh
+fi
