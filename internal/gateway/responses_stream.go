@@ -49,6 +49,39 @@ func (w *responsesStreamWriter) emit(kind string, fields map[string]any) error {
 	w.sequence++
 	return nil
 }
+
+type responsesEvent struct {
+	kind   string
+	fields map[string]any
+}
+
+// Initial metadata exists together before the first text delta. Persist and
+// write it once, without delaying deltas or combining the sealed terminal event.
+func (w *responsesStreamWriter) emitInitial(events []responsesEvent) error {
+	if len(events) != 4 || w.started || w.sequence != 0 {
+		return errors.New("invalid responses initialization")
+	}
+	var batch []byte
+	for _, event := range events {
+		frame, err := w.frame(event.kind, event.fields)
+		if err != nil || len(batch)+len(frame) > 64<<10 {
+			w.sequence = 0
+			return errors.New("responses initialization exceeds boundary")
+		}
+		batch = append(batch, frame...)
+		w.sequence++
+	}
+	n, err := w.ResponseWriter.Write(batch)
+	if err != nil || n != len(batch) {
+		w.sequence = 0
+		if err != nil {
+			return err
+		}
+		return io.ErrShortWrite
+	}
+	return nil
+}
+
 func (w *responsesStreamWriter) Write(data []byte) (int, error) {
 	if !strings.HasPrefix(w.Header().Get("Content-Type"), "text/event-stream") {
 		return w.ResponseWriter.Write(data)
@@ -130,15 +163,12 @@ func (w *responsesStreamWriter) Write(data []byte) (int, error) {
 	if !w.started {
 		w.created = time.Now().Unix()
 		initial := map[string]any{"id": "resp_" + w.id, "object": "response", "created_at": w.created, "status": "in_progress", "error": nil, "incomplete_details": nil, "model": w.request.Model, "store": false, "background": false, "max_output_tokens": w.request.MaxTokens, "output": []any{}, "usage": nil}
-		for _, kind := range []string{"response.created", "response.in_progress"} {
-			if err := w.emit(kind, map[string]any{"response": initial}); err != nil {
-				return 0, err
-			}
-		}
-		if err := w.emit("response.output_item.added", map[string]any{"output_index": 0, "item": map[string]any{"id": "msg_" + w.id, "type": "message", "role": "assistant", "status": "in_progress", "content": []any{}}}); err != nil {
-			return 0, err
-		}
-		if err := w.emit("response.content_part.added", map[string]any{"item_id": "msg_" + w.id, "output_index": 0, "content_index": 0, "part": provider.ResponsesText{Type: "output_text", Text: "", Annotations: []any{}}}); err != nil {
+		if err := w.emitInitial([]responsesEvent{
+			{"response.created", map[string]any{"response": initial}},
+			{"response.in_progress", map[string]any{"response": initial}},
+			{"response.output_item.added", map[string]any{"output_index": 0, "item": map[string]any{"id": "msg_" + w.id, "type": "message", "role": "assistant", "status": "in_progress", "content": []any{}}}},
+			{"response.content_part.added", map[string]any{"item_id": "msg_" + w.id, "output_index": 0, "content_index": 0, "part": provider.ResponsesText{Type: "output_text", Text: "", Annotations: []any{}}}},
+		}); err != nil {
 			return 0, err
 		}
 		w.started = true

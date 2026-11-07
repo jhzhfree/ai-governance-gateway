@@ -73,6 +73,12 @@ func TestResponsesStreamCompletionRequiresEvidenceAndAudit(t *testing.T) {
 			if !strings.Contains(early.String(), "synthetic response text") || response.StatusCode != 200 {
 				t.Fatal("live text delta missing")
 			}
+			// Four initialization events share one durable checkpoint; the first
+			// live text delta has its own checkpoint before it reaches the client.
+			var parts int
+			if err := f.pool.QueryRow(context.Background(), `SELECT parts FROM content_audit_checkpoints`).Scan(&parts); err != nil || parts != 2 {
+				t.Fatal("initial metadata and live delta checkpoint boundaries changed", parts, err)
+			}
 			usage := parse[control.Usage](t, f.request(f.token("alice"), "GET", projectPath(o, p)+"/usage", nil, 200))
 			if usage.Spent != 0 || usage.Held != 320 {
 				t.Fatal("stream settled before original completion")

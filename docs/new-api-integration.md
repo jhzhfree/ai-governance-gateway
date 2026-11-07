@@ -502,3 +502,5 @@ Responses 完整门禁：固定 `d7ae87e36` 数据面，`AIGW_VERIFY_WEB=1 AIGW_
 验证覆盖：实际 PostgreSQL 下的早期增量与尚未结算占额、缺少完成证明、封存失败、增量检查点失败不泄漏未提交文本；固定 SDK 的原始事件迭代与高级 responses.stream()/get_final_response()。SDK 高级测试首次误用该版本不存在的 text_stream 属性，改为正式事件迭代，并补全协议必需的空 logprobs 列表后通过（单 SDK 门禁 3.977 秒）。三协议真实进程故障测试切为 JSON＋实时 Responses SSE，组合缓存、多 Key 与双控制面恢复，54.501 秒通过。完整门禁随后记录；这不等于工具、多模态或所有 Responses 状态功能已实现。
 
 Responses 流式完整门禁：固定 `d7ae87e36` 数据面与上述 SDK venv，运行 `AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 AIGW_VERIFY_SDK=1 bash scripts/verify.sh`，退出码 0。HTTP API 262.670 秒、bridge 393.405 秒；17 项 OIDC＋1 项本地身份浏览器 78.677 秒；当前/旧版恢复 4.504 秒；最终 SDK/Responses 门禁 19.274 秒，包含高级流聚合、缺证据不得获取成功最终响应、长度截断、检查点及封存失败。后端 race/vet、生成契约与 Web 冻结依赖/类型/Lint/构建全部通过。未使用真实收费账户，未执行生产切流。
+
+Responses 初始化元数据现在合并一次有界审计检查点，每流减少三次持久化往返；事件顺序和 SDK 契约不变，实时文本增量与最终封存仍独立。详见 [性能基线与 A/B 证据](new-api-performance.md#responses-初始化检查点合并)。这不改变无状态文本子集范围。
