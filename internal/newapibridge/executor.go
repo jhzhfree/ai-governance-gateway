@@ -51,6 +51,8 @@ type Executor struct {
 	models              map[string]string
 	channels            map[string]int
 	client              *http.Client
+	recoveryClient      *http.Client
+	recoveryTransport   *http.Transport
 	transport           *http.Transport
 	root                context.Context
 	cancel              context.CancelFunc
@@ -101,7 +103,14 @@ func New(cfg Config) (*Executor, error) {
 	transport.MaxResponseHeaderBytes = 16 << 10
 	transport.MaxConnsPerHost = cfg.MaxConcurrent
 	transport.ResponseHeaderTimeout = 120 * time.Second
-	return &Executor{journal: cfg.Journal, origin: strings.TrimSuffix(cfg.Origin, "/"), token: cfg.ServiceToken, models: models, channels: channels, root: root, cancel: cancel, slots: make(chan struct{}, cfg.MaxConcurrent), transport: transport, client: &http.Client{Transport: transport, Timeout: 120 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
+	// Recovery must remain available when all inference connections carry streams.
+	recoveryTransport := transport.Clone()
+	recoveryTransport.MaxConnsPerHost = 2
+	recoveryTransport.MaxIdleConnsPerHost = 2
+	recoveryTransport.MaxIdleConns = 2
+	recoveryTransport.ResponseHeaderTimeout = 5 * time.Second
+	recoveryClient := &http.Client{Transport: recoveryTransport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	return &Executor{recoveryClient: recoveryClient, recoveryTransport: recoveryTransport, journal: cfg.Journal, origin: strings.TrimSuffix(cfg.Origin, "/"), token: cfg.ServiceToken, models: models, channels: channels, root: root, cancel: cancel, slots: make(chan struct{}, cfg.MaxConcurrent), transport: transport, client: &http.Client{Transport: transport, Timeout: 120 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
 }
 func (e *Executor) Validate(route *provider.Route, req gateway.Request) error {
 	if route == nil || !route.Ready() || e.models[req.Model] == "" || !provider.ValidateRequest(req) {
@@ -220,6 +229,7 @@ func (e *Executor) Close() {
 	e.mu.Unlock()
 	e.active.Wait()
 	e.transport.CloseIdleConnections()
+	e.recoveryTransport.CloseIdleConnections()
 }
 
 type ownedBody struct {

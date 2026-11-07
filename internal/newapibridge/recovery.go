@@ -34,7 +34,7 @@ func (e *Executor) ReconcileOnce(ctx context.Context) error {
 		}
 		request.Header.Set("Authorization", "Bearer "+e.token)
 		request.Header.Set("Content-Type", "application/json")
-		response, err := e.client.Do(request)
+		response, err := e.recoveryClient.Do(request)
 		if err != nil {
 			failed = true
 			continue
@@ -55,7 +55,7 @@ func (e *Executor) ReconcileOnce(ctx context.Context) error {
 		return ErrInvalid
 	}
 	req.Header.Set("Authorization", "Bearer "+e.token)
-	res, err := e.client.Do(req)
+	res, err := e.recoveryClient.Do(req)
 	if err != nil {
 		return ErrUnavailable
 	}
@@ -93,7 +93,7 @@ func (e *Executor) ReconcileOnce(ctx context.Context) error {
 			continue
 		}
 		ack.Header.Set("Authorization", "Bearer "+e.token)
-		result, err := e.client.Do(ack)
+		result, err := e.recoveryClient.Do(ack)
 		if err != nil {
 			failed = true
 			continue

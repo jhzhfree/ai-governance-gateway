@@ -130,3 +130,79 @@ func TestRecoveryPagesDoNotStarveBehindPoisonEvents(t *testing.T) {
 	}
 
 }
+
+// A long response occupies the entire configured inference pool. Recovery must
+// still reach the data plane, rather than timing out waiting for that connection.
+func TestRecoveryWhileInferenceConnectionSaturated(t *testing.T) {
+	pool, ledger, scope := testutil.Database(t)
+	scope.Currency = provider.Currency
+	testutil.Accounts(t, ledger, scope, 10000, 10000)
+	cfg := testutil.MainlandConfig()
+	for i := range cfg.Models {
+		cfg.Models[i].NewAPIChannelID = 1
+		cfg.Models[i].UpstreamModel = "backend-model"
+	}
+	directory, err := provider.NewGoverned(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	route, _ := directory.Find("zhipu/fixture")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer "+token {
+			t.Error("missing service credential")
+		}
+		switch r.URL.Path {
+		case "/internal/governance/v1/chat/completions":
+			evidence(w, r)
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.WriteHeader(http.StatusOK)
+			w.(http.Flusher).Flush()
+			<-r.Context().Done()
+		case "/internal/governance/v1/events":
+			w.Header().Set("X-Aigw-Events-Version", "1")
+			w.Header().Set("X-Aigw-Paging-Version", "1")
+			json.NewEncoder(w).Encode([]newapibridge.Event{})
+		default:
+			t.Error("unexpected recovery request")
+			w.WriteHeader(http.StatusBadRequest)
+		}
+	}))
+	defer server.Close()
+	ctx := context.Background()
+	const requestID = "SaturatedRequest1234"
+	const attemptID = "SaturatedAttempt1234"
+	amount, err := route.Bound(8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: requestID, PriceVersion: route.PriceVersion(), Amount: amount}); err != nil {
+		t.Fatal(err)
+	}
+	if err := execution.New(pool).Begin(ctx, execution.Start{AttemptID: attemptID, RequestID: requestID, Model: "zhipu/fixture", Provider: "zhipu", Region: "cn-mainland"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ledger.Dispatch(ctx, requestID); err != nil {
+		t.Fatal(err)
+	}
+	executor, err := newapibridge.New(newapibridge.Config{Origin: server.URL, ServiceToken: token, MaxConcurrent: 1, AllowLoopbackHTTP: true, Journal: newapibridge.NewJournal(pool), Models: map[string]string{"zhipu/fixture": "backend-model"}, Channels: map[string]int{"zhipu/fixture": 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer executor.Close()
+	req := request()
+	req.Stream = true
+	response, err := executor.Open(ctx, route, req, requestID, attemptID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	recoveryCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	if err := executor.ReconcileOnce(recoveryCtx); err != nil {
+		t.Fatalf("recovery starved behind active stream: %v", err)
+	}
+	row, err := ledger.Get(ctx, requestID)
+	if err != nil || row.State != "dispatched" {
+		t.Fatal("in-progress hold changed during recovery")
+	}
+}
