@@ -168,7 +168,7 @@ func (p *deviceProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "local_authentication_required", 401)
 		return
 	}
-	if r.URL.RawQuery != "" || !((r.Method == "POST" && (r.URL.Path == "/v1/chat/completions" || r.URL.Path == "/v1/embeddings" || r.URL.Path == "/v1/responses")) || (r.Method == "GET" && r.URL.Path == "/v1/models")) {
+	if r.URL.RawQuery != "" || !((r.Method == "POST" && (r.URL.Path == "/v1/chat/completions" || r.URL.Path == "/v1/embeddings" || r.URL.Path == "/v1/responses" || r.URL.Path == "/v1/messages")) || (r.Method == "GET" && r.URL.Path == "/v1/models")) {
 		http.NotFound(w, r)
 		return
 	}
@@ -207,6 +207,13 @@ func (p *deviceProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	req.Header.Set("Authorization", "DPoP "+session)
 	req.Header.Set("DPoP", proof)
 	req.Header.Set("Content-Type", "application/json")
+	if r.URL.Path == "/v1/messages" {
+		for _, name := range []string{"Anthropic-Version", "Anthropic-Beta"} {
+			for _, value := range r.Header.Values(name) {
+				req.Header.Add(name, value)
+			}
+		}
+	}
 	resp, err := p.upstream.Do(req)
 	if err != nil {
 		http.Error(w, "gateway_unavailable", 502)

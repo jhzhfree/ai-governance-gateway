@@ -16,14 +16,16 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
 	"github.com/jhzhfree/ai-governance-gateway/internal/keyword"
 	"github.com/jhzhfree/ai-governance-gateway/internal/newapibridge"
+	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 	"github.com/jhzhfree/ai-governance-gateway/internal/testutil"
 )
 
 type responsesFixtureOptions struct {
-	release      <-chan struct{}
-	omitProof    bool
-	extraDelta   bool
-	finishReason string
+	cacheEvidence, missingCache bool
+	release                     <-chan struct{}
+	omitProof                   bool
+	extraDelta                  bool
+	finishReason                string
 }
 
 func responsesFixture(t *testing.T, options ...responsesFixtureOptions) (fixture, *atomic.Int32) {
@@ -40,7 +42,11 @@ func responsesFixture(t *testing.T, options ...responsesFixtureOptions) (fixture
 			Stream    bool                             `json:"stream"`
 			Messages  []struct{ Role, Content string } `json:"messages"`
 		}
-		if json.NewDecoder(r.Body).Decode(&payload) != nil || r.URL.Path != "/internal/governance/v1/chat/completions" || payload.MaxTokens != 16 || len(payload.Messages) != 2 || payload.Messages[0].Role != "system" {
+		wantTokens, wantMessages := 16, 2
+		if option.cacheEvidence {
+			wantTokens, wantMessages = 8, 1
+		}
+		if json.NewDecoder(r.Body).Decode(&payload) != nil || r.URL.Path != "/internal/governance/v1/chat/completions" || payload.MaxTokens != wantTokens || len(payload.Messages) != wantMessages || (!option.cacheEvidence && payload.Messages[0].Role != "system") {
 			t.Error("incorrect governed text conversion")
 		}
 		for key, value := range map[string]string{"X-Aigw-Config-Version": "1", "X-Aigw-Channel-Revision": r.Header.Get("X-Aigw-Channel-Revision"), "X-Aigw-Admission-Version": "2", "X-Aigw-Input-Limit": r.Header.Get("X-Aigw-Max-Input-Tokens"), "X-Aigw-Evidence-Version": "1", "X-Aigw-Request-Id": r.Header.Get("X-Aigw-Request-Id"), "X-Aigw-Attempt-Id": r.Header.Get("X-Aigw-Attempt-Id"), "X-Aigw-Usage-Source": "upstream", "X-Aigw-Physical-Attempts": "1"} {
@@ -74,6 +80,15 @@ func responsesFixture(t *testing.T, options ...responsesFixtureOptions) (fixture
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
+		if option.cacheEvidence {
+			w.Header().Set("X-Aigw-Tariff-Version", "1")
+			details := `,"prompt_tokens_details":{"cached_tokens":4,"cached_creation_tokens":5}`
+			if option.missingCache {
+				details = ""
+			}
+			io.WriteString(w, `{"id":"backend","choices":[{"index":0,"message":{"role":"assistant","content":"synthetic response text"},"finish_reason":"stop"}],"usage":{"prompt_tokens":11,"completion_tokens":3,"total_tokens":14`+details+`}}`)
+			return
+		}
 		io.WriteString(w, `{"id":"backend","object":"chat.completion","model":"backend-model","choices":[{"index":0,"message":{"role":"assistant","content":"synthetic response text"},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5}}`)
 	}))
 	t.Cleanup(backend.Close)
@@ -88,6 +103,9 @@ func responsesFixture(t *testing.T, options ...responsesFixtureOptions) (fixture
 		cfg.Models[i].NewAPIChannelRevision = strings.Repeat("a", 64)
 		cfg.Models[i].UpstreamModel = "backend-model"
 		cfg.Models[i].MaxOutputTokens = 32
+		if option.cacheEvidence {
+			cfg.Models[i].CachePricing = &provider.CachePricing{ReadPerMillion: 500000, WritePerMillion: 3000000}
+		}
 	}
 	f := providerExecutorSetupConfig(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Error("native bypass") }), executor, &cfg)
 	return f, &calls

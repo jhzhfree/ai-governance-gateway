@@ -504,3 +504,21 @@ Responses 完整门禁：固定 `d7ae87e36` 数据面，`AIGW_VERIFY_WEB=1 AIGW_
 Responses 流式完整门禁：固定 `d7ae87e36` 数据面与上述 SDK venv，运行 `AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 AIGW_VERIFY_SDK=1 bash scripts/verify.sh`，退出码 0。HTTP API 262.670 秒、bridge 393.405 秒；17 项 OIDC＋1 项本地身份浏览器 78.677 秒；当前/旧版恢复 4.504 秒；最终 SDK/Responses 门禁 19.274 秒，包含高级流聚合、缺证据不得获取成功最终响应、长度截断、检查点及封存失败。后端 race/vet、生成契约与 Web 冻结依赖/类型/Lint/构建全部通过。未使用真实收费账户，未执行生产切流。
 
 Responses 初始化元数据现在合并一次有界审计检查点，每流减少三次持久化往返；事件顺序和 SDK 契约不变，实时文本增量与最终封存仍独立。详见 [性能基线与 A/B 证据](new-api-performance.md#responses-初始化检查点合并)。这不改变无状态文本子集范围。
+
+### 受控 Messages 文本 JSON
+
+新增 `POST /v1/messages`，由企业控制面转换为已有可信 Chat 执行契约，不直通 new-api 公共路由。支持审核的 `2023-06-01` 文本子集：model、max_tokens、可选字符串 system、1–63 条 user/assistant 字符串消息，最后一条必须是 user；每文本最多 16 KiB、整体 64 KiB。首版仅 JSON，stream=true、内容块数组、工具、图片、思考、采样参数、服务端状态和 beta 均拒绝。未提供 anthropic-version 时采用该审核版本，其他显式版本拒绝；不声称兼容最新版本的全部功能。
+
+凭证可用 `Authorization: Bearer <项目 Key>` 或 `x-api-key: <项目 Key>`，两者互斥且不能重复。x-api-key 仅是企业项目 Key 的入口形式，不是上游供应商密钥；正常设备 DPoP 仍按真实路径校验。错误使用 Messages 的 type/error.type/message/request_id 格式，并经实际输出的内容审计路径编码。终端回环代理支持该路径、64 KiB 上限及路径绑定签名，仍要求本机 Bearer 令牌；Anthropic SDK 连接回环代理时使用 auth_token 模式，不能把远端供应商密钥作为本机令牌。version/beta 头仅在该路径保留给控制面核验，不悄悄移除未知 beta。
+
+目录必须显式配置 `cache_pricing` 以取得原始缓存明细；若使用统一输入价格，可把读写价格设为同一输入费率，仍须有原始明细。公开 input_tokens 是普通输入（归一化总输入减缓存读、减缓存写），另外提供 cache_read_input_tokens、cache_creation_input_tokens、output_tokens。不能将归一化总输入直接伪装为普通输入；缺少或不一致的用量拒绝交付并按已有 uncertain/恢复规则保留占额，不猜零或退款。现阶段缓存写仍是聚合数，不含 5 分钟/1 小时的独立费率。
+
+沿用 Token/模型授权、预算、准入、设备、关键词策略和内容审计。输入阻断不派发，输出脱敏不抹除已发生费用。加密请求标记 protocol=messages；响应保存实际 Messages JSON 与分离后的计数。实际管理身份、独立审计员授权、保留和截断规则不变。指标新增固定 messages 分类，避免用户/模型高基数标签。
+
+固定测试 Python SDK `anthropic==2.6.0`，显式覆盖 `anthropic-version: 2023-06-01` 并设置 max_retries=0，测试项目 Key、原始分离用量与未审核流式错误。依赖固定在 `scripts/messages-sdk-requirements.txt`，仅用于隔离测试；配置 `AIGW_MESSAGES_SDK_PYTHON`，集成进 `AIGW_VERIFY_SDK=1` 与 CI。没有调用真实收费账户。SDK/HTTP/终端/指标专项通过；早期专项曾发现测试夹具仍限定 Responses 参数、审计员未授权及指标类别计数未更新，已修正后复验，不将首次失败记为通过。
+
+三类合成上游（OpenAI 兼容、DeepSeek、Anthropic）的真实独立进程测试 54.441 秒通过，组合缓存费率、原生多 Key 轮询和双控制面；验证两个控制面正常 JSON 调用、持久完成前控制面 SIGKILL 后自动接管结算、数据面已派发后崩溃保留未知费用、无派发孤儿取消及原始计数。没有新增数据库迁移，schema v29；完整门禁结果另记。
+
+协议参考：[Messages API](https://platform.claude.com/docs/en/api/messages)。本地实现和固定 SDK 测试仅验证上述子集，不代表其他 SDK/API 版本或真实供应商已验收。
+
+Messages 完整门禁：固定 d7ae87e36 数据面竞态 fixture，Python 3.12.14 的两套固定 SDK venv，执行 `AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 AIGW_VERIFY_SDK=1 bash scripts/verify.sh`，退出码 0。HTTP API 306.244 秒、bridge 456.138 秒；17 项 OIDC＋1 项本地身份浏览器 78.522 秒；当前/旧版恢复 5.013 秒；最终两套 SDK/Responses/Messages 门禁 29.979 秒。后端 race/vet、生成契约、Web 冻结依赖/类型/Lint/构建通过。测试仅使用本地真实数据库和合成供应商，不代表真实商业账户或目标 32 GB 主机验收。

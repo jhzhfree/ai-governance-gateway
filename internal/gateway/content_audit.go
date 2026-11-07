@@ -80,6 +80,9 @@ func (h *Handler) capture(w http.ResponseWriter, r *http.Request, id, token stri
 		return w, func() {}, true
 	}
 	body, err := json.Marshal(req)
+	if r.URL.Path == "/v1/messages" {
+		body, err = json.Marshal(map[string]any{"protocol": "messages", "normalized_request": req})
+	}
 	if r.URL.Path == "/v1/responses" {
 		body, err = json.Marshal(map[string]any{"protocol": "responses", "store": false, "normalized_request": req})
 	}

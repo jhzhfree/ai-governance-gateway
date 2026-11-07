@@ -12,12 +12,13 @@ import (
 )
 
 const (
-	BrowserOriginScopes     = "browserOrigin.Scopes"
-	BrowserSessionScopes    = "browserSession.Scopes"
-	BrowserSessionDevScopes = "browserSessionDev.Scopes"
-	CsrfTokenScopes         = "csrfToken.Scopes"
-	ManagementScopes        = "management.Scopes"
-	ProjectKeyScopes        = "projectKey.Scopes"
+	BrowserOriginScopes      = "browserOrigin.Scopes"
+	BrowserSessionScopes     = "browserSession.Scopes"
+	BrowserSessionDevScopes  = "browserSessionDev.Scopes"
+	CsrfTokenScopes          = "csrfToken.Scopes"
+	ManagementScopes         = "management.Scopes"
+	MessagesProjectKeyScopes = "messagesProjectKey.Scopes"
+	ProjectKeyScopes         = "projectKey.Scopes"
 )
 
 // Defines values for AccountCheckScope.
@@ -112,8 +113,8 @@ const (
 
 // Defines values for ChatContentPartType.
 const (
-	ImageUrl ChatContentPartType = "image_url"
-	Text     ChatContentPartType = "text"
+	ChatContentPartTypeImageUrl ChatContentPartType = "image_url"
+	ChatContentPartTypeText     ChatContentPartType = "text"
 )
 
 // Defines values for ClientToolType.
@@ -326,6 +327,44 @@ const (
 	MemberRecordRoleViewer    MemberRecordRole = "viewer"
 )
 
+// Defines values for MessagesCreateRequestStream.
+const (
+	MessagesCreateRequestStreamFalse MessagesCreateRequestStream = false
+)
+
+// Defines values for MessagesErrorType.
+const (
+	MessagesErrorTypeError MessagesErrorType = "error"
+)
+
+// Defines values for MessagesInputRole.
+const (
+	MessagesInputRoleAssistant MessagesInputRole = "assistant"
+	MessagesInputRoleUser      MessagesInputRole = "user"
+)
+
+// Defines values for MessagesResultRole.
+const (
+	MessagesResultRoleAssistant MessagesResultRole = "assistant"
+)
+
+// Defines values for MessagesResultStopReason.
+const (
+	EndTurn   MessagesResultStopReason = "end_turn"
+	MaxTokens MessagesResultStopReason = "max_tokens"
+	Refusal   MessagesResultStopReason = "refusal"
+)
+
+// Defines values for MessagesResultType.
+const (
+	MessagesResultTypeMessage MessagesResultType = "message"
+)
+
+// Defines values for MessagesTextType.
+const (
+	MessagesTextTypeText MessagesTextType = "text"
+)
+
 // Defines values for ModelInfoApi.
 const (
 	Embeddings ModelInfoApi = "embeddings"
@@ -444,7 +483,7 @@ const (
 
 // Defines values for ResponsesOutputMessageType.
 const (
-	Message ResponsesOutputMessageType = "message"
+	ResponsesOutputMessageTypeMessage ResponsesOutputMessageType = "message"
 )
 
 // Defines values for ResponsesOutputTextType.
@@ -476,7 +515,7 @@ const (
 
 // Defines values for ResponsesResultStore.
 const (
-	ResponsesResultStoreFalse ResponsesResultStore = false
+	False ResponsesResultStore = false
 )
 
 // Defines values for RouteStatusState.
@@ -543,6 +582,11 @@ const (
 const (
 	Confirm  FinishSystemNetworkParamsAction = "confirm"
 	Rollback FinishSystemNetworkParamsAction = "rollback"
+)
+
+// Defines values for CreateGovernedTextMessageParamsAnthropicVersion.
+const (
+	N20230601 CreateGovernedTextMessageParamsAnthropicVersion = "2023-06-01"
 )
 
 // AccountCheck defines model for AccountCheck.
@@ -1703,6 +1747,78 @@ type MemberRecordProjectRole string
 // MemberRecordRole defines model for MemberRecord.Role.
 type MemberRecordRole string
 
+// MessagesCreateRequest defines model for MessagesCreateRequest.
+type MessagesCreateRequest struct {
+	MaxTokens int                          `json:"max_tokens"`
+	Messages  []MessagesInput              `json:"messages"`
+	Model     string                       `json:"model"`
+	Stream    *MessagesCreateRequestStream `json:"stream,omitempty"`
+	System    *string                      `json:"system,omitempty"`
+}
+
+// MessagesCreateRequestStream defines model for MessagesCreateRequest.Stream.
+type MessagesCreateRequestStream bool
+
+// MessagesError defines model for MessagesError.
+type MessagesError struct {
+	Error struct {
+		Message string `json:"message"`
+		Type    string `json:"type"`
+	} `json:"error"`
+	RequestId string            `json:"request_id"`
+	Type      MessagesErrorType `json:"type"`
+}
+
+// MessagesErrorType defines model for MessagesError.Type.
+type MessagesErrorType string
+
+// MessagesInput defines model for MessagesInput.
+type MessagesInput struct {
+	Content string            `json:"content"`
+	Role    MessagesInputRole `json:"role"`
+}
+
+// MessagesInputRole defines model for MessagesInput.Role.
+type MessagesInputRole string
+
+// MessagesResult defines model for MessagesResult.
+type MessagesResult struct {
+	Content      []MessagesText           `json:"content"`
+	Id           string                   `json:"id"`
+	Model        string                   `json:"model"`
+	Role         MessagesResultRole       `json:"role"`
+	StopReason   MessagesResultStopReason `json:"stop_reason"`
+	StopSequence *string                  `json:"stop_sequence"`
+	Type         MessagesResultType       `json:"type"`
+	Usage        MessagesUsage            `json:"usage"`
+}
+
+// MessagesResultRole defines model for MessagesResult.Role.
+type MessagesResultRole string
+
+// MessagesResultStopReason defines model for MessagesResult.StopReason.
+type MessagesResultStopReason string
+
+// MessagesResultType defines model for MessagesResult.Type.
+type MessagesResultType string
+
+// MessagesText defines model for MessagesText.
+type MessagesText struct {
+	Text string           `json:"text"`
+	Type MessagesTextType `json:"type"`
+}
+
+// MessagesTextType defines model for MessagesText.Type.
+type MessagesTextType string
+
+// MessagesUsage defines model for MessagesUsage.
+type MessagesUsage struct {
+	CacheCreationInputTokens int64 `json:"cache_creation_input_tokens"`
+	CacheReadInputTokens     int64 `json:"cache_read_input_tokens"`
+	InputTokens              int64 `json:"input_tokens"`
+	OutputTokens             int64 `json:"output_tokens"`
+}
+
 // ModelInfo defines model for ModelInfo.
 type ModelInfo struct {
 	// AllowImages Reviewed inline image input capability in newapi mode; not a guarantee of image-content moderation.
@@ -2498,6 +2614,14 @@ type CreateLocalUserParams struct {
 	After *string `form:"after,omitempty" json:"after,omitempty"`
 }
 
+// CreateGovernedTextMessageParams defines parameters for CreateGovernedTextMessage.
+type CreateGovernedTextMessageParams struct {
+	AnthropicVersion *CreateGovernedTextMessageParamsAnthropicVersion `json:"anthropic-version,omitempty"`
+}
+
+// CreateGovernedTextMessageParamsAnthropicVersion defines parameters for CreateGovernedTextMessage.
+type CreateGovernedTextMessageParamsAnthropicVersion string
+
 // CreateOrganizationJSONRequestBody defines body for CreateOrganization for application/json ContentType.
 type CreateOrganizationJSONRequestBody = CreateOrganization
 
@@ -2638,6 +2762,9 @@ type StreamMockChatJSONRequestBody = InferenceRequest
 
 // CreateEmbeddingsJSONRequestBody defines body for CreateEmbeddings for application/json ContentType.
 type CreateEmbeddingsJSONRequestBody = EmbeddingRequest
+
+// CreateGovernedTextMessageJSONRequestBody defines body for CreateGovernedTextMessage for application/json ContentType.
+type CreateGovernedTextMessageJSONRequestBody = MessagesCreateRequest
 
 // CreateStatelessTextResponseJSONRequestBody defines body for CreateStatelessTextResponse for application/json ContentType.
 type CreateStatelessTextResponseJSONRequestBody = ResponsesCreateRequest

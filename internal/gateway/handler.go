@@ -65,6 +65,10 @@ func problem(w http.ResponseWriter, status int, code, id string) {
 	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(2 * time.Second))
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
+	if messagesProtocol(w) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"type": "error", "error": map[string]string{"type": messagesErrorType(status), "message": code}, "request_id": id})
+		return
+	}
 	_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]string{"code": code, "message": code, "request_id": id}})
 }
 
@@ -88,11 +92,20 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	id := rand.Text()
 	w.Header().Set("X-Request-ID", id)
+	if r.URL.Path == "/v1/messages" {
+		w = &messagesProtocolWriter{ResponseWriter: w}
+		var valid bool
+		r, valid = messagesHeaders(r)
+		if !valid {
+			problem(w, 400, "unsupported_messages_headers", id)
+			return
+		}
+	}
 	if r.URL.Path == "/v1/models" {
 		h.models(w, r, id)
 		return
 	}
-	if r.URL.Path != "/v1/chat/completions" && r.URL.Path != "/v1/embeddings" && r.URL.Path != "/v1/responses" {
+	if r.URL.Path != "/v1/chat/completions" && r.URL.Path != "/v1/embeddings" && r.URL.Path != "/v1/responses" && r.URL.Path != "/v1/messages" {
 		problem(w, 404, "not_found", id)
 		return
 	}
@@ -123,7 +136,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	limit := int64(1 << 20)
-	if r.URL.Path == "/v1/embeddings" || r.URL.Path == "/v1/responses" {
+	if r.URL.Path == "/v1/embeddings" || r.URL.Path == "/v1/responses" || r.URL.Path == "/v1/messages" {
 		limit = 64 << 10
 	}
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, limit))
@@ -138,6 +151,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		req, err = payload.Request()
 		if err != nil {
 			problem(w, 400, "invalid_request", id)
+			return
+		}
+	} else if r.URL.Path == "/v1/messages" {
+		var payload provider.MessagesRequest
+		if dec.Decode(&payload) != nil {
+			problem(w, 400, "invalid_request", id)
+			return
+		}
+		req, err = payload.Request()
+		if err != nil {
+			problem(w, 400, "unsupported_messages_request", id)
 			return
 		}
 	} else if r.URL.Path == "/v1/responses" {

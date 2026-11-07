@@ -124,8 +124,8 @@ func TestNewAPITwoProcessCacheTariffs(t *testing.T) {
 }
 
 type processOptions struct {
-	cacheTariff, replicated, responses bool
-	multiKey                           string
+	cacheTariff, replicated, responses, messages bool
+	multiKey                                     string
 }
 
 func TestNewAPIReplicatedControlRecovery(t *testing.T) {
@@ -152,6 +152,14 @@ func TestNewAPIResponsesRecovery(t *testing.T) {
 	for _, protocol := range []string{"openai", "deepseek", "anthropic"} {
 		t.Run(protocol, func(t *testing.T) {
 			testNewAPITwoProcessRecovery(t, protocol, false, false, processOptions{cacheTariff: true, replicated: true, responses: true, multiKey: "polling"})
+		})
+	}
+}
+
+func TestNewAPIMessagesRecovery(t *testing.T) {
+	for _, protocol := range []string{"openai", "deepseek", "anthropic"} {
+		t.Run(protocol, func(t *testing.T) {
+			testNewAPITwoProcessRecovery(t, protocol, false, false, processOptions{cacheTariff: true, replicated: true, messages: true, multiKey: "polling"})
 		})
 	}
 }
@@ -478,7 +486,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	}
 
 	call := func(origin string, stream bool) (int, []byte) {
-		if embedding {
+		if embedding || option.messages {
 			stream = false
 		}
 		req := request()
@@ -504,8 +512,17 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 			path = "/v1/responses"
 			data, _ = json.Marshal(map[string]any{"model": req.Model, "input": "synthetic responses input", "max_output_tokens": 16, "store": false, "stream": stream})
 		}
+		if option.messages {
+			path = "/v1/messages"
+			data, _ = json.Marshal(map[string]any{"model": req.Model, "max_tokens": 8, "messages": []map[string]string{{"role": "user", "content": "synthetic messages input"}}})
+		}
 		r, _ := http.NewRequest("POST", origin+path, bytes.NewReader(data))
 		r.Header.Set("Authorization", "Bearer synthetic-project-key")
+		if option.messages {
+			r.Header.Del("Authorization")
+			r.Header.Set("X-Api-Key", "synthetic-project-key")
+			r.Header.Set("Anthropic-Version", "2023-06-01")
+		}
 		r.Header.Set("Content-Type", "application/json")
 		client := &http.Client{Timeout: 20 * time.Second}
 		res, err := client.Do(r)
@@ -552,6 +569,12 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 		body, _ := io.ReadAll(res.Body)
 		if option.responses && res.StatusCode == 200 && (!bytes.Contains(body, []byte(`"object":"response"`)) || !bytes.Contains(body, []byte(`"cache_write_tokens"`))) {
 			t.Error("responses contract or cache facts lost")
+		}
+		if option.messages && res.StatusCode == 200 {
+			var message provider.MessagesResult
+			if json.Unmarshal(body, &message) != nil || message.Type != "message" || message.Usage.InputTokens != map[bool]int64{true: 2, false: 1}[protocol == "anthropic"] || message.Usage.CacheCreationInputTokens != map[bool]int64{true: 5, false: 0}[protocol == "anthropic"] {
+				t.Error("messages raw cache counters or protocol lost")
+			}
 		}
 		return res.StatusCode, body
 	}

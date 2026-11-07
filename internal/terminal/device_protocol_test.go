@@ -24,6 +24,9 @@ func TestDeviceProxyReviewedProtocolsAndProofBinding(t *testing.T) {
 	var origin string
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
+		if r.URL.Path == "/v1/messages" && (r.Header.Get("Anthropic-Version") != "2023-06-01" || r.Header.Get("Anthropic-Beta") != "synthetic-unreviewed") {
+			t.Error("protocol headers silently dropped before governance")
+		}
 		if r.Header.Get("Authorization") != "DPoP synthetic-device-session" || r.Header.Get("X-Aigw-Channel-Id") != "" {
 			t.Error("proxy forwarded local credentials or untrusted governance headers")
 		}
@@ -58,13 +61,16 @@ func TestDeviceProxyReviewedProtocolsAndProofBinding(t *testing.T) {
 		{"/v1/chat/completions", 1 << 20, 200},
 		{"/v1/chat/completions", (1 << 20) + 1, 413},
 		{"/v1/embeddings?query=unsupported", 1, 404},
-		{"/v1/messages", 1, 404},
+		{"/v1/messages", 64 << 10, 200},
+		{"/v1/messages", (64 << 10) + 1, 413},
 	} {
 		t.Run(tc.path+http.StatusText(tc.want), func(t *testing.T) {
 			before := calls.Load()
 			req := httptest.NewRequest("POST", "http://localhost"+tc.path, strings.NewReader(strings.Repeat("x", tc.size)))
 			req.Header.Set("Authorization", "Bearer synthetic-local-token")
 			req.Header.Set("X-Aigw-Channel-Id", "untrusted")
+			req.Header.Set("Anthropic-Version", "2023-06-01")
+			req.Header.Set("Anthropic-Beta", "synthetic-unreviewed")
 			out := httptest.NewRecorder()
 			proxy.ServeHTTP(out, req)
 			if out.Code != tc.want {

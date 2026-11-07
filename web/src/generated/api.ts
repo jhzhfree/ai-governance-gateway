@@ -1866,6 +1866,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Reviewed Messages 2023-06-01 text JSON subset over newapi Chat. Body <=64 KiB; text fields <=16 KiB; last role user. No stream, tools, content blocks, media, beta, sampling, thinking or server state. Missing version defaults to reviewed 2023-06-01; other versions rejected. Exactly one Authorization or x-api-key; device-bound Authorization retains normal DPoP verification. Requires reviewed cache_pricing even for uniform prices so raw input/cache counts are available; input_tokens excludes cache read/write. No automatic retry. Standard enterprise budget, authorization, keywords, original receipts and consented content audit apply. */
+        post: operations["createGovernedTextMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3254,6 +3271,56 @@ export interface components {
             max_output_tokens: number;
             output: components["schemas"]["ResponsesOutputMessage"][];
             usage: components["schemas"]["ResponsesUsage"];
+        };
+        MessagesInput: {
+            /** @enum {string} */
+            role: "user" | "assistant";
+            content: string;
+        };
+        MessagesCreateRequest: {
+            model: string;
+            messages: components["schemas"]["MessagesInput"][];
+            system?: string;
+            max_tokens: number;
+            /** @enum {boolean} */
+            stream?: false;
+        };
+        MessagesUsage: {
+            /** Format: int64 */
+            input_tokens: number;
+            /** Format: int64 */
+            output_tokens: number;
+            /** Format: int64 */
+            cache_read_input_tokens: number;
+            /** Format: int64 */
+            cache_creation_input_tokens: number;
+        };
+        MessagesText: {
+            /** @enum {string} */
+            type: "text";
+            text: string;
+        };
+        MessagesResult: {
+            id: string;
+            /** @enum {string} */
+            type: "message";
+            /** @enum {string} */
+            role: "assistant";
+            model: string;
+            content: components["schemas"]["MessagesText"][];
+            /** @enum {string} */
+            stop_reason: "end_turn" | "max_tokens" | "refusal";
+            stop_sequence: string | null;
+            usage: components["schemas"]["MessagesUsage"];
+        };
+        MessagesError: {
+            /** @enum {string} */
+            type: "error";
+            request_id: string;
+            error: {
+                type: string;
+                message: string;
+            };
         };
     };
     responses: never;
@@ -11681,6 +11748,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    createGovernedTextMessage: {
+        parameters: {
+            query?: never;
+            header?: {
+                "anthropic-version"?: "2023-06-01";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessagesCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Governed text message with disjoint raw usage counters */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagesResult"];
+                };
+            };
+            /** @description Unreviewed request, version or missing configured cache evidence */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagesError"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagesError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagesError"];
+                };
+            };
+            /** @description Budget or admission rejected */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagesError"];
+                };
+            };
+            /** @description Invalid original provider evidence; no guessed refund */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagesError"];
+                };
+            };
+            /** @description Governance unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagesError"];
                 };
             };
         };

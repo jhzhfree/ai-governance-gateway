@@ -80,5 +80,5 @@ fi
 
 # Optional pinned SDK contract gate shares the same isolated database lifecycle.
 if [[ "${AIGW_VERIFY_SDK:-0}" == 1 ]]; then
-  "$go_bin" test -mod=readonly -race -tags=sdk_e2e -run '^TestResponses' -count=1 -timeout=120s -v ./internal/httpapi
+  "$go_bin" test -mod=readonly -race -tags=sdk_e2e -run '^Test(Responses|Messages)' -count=1 -timeout=120s -v ./internal/httpapi
 fi
