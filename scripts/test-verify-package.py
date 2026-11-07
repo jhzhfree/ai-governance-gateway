@@ -24,10 +24,11 @@ class ArchiveBoundary(unittest.TestCase):
             arch="amd64", release_status="development_candidate", source_commit="a" * 40)).encode()
         files["SHA256SUMS"] = "".join(hashlib.sha256(data).hexdigest() + "  " + name + "\n"
             for name, data in files.items()).encode()
-        for case in ("valid", "changed", "extra", "missing", "traversal", "absolute", "symlink", "duplicate", "nonexecutable"):
+        for case in ("valid", "changed", "extra", "missing", "traversal", "absolute", "symlink", "duplicate", "nonexecutable", "writable_directory", "directory_collision", "wrong_commit", "invalid_manifest", "writable_root", "too_many_members"):
             with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
                 archive = pathlib.Path(directory) / "fixture.tar.gz"
                 payload = files.copy()
+                if case == "invalid_manifest": payload["manifest.json"] = json.dumps({**json.loads(files["manifest.json"]), "source_commit": 17}).encode()
                 if case == "changed": payload["web/index.html"] = b"tampered"
                 if case == "extra": payload["unexpected"] = b"extra"
                 if case == "missing": del payload["bin/aigw"]
@@ -39,6 +40,19 @@ class ArchiveBoundary(unittest.TestCase):
                         item.size = len(data)
                         if name.startswith("bin/") and case != "nonexecutable": item.mode = 0o755
                         output.addfile(item, io.BytesIO(data))
+                    if case in ("writable_directory", "directory_collision"):
+                        item = tarfile.TarInfo("folder" if case == "writable_directory" else "web/index.html")
+                        item.type = tarfile.DIRTYPE
+                        item.mode = 0o777 if case == "writable_directory" else 0o755
+                        output.addfile(item)
+                    if case == "writable_root":
+                        item = tarfile.TarInfo(".")
+                        item.type = tarfile.DIRTYPE
+                        item.mode = 0o777
+                        output.addfile(item)
+                    if case == "too_many_members":
+                        for number in range(10001):
+                            output.addfile(tarfile.TarInfo("extra-" + str(number)))
                     if case == "symlink":
                         item = tarfile.TarInfo("link")
                         item.type = tarfile.SYMTYPE
@@ -49,8 +63,10 @@ class ArchiveBoundary(unittest.TestCase):
                         output.addfile(item, io.BytesIO())
                 if case == "valid":
                     with contextlib.redirect_stdout(io.StringIO()): verifier.verify(archive)
+                elif case == "too_many_members":
+                    with self.assertRaisesRegex(ValueError, "too many archive members"): verifier.verify(archive)
                 else:
-                    with self.assertRaises(ValueError): verifier.verify(archive)
+                    with self.assertRaises(ValueError): verifier.verify(archive, "b" * 40 if case == "wrong_commit" else None)
                 self.assertFalse((pathlib.Path(directory).parent / "escape").exists())
 
 

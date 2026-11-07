@@ -28,3 +28,21 @@ jobs:
       - run: bash scripts/verify.sh
         env:
           AIGW_VERIFY_WEB: '1'
+  package:
+    name: Verify native Linux candidate
+    needs: prototype
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.3'
+          cache: true
+          cache-dependency-path: go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: bash scripts/verify-release.sh
