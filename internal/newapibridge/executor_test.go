@@ -30,7 +30,12 @@ func evidence(w http.ResponseWriter, r *http.Request) {
 }
 func catalog(t *testing.T) *provider.Catalog {
 	t.Helper()
-	c, e := provider.New(testutil.MainlandConfig(), func(string) string { return "synthetic-vendor-secret" }, nil)
+	cfg := testutil.MainlandConfig()
+	for i := range cfg.Models {
+		cfg.Models[i].NewAPIChannelID = 1
+		cfg.Models[i].AllowedTools = []string{"lookup"}
+	}
+	c, e := provider.NewGoverned(cfg)
 	if e != nil {
 		t.Fatal(e)
 	}

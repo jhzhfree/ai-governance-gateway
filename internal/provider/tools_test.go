@@ -3,6 +3,7 @@ package provider_test
 import (
 	"encoding/json"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
+	"github.com/jhzhfree/ai-governance-gateway/internal/testutil"
 	"strings"
 	"testing"
 )
@@ -122,5 +123,53 @@ func TestUnsolicitedToolCallsAreNotSilentlyDiscarded(t *testing.T) {
 	}
 	if provider.NewToolResponseState(req).Apply(&v, false) == nil {
 		t.Fatal("undeclared/wrong-finish tool accepted")
+	}
+}
+
+func TestReviewedToolPolicyIsImmutableAndVersioned(t *testing.T) {
+	cfg := testutil.MainlandConfig()
+	for i := range cfg.Models {
+		cfg.Models[i].NewAPIChannelID = 1
+	}
+	empty, err := provider.NewGoverned(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	denied, _ := empty.Find(cfg.Models[0].ID)
+	if denied.AllowsTools(toolRequest()) {
+		t.Fatal("unreviewed tools accepted")
+	}
+	cfg.Models[0].AllowedTools = []string{"lookup", "describe"}
+	approved, err := provider.NewGoverned(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	route, _ := approved.Find(cfg.Models[0].ID)
+	if !route.AllowsTools(toolRequest()) || route.PriceVersion() == denied.PriceVersion() {
+		t.Fatal("tool policy missing from route identity")
+	}
+	cfg.Models[0].AllowedTools[0] = "execute"
+	if !route.AllowsTools(toolRequest()) {
+		t.Fatal("caller mutated published tool policy")
+	}
+	cfg.Models[0].AllowedTools = []string{"describe", "lookup"}
+	reordered, err := provider.NewGoverned(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	same, _ := reordered.Find(cfg.Models[0].ID)
+	if same.PriceVersion() != route.PriceVersion() {
+		t.Fatal("policy order changed identity")
+	}
+	for _, invalid := range [][]string{{"lookup", "lookup"}, {"*"}, {""}, {"has space"}} {
+		cfg.Models[0].AllowedTools = invalid
+		if _, err := provider.NewGoverned(cfg); err == nil {
+			t.Fatal("invalid tool policy accepted")
+		}
+	}
+	req := toolRequest()
+	req.Tools[0].Function.Name = "execute"
+	if route.AllowsTools(req) {
+		t.Fatal("client declaration bypassed enterprise approval")
 	}
 }

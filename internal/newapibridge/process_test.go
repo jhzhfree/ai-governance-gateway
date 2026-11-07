@@ -54,6 +54,7 @@ func TestNewAPIControlHelper(t *testing.T) {
 			cfg.Models[i].Provider = "reviewed-compatible"
 		}
 		cfg.Models[i].NewAPIChannelID = 1
+		cfg.Models[i].AllowedTools = []string{"lookup"}
 		cfg.Models[i].AllowImages = os.Getenv("AIGW_INTEGRATION_IMAGES") == "1"
 		if os.Getenv("AIGW_INTEGRATION_RICH") == "1" {
 			cfg.Models[i].MaxInputTokens = 1024

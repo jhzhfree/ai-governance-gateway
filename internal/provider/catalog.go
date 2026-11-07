@@ -53,6 +53,7 @@ func (r Residency) valid(now time.Time) bool {
 }
 
 type Model struct {
+	AllowedTools     []string  `json:"allowed_tools,omitempty"`
 	AllowImages      bool      `json:"allow_images,omitempty"`
 	NewAPIChannelID  int       `json:"newapi_channel_id,omitempty"`
 	ID               string    `json:"id"`
@@ -151,8 +152,18 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	catalog := &Catalog{routes: map[string]*Route{}}
 	for _, m := range cfg.Models {
-		if (!requireCredential && m.NewAPIChannelID <= 0) || (requireCredential && (m.NewAPIChannelID != 0 || m.AllowImages)) {
+		if (!requireCredential && m.NewAPIChannelID <= 0) || (requireCredential && (m.NewAPIChannelID != 0 || m.AllowImages || len(m.AllowedTools) != 0)) {
 			return nil, errors.New("newapi directory requires an explicit approved channel; native directories cannot specify one")
+		}
+		if len(m.AllowedTools) > 8 {
+			return nil, errors.New("too many approved client tools")
+		}
+		m.AllowedTools = append([]string(nil), m.AllowedTools...)
+		sort.Strings(m.AllowedTools)
+		for i, name := range m.AllowedTools {
+			if !functionName.MatchString(name) || (i > 0 && m.AllowedTools[i-1] == name) {
+				return nil, errors.New("invalid approved client tool")
+			}
 		}
 		p, ok := profiles[m.Provider]
 		// The data plane owns the reviewed upstream endpoint. A new-api
@@ -178,6 +189,11 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 			Input, Output, MaxInput, MaxOutput                       int64
 		}{m.ID, m.Provider, m.UpstreamModel, m.PriceVersion, p.Endpoint, p.Region, Currency, m.InputPerMillion, m.OutputPerMillion, m.MaxInputTokens, m.MaxOutputTokens})
 		if !requireCredential {
+			if len(m.AllowedTools) > 0 {
+				tools, _ := json.Marshal(m.AllowedTools)
+				canonical = append(canonical, []byte("\napproved-client-tools-v1:")...)
+				canonical = append(canonical, tools...)
+			}
 			if m.AllowImages {
 				canonical = append(canonical, []byte("\ninline-images-v1")...)
 			}

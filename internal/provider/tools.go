@@ -171,3 +171,31 @@ func (s *ToolResponseState) Apply(v *Response, stream bool) error {
 	}
 	return nil
 }
+
+// AllowsTools checks the reviewed model policy, not client declarations alone.
+// It approves names only; client business authorization and execution remain external.
+func (r *Route) AllowsTools(req Request) bool {
+	if !req.HasTools() {
+		return true
+	}
+	if r == nil || len(r.model.AllowedTools) == 0 {
+		return false
+	}
+	allowed := make(map[string]bool, len(r.model.AllowedTools))
+	for _, name := range r.model.AllowedTools {
+		allowed[name] = true
+	}
+	for _, tool := range req.Tools {
+		if !allowed[tool.Function.Name] {
+			return false
+		}
+	}
+	for _, message := range req.Messages {
+		for _, call := range message.ToolCalls {
+			if !allowed[call.Function.Name] {
+				return false
+			}
+		}
+	}
+	return true
+}

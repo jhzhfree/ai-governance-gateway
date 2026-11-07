@@ -43,6 +43,7 @@ func providerExecutorSetup(t *testing.T, supplier http.Handler, executor gateway
 			cfg.Models[i].NewAPIChannelID = 1
 			cfg.Models[i].UpstreamModel = "backend-model"
 			cfg.Models[i].AllowImages = true
+			cfg.Models[i].AllowedTools = []string{"lookup"}
 		}
 		var err error
 		catalog, err = provider.NewGoverned(cfg)
@@ -321,4 +322,20 @@ func clientToolFixture(t *testing.T) fixture {
 	}
 	t.Cleanup(executor.Close)
 	return providerExecutorSetup(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Error("native executor used for tool call") }), executor)
+}
+
+func TestUnreviewedClientToolDoesNotReserveOrDispatch(t *testing.T) {
+	f := clientToolFixture(t)
+	o, p, key := providerProject(f)
+	payload := clientToolPayload()
+	payload["tools"] = []map[string]any{{"type": "function", "function": map[string]any{"name": "execute", "parameters": map[string]any{"type": "object"}}}}
+	f.request(key.Secret, "POST", "/v1/chat/completions", payload, 400)
+	usage := parse[control.Usage](t, f.request(f.token("alice"), "GET", projectPath(o, p)+"/usage", nil, 200))
+	if usage.Spent != 0 || usage.Held != 0 {
+		t.Fatal("unreviewed tool acquired funds")
+	}
+	var count int
+	if err := f.pool.QueryRow(context.Background(), `SELECT count(*) FROM inference_attempts`).Scan(&count); err != nil || count != 0 {
+		t.Fatal("unreviewed tool created an attempt")
+	}
 }

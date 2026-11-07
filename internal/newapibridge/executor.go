@@ -113,7 +113,7 @@ func New(cfg Config) (*Executor, error) {
 	return &Executor{recoveryClient: recoveryClient, recoveryTransport: recoveryTransport, journal: cfg.Journal, origin: strings.TrimSuffix(cfg.Origin, "/"), token: cfg.ServiceToken, models: models, channels: channels, root: root, cancel: cancel, slots: make(chan struct{}, cfg.MaxConcurrent), transport: transport, client: &http.Client{Transport: transport, Timeout: 120 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
 }
 func (e *Executor) Validate(route *provider.Route, req gateway.Request) error {
-	if route == nil || !route.Ready() || e.models[req.Model] == "" || !provider.ValidateRequest(req) || (req.HasImages() && !route.AllowsImages()) {
+	if route == nil || !route.Ready() || e.models[req.Model] == "" || !provider.ValidateRequest(req) || !route.AllowsTools(req) || (req.HasImages() && !route.AllowsImages()) {
 		return ErrInvalid
 	}
 	alias, _ := route.ExecutionModel()
