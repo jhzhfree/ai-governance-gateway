@@ -37,6 +37,19 @@ func providerExecutorSetup(t *testing.T, supplier http.Handler, executor gateway
 	t.Helper()
 	pool, ledger, _ := testutil.Database(t)
 	catalog, _ := testutil.MainlandCatalog(t, supplier)
+	if executor != nil {
+		cfg := testutil.MainlandConfig()
+		for i := range cfg.Models {
+			cfg.Models[i].NewAPIChannelID = 1
+			cfg.Models[i].UpstreamModel = "backend-model"
+			cfg.Models[i].AllowImages = true
+		}
+		var err error
+		catalog, err = provider.NewGoverned(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	store := control.NewWithCatalog(pool, catalog)
 	content := testutil.ContentAudit(t, pool)
 	store.WithContentAudit(content)

@@ -161,7 +161,7 @@ export AIGW_NEWAPI_ORIGIN=https://newapi.internal.example
 - 企业迁移专项验证 v25→v26、连续启动、历史占额保留、失败 DDL/历史回滚和新表漂移阻断。恢复收据插入失败时预算同步回滚，并发重复投递只结算一次。
 - 双进程联调使用实际 new-api 路由/迁移/鉴权/Relay 和企业 Handler/恢复器；授权与模型上游为合成 fixture，不是生产身份/供应商验收。JSON 与 SSE 均通过。控制面在数据面持久完成、成功响应尚被故障代理扣留时被 SIGKILL，重启恢复三笔结算，共 48 微元，物理请求仍为 3 次。
 - 数据面在供应商已观察到第 4 次请求、尚无完成证据时被 SIGKILL；同一 SQLite 数据重启后，保留 1 笔 uncertain、288 微元占额，既有支出仍 48 微元，物理请求仍为 4 次。fixture 显式设置原生重试次数为 3，治理模式仍不重试。
-- CI 固定使用 new-api `7b3ccfb24ca8988f907b81e055a44dd086c9cd89` 构建进程 fixture，设置 `TEST_NEWAPI_SERVER_BINARY` 才计作完成该联调；不配置时的 skip 不是验收通过。
+- CI 固定使用 new-api `98896c0d9dd7924d087c8942b958dc368f2d7758` 构建进程 fixture，设置 `TEST_NEWAPI_SERVER_BINARY` 才计作完成该联调；不配置时的 skip 不是验收通过。
 
 默认执行器仍为 native；本轮没有切换生产流量、发布 V1.0 标签或宣称 AGPL 商业许可问题已解决。目标部署实时流式延迟验收、生产容量与跨主机故障、真实 IdP/终端/供应商账号、安装升级和备份恢复的联合验收仍属于发布门禁。后续协议扩展必须逐项提供用量与审计证据，不能直接开放全部原生功能。
 
@@ -290,3 +290,33 @@ export AIGW_NEWAPI_ORIGIN=https://newapi.internal.example
 协议参考：[DeepSeek Chat 工具契约](https://api-docs.deepseek.com/api/create-chat-completion/) 和 [Anthropic 客户端工具生命周期](https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls)。本阶段验证包括声明/历史关联、畸形与越界增量、三协议 JSON/SSE 与双进程故障、实际数据库中加密审计和工具参数关键词阻断/脱敏。均使用合成供应商，不替代真实账户及业务工具授权验收。
 
 工具阶段最终门禁：固定 `7b3ccfb24` 数据面竞态 fixture，运行 `AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 bash scripts/verify.sh`，退出码 0。三协议工具故障矩阵 41.58 秒，HTTP API 包 216.854 秒，17 项 OIDC 与 1 项本地登录浏览器测试、当前/旧版逻辑恢复全部执行通过。新增空工具数组回归保持旧入口拒绝行为。无需数据库迁移，仍为 v27。
+
+
+### 有界图片理解输入与完成后工具交付
+
+审核目录条目新增 `"allow_images": true`，默认关闭，仅显式 newapi 模式可开启。该能力进入不可变路由/价格身份；修改后须按目录发布流程重启，历史请求仍使用原价格快照。模型列表返回 `allow_images`，它表示已审核接入能力，不表示已经完成图片语义审核。原生配置/凭证管理页不会自动打开该功能。
+
+客户端沿用 Chat Completions，在 user 消息中使用 `content` 数组：
+
+```json
+{"role":"user","content":[
+  {"type":"text","text":"描述这张合成测试图"},
+  {"type":"image_url","image_url":{"url":"data:image/png;base64,<base64-image>","detail":"auto"}}
+]}
+```
+
+仅 PNG/JPEG 内联 data URI；每张解码后最多 256 KiB，每次最多 4 张、合计 512 KiB；单边最多 4096 像素、合计最多 16 Mi 像素。请求体上限 1 MiB，非图片请求仍限制 64 KiB。两端在媒体转换前检查类型、base64、头部尺寸与数量，拒绝远程 URL、SVG、音频、文件引用和未知内容类型。检查不分配完整像素缓冲，也不声称完成图片解码、恶意文件扫描或 OCR。图像内部损坏仍可能由供应商拒绝。
+
+已验证 OpenAI 兼容和 Anthropic 两种图片上游转换；DeepSeek 渠道在派发前拒绝图片。工具结果中的图片、图片输出、图片生成/编辑、音频与视频未开放。文本数组支持仍经文本关键词检查；图像像素不通过文本关键词推断安全，语义图片护栏属于后续工作。
+
+图片费用必须由完整的供应商原始 prompt/input token 计数覆盖，并使用经审核的统一输入费率；有独立图像费率或额外计量维度的模型不能套用此路径。预留仍使用目录的输入上下文上界与本次输出上限，结算核对原始计数；不是以图片字节或像素数估算最终账单。目录上界/费率必须真实反映目标模型，当前尚未增加逐请求的精确输入 token 限额，不能将配置值误作已经在供应商派发前强制执行的输入限制。超出原计费边界的证据不会自动入账/退款，须核查并保持恢复失败关闭。
+
+启用内容审计后，图片的消息/part 位置、MIME、字节数、宽高及 SHA-256 摘要放在加密请求记录开头，随后保存实际请求（含内联内容）。仍遵循项目同意、捕获上限与保留策略；记录被截断时显示 truncated，不能把摘要或截断的 base64 当作完整影像留存。未启用内容审计时，不新增图片正文留存。查看与留痕权限沿用现有独立审计授权。
+
+同时进一步收紧函数 SSE：完整工具调用和关联终止帧须等待数据面完成证明、控制面结算和调用元数据完成后才输出；缺失/失败 trailer 不泄露完整可执行调用，费用保持 uncertain。客户端仍须等待成功结束及自己的 schema/权限校验后执行，内容审计最终封存失败仍会扣留 DONE。
+
+专项已验证图片 JSON/SSE、两种协议转换、控制面/数据面 SIGKILL、原始图片输入计数结算、未知派发保留占额；合成图片场景三笔完成费用为 108 微元，故障第四笔仍保留 288 微元，物理调用不增加。另验证不审核即不派发、远程 URL/类型/尺寸/数量拒绝、加密审计摘要及截断标记、工具调用无完成证明不交付。
+
+参考：[Anthropic 图片输入](https://platform.claude.com/docs/en/build-with-claude/vision)、[OpenAI 图片输入计量说明](https://developers.openai.com/api/docs/guides/image-cost-calculator)。这些协议资料不替代真实供应商账户、模型费率和图片驻留验收。
+
+图片阶段最终门禁：固定 `98896c0d9` 数据面竞态 fixture，执行 `AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 bash scripts/verify.sh`，退出码 0。图片双协议故障矩阵 27.37 秒，工具三协议回归 41.20 秒，17 项 OIDC/1 项本地登录浏览器及两种逻辑恢复全部通过。OpenAPI 内容联合类型同步生成 Go/TypeScript，锁定官方 oapi-codegen/runtime v1.8.0 及所需依赖。数据库仍为 v27，没有修改已发布迁移。

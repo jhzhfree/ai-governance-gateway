@@ -53,6 +53,7 @@ func (r Residency) valid(now time.Time) bool {
 }
 
 type Model struct {
+	AllowImages      bool      `json:"allow_images,omitempty"`
 	NewAPIChannelID  int       `json:"newapi_channel_id,omitempty"`
 	ID               string    `json:"id"`
 	Provider         string    `json:"provider"`
@@ -70,6 +71,7 @@ type Config struct {
 	Models              []Model   `json:"models"`
 }
 type ModelInfo struct {
+	AllowImages      bool   `json:"allow_images,omitempty"`
 	ID               string `json:"id"`
 	Provider         string `json:"provider"`
 	Currency         string `json:"currency"`
@@ -149,7 +151,7 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	catalog := &Catalog{routes: map[string]*Route{}}
 	for _, m := range cfg.Models {
-		if (!requireCredential && m.NewAPIChannelID <= 0) || (requireCredential && m.NewAPIChannelID != 0) {
+		if (!requireCredential && m.NewAPIChannelID <= 0) || (requireCredential && (m.NewAPIChannelID != 0 || m.AllowImages)) {
 			return nil, errors.New("newapi directory requires an explicit approved channel; native directories cannot specify one")
 		}
 		p, ok := profiles[m.Provider]
@@ -176,6 +178,9 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 			Input, Output, MaxInput, MaxOutput                       int64
 		}{m.ID, m.Provider, m.UpstreamModel, m.PriceVersion, p.Endpoint, p.Region, Currency, m.InputPerMillion, m.OutputPerMillion, m.MaxInputTokens, m.MaxOutputTokens})
 		if !requireCredential {
+			if m.AllowImages {
+				canonical = append(canonical, []byte("\ninline-images-v1")...)
+			}
 			channelBinding, _ := json.Marshal(m.NewAPIChannelID)
 			canonical = append(append(canonical, '\n'), channelBinding...)
 		}
@@ -203,7 +208,7 @@ func (c *Catalog) Models() []ModelInfo {
 	for _, r := range c.routes {
 		if r.Ready() {
 			m := r.model
-			result = append(result, ModelInfo{m.ID, m.Provider, Currency, r.profile.Region, r.fingerprint, m.InputPerMillion, m.OutputPerMillion, m.MaxInputTokens, m.MaxOutputTokens})
+			result = append(result, ModelInfo{m.AllowImages, m.ID, m.Provider, Currency, r.profile.Region, r.fingerprint, m.InputPerMillion, m.OutputPerMillion, m.MaxInputTokens, m.MaxOutputTokens})
 		}
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })

@@ -144,3 +144,6 @@ func MainlandManager(t testing.TB, pool *pgxpool.Pool, admin identity.Principal,
 		return "synthetic-" + name
 	}, client, admin)
 }
+
+// InlinePNG is a synthetic one-pixel PNG, never a customer attachment.
+const InlinePNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC"

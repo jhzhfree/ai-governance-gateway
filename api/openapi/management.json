@@ -1663,7 +1663,7 @@
     "/v1/chat/completions": {
       "post": {
         "operationId": "streamMockChat",
-        "description": "Reviewed JSON/SSE Chat. Text supported by existing executors; newapi additionally supports up to eight client function tools with linked tool-result history. Tool arguments are buffered until complete and validated before release. No server-side tools, multimodal content or automatic tool execution. Verified token usage and durable completion remain required for settlement.",
+        "description": "Reviewed JSON/SSE Chat. newapi mode additionally supports up to eight client function tools and bounded inline PNG/JPEG input on allow_images routes. Function calls are delivered only after verified completion. Body limit 1 MiB for images, 64 KiB otherwise. No remote media URLs, provider-hosted tools, generated media or automatic tool execution. Image costs require a reviewed combined input-token tariff and complete raw usage.",
         "security": [
           {
             "projectKey": []
@@ -12331,9 +12331,21 @@
                   ]
                 },
                 "content": {
-                  "type": "string",
-                  "maxLength": 16384,
-                  "nullable": true
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "nullable": true,
+                      "maxLength": 16384
+                    },
+                    {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 16,
+                      "items": {
+                        "$ref": "#/components/schemas/ChatContentPart"
+                      }
+                    }
+                  ]
                 },
                 "tool_calls": {
                   "type": "array",
@@ -12351,7 +12363,7 @@
               "required": [
                 "role"
               ],
-              "description": "Nonempty text is required except assistant tool calls. Tool results must match preceding declared calls exactly once."
+              "description": "Nonempty text is required except assistant tool calls. Tool results must match preceding declared calls exactly once. Content arrays are newapi-only user messages; inline image input requires reviewed allow_images=true."
             }
           },
           "tools": {
@@ -12679,6 +12691,11 @@
             "type": "integer",
             "format": "int64",
             "minimum": 1
+          },
+          "allow_images": {
+            "type": "boolean",
+            "default": false,
+            "description": "Reviewed inline image input capability in newapi mode; not a guarantee of image-content moderation."
           }
         }
       },
@@ -16737,6 +16754,86 @@
             }
           }
         }
+      },
+      "ChatContentPart": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "image_url"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16384
+          },
+          "image_url": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "url"
+            ],
+            "properties": {
+              "url": {
+                "type": "string",
+                "pattern": "^data:image/(png|jpeg);base64,",
+                "maxLength": 349552
+              },
+              "detail": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "low",
+                  "high"
+                ]
+              }
+            }
+          }
+        },
+        "description": "Exactly text or image_url according to type. At most four PNG/JPEG images, 256 KiB decoded each, 512 KiB total; dimensions <=4096 per side and <=16 Mi pixels total. No remote fetching.",
+        "oneOf": [
+          {
+            "required": [
+              "text"
+            ],
+            "properties": {
+              "type": {
+                "enum": [
+                  "text"
+                ]
+              }
+            },
+            "not": {
+              "required": [
+                "image_url"
+              ]
+            }
+          },
+          {
+            "required": [
+              "image_url"
+            ],
+            "properties": {
+              "type": {
+                "enum": [
+                  "image_url"
+                ]
+              }
+            },
+            "not": {
+              "required": [
+                "text"
+              ]
+            }
+          }
+        ]
       }
     }
   }

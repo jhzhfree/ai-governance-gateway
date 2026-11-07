@@ -28,7 +28,7 @@ jobs:
       - name: Build pinned new-api process fixture
         run: |
           git init "$RUNNER_TEMP/new-api-fixture"
-          git -C "$RUNNER_TEMP/new-api-fixture" fetch --depth=1 https://github.com/jhzhfree/new-api.git 7b3ccfb24ca8988f907b81e055a44dd086c9cd89
+          git -C "$RUNNER_TEMP/new-api-fixture" fetch --depth=1 https://github.com/jhzhfree/new-api.git 98896c0d9dd7924d087c8942b958dc368f2d7758
           git -C "$RUNNER_TEMP/new-api-fixture" checkout --detach FETCH_HEAD
           cd "$RUNNER_TEMP/new-api-fixture"
           go build -race -mod=readonly -o "$RUNNER_TEMP/newapi-governance-server" ./scripts/testdata/governance_server

@@ -21,6 +21,11 @@ func (h *Handler) beginKeywords(w http.ResponseWriter, r *http.Request, id strin
 	if err == nil {
 		for _, m := range req.Messages {
 			_, err = session.Process(r.Context(), "input", m.Content)
+			for _, part := range m.Parts {
+				if err == nil && part.Type == "text" {
+					_, err = session.Process(r.Context(), "input", part.Text)
+				}
+			}
 			if err == nil && len(m.ToolCalls) > 0 {
 				raw, _ := json.Marshal(m.ToolCalls)
 				_, err = keywordJSON(r.Context(), session, "input", raw)

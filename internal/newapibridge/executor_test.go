@@ -212,31 +212,52 @@ func TestGovernanceSettlementRequiresEvidence(t *testing.T) {
 }
 
 func TestStreamingCompletionEvidenceKeepsUnknownFunds(t *testing.T) {
-	for _, mode := range []string{"complete", "no-done", "no-usage"} {
+	for _, mode := range []string{"complete", "no-done", "no-usage", "tool-complete", "tool-no-proof"} {
 		t.Run(mode, func(t *testing.T) {
 			pool, ledger, scope := testutil.Database(t)
 			scope.Currency = provider.Currency
 			testutil.Accounts(t, ledger, scope, 10000, 10000)
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				evidence(w, r)
+				if strings.HasPrefix(mode, "tool-") {
+					w.Header().Set("X-Aigw-Evidence-Version", "2")
+					w.Header().Set("Trailer", "X-Aigw-Completion")
+				}
 				w.Header().Set("Content-Type", "text/event-stream")
 				io.WriteString(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"synthetic\"},\"finish_reason\":null}]}\n\n")
-				io.WriteString(w, "data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n")
+				if strings.HasPrefix(mode, "tool-") {
+					io.WriteString(w, "data: "+`{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_verified","type":"function","function":{"name":"lookup","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}`+"\n\n")
+				} else {
+					io.WriteString(w, "data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n")
+				}
 				if mode != "no-usage" {
 					io.WriteString(w, "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":2,\"total_tokens\":5}}\n\n")
 				}
 				if mode != "no-done" {
 					io.WriteString(w, "data: [DONE]\n\n")
 				}
+				if mode == "tool-complete" {
+					w.Header().Set("X-Aigw-Completion", "completed")
+				}
 			}))
 			defer backend.Close()
 			handler := &gateway.Handler{Executor: executor(t, backend.URL, 2), Providers: catalog(t), Ledger: ledger, Attempts: execution.New(pool), Admission: testutil.PassAdmission{}, Circuits: testutil.PassCircuit{}, Authorize: func(context.Context, string, string) (budget.Scope, error) { return scope, nil }}
 			req := request()
 			req.Stream = true
+			if strings.HasPrefix(mode, "tool-") {
+				req.Tools = []provider.Tool{{Type: "function", Function: provider.FunctionDefinition{Name: "lookup", Parameters: json.RawMessage(`{"type":"object"}`)}}}
+			}
 			raw, _ := json.Marshal(req)
 			r := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(string(raw)))
 			r.Header.Set("Authorization", "Bearer synthetic-project-key")
-			handler.ServeHTTP(httptest.NewRecorder(), r)
+			out := httptest.NewRecorder()
+			handler.ServeHTTP(out, r)
+			if mode == "tool-no-proof" && strings.Contains(out.Body.String(), "call_verified") {
+				t.Fatal("executable call released without completion proof")
+			}
+			if mode == "tool-complete" && !strings.Contains(out.Body.String(), "call_verified") {
+				t.Fatal("verified call not delivered")
+			}
 			var state string
 			var held, spent int64
 			if err := pool.QueryRow(context.Background(), "SELECT state FROM budget_reservations").Scan(&state); err != nil {
@@ -245,7 +266,7 @@ func TestStreamingCompletionEvidenceKeepsUnknownFunds(t *testing.T) {
 			if err := pool.QueryRow(context.Background(), "SELECT held,spent FROM budget_accounts WHERE project_id=$1", scope.Project).Scan(&held, &spent); err != nil {
 				t.Fatal(err)
 			}
-			if mode == "complete" {
+			if mode == "complete" || mode == "tool-complete" {
 				if state != "settled" || held != 0 || spent != 14 {
 					t.Fatalf("stream settlement %s %d %d", state, held, spent)
 				}
@@ -253,5 +274,17 @@ func TestStreamingCompletionEvidenceKeepsUnknownFunds(t *testing.T) {
 				t.Fatalf("incomplete stream settled %s %d %d", state, held, spent)
 			}
 		})
+	}
+}
+
+func TestUnreviewedImageCapabilityDoesNotDispatch(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Error("unreviewed image dispatched") }))
+	defer server.Close()
+	e := executor(t, server.URL, 1)
+	route, _ := catalog(t).Find("zhipu/fixture")
+	req := request()
+	req.Messages = []provider.Message{{Role: "user", Parts: []provider.ContentPart{{Type: "image_url", ImageURL: &provider.ImageURL{URL: testutil.InlinePNG}}}}}
+	if _, err := e.Open(context.Background(), route, req, "ImageRequest123456", "ImageAttempt123456"); err != newapibridge.ErrInvalid {
+		t.Fatal("image capability review bypassed")
 	}
 }

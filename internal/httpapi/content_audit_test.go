@@ -353,3 +353,32 @@ func TestClientToolsAuditPreservesDeclarationsArgumentsAndResults(t *testing.T) 
 		t.Fatal("tool billing did not use verified token evidence")
 	}
 }
+
+func TestInlineImageAuditRetainsAttachmentIdentityAndBoundedContent(t *testing.T) {
+	f := clientToolFixture(t)
+	o, p, key := providerProject(f)
+	enableContent(f, o, p, 1024)
+	payload := clientToolPayload()
+	payload["messages"] = []map[string]any{{"role": "user", "content": []map[string]any{
+		{"type": "text", "text": strings.Repeat("synthetic ", 256)},
+		{"type": "image_url", "image_url": map[string]string{"url": testutil.InlinePNG}},
+	}}}
+	f.request(key.Secret, "POST", "/v1/chat/completions", payload, 200)
+	base := projectPath(o, p) + "/content-audit"
+	page := parse[contentPage](t, f.request(f.token("alice"), "GET", base+"/records", nil, 200))
+	if len(page.Data) != 1 {
+		t.Fatal("image audit record missing")
+	}
+	grantAuditor(f, o, p, "auditor", true)
+	detail := parse[contentaudit.Detail](t, f.request(f.token("auditor"), "POST", base+"/records/"+page.Data[0].RequestID+"/reveal", map[string]string{"reason": "verify synthetic image identity"}, 200))
+	if !detail.Request.Truncated || !strings.Contains(detail.Request.Content, `"sha256"`) || !strings.Contains(detail.Request.Content, `"mime":"image/png"`) || !strings.Contains(detail.Request.Content, `"width":1`) {
+		t.Fatal("bounded capture lost image identity or truncation indication")
+	}
+	// URL references must be rejected before another reservation or outbound request.
+	payload["messages"] = []map[string]any{{"role": "user", "content": []map[string]any{{"type": "image_url", "image_url": map[string]string{"url": "http://127.0.0.1/private"}}}}}
+	f.request(key.Secret, "POST", "/v1/chat/completions", payload, 400)
+	usage := parse[control.Usage](t, f.request(f.token("alice"), "GET", projectPath(o, p)+"/usage", nil, 200))
+	if usage.Spent != 16 || usage.Held != 0 {
+		t.Fatal("rejected image URL acquired funds")
+	}
+}

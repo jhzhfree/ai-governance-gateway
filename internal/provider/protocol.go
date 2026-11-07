@@ -9,10 +9,11 @@ import (
 )
 
 type Message struct {
-	Role       string     `json:"role"`
-	Content    string     `json:"content"`
-	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
-	ToolCallID string     `json:"tool_call_id,omitempty"`
+	Parts      []ContentPart `json:"-"`
+	Role       string        `json:"role"`
+	Content    string        `json:"content"`
+	ToolCalls  []ToolCall    `json:"tool_calls,omitempty"`
+	ToolCallID string        `json:"tool_call_id,omitempty"`
 }
 type Request struct {
 	Tools      []Tool    `json:"tools,omitempty"`
@@ -54,14 +55,17 @@ func ValidateRequest(req Request) bool {
 		return false
 	}
 	for _, m := range req.Messages {
-		if (m.Role != "user" && m.Role != "system" && m.Role != "assistant" && m.Role != "tool") || (len(m.Content) == 0 && len(m.ToolCalls) == 0) || len(m.Content) > 16<<10 {
+		if (m.Role != "user" && m.Role != "system" && m.Role != "assistant" && m.Role != "tool") || (len(m.Content) == 0 && len(m.ToolCalls) == 0 && len(m.Parts) == 0) || len(m.Content) > 16<<10 {
 			return false
 		}
+	}
+	if _, err := req.ImageMetadata(); err != nil {
+		return false
 	}
 	return true
 }
 func (r *Route) Open(ctx context.Context, req Request) (*http.Response, error) {
-	if !r.Ready() || r.key == "" || req.HasTools() {
+	if !r.Ready() || r.key == "" || req.HasTools() || req.HasParts() {
 		return nil, errors.New("mainland residency review expired")
 	}
 	payload := map[string]any{"model": r.model.UpstreamModel, "max_tokens": req.MaxTokens, "stream": req.Stream, "messages": req.Messages}

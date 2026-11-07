@@ -68,6 +68,19 @@ func (h *Handler) capture(w http.ResponseWriter, r *http.Request, id, token stri
 		return w, func() {}, true
 	}
 	body, err := json.Marshal(req)
+	if req.HasImages() {
+		images, imageErr := req.ImageMetadata()
+		if imageErr != nil {
+			problem(w, 400, "invalid_image_input", id)
+			return w, nil, false
+		}
+		// Put attachment identity before binary content so bounded captures retain
+		// every image digest even when the consented payload limit truncates bytes.
+		body, err = json.Marshal(struct {
+			Images  any     `json:"images"`
+			Request Request `json:"request"`
+		}{images, req})
+	}
 	if err != nil {
 		problem(w, 503, "content_audit_unavailable", id)
 		return w, nil, false

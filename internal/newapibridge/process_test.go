@@ -54,6 +54,7 @@ func TestNewAPIControlHelper(t *testing.T) {
 			cfg.Models[i].Provider = "reviewed-compatible"
 		}
 		cfg.Models[i].NewAPIChannelID = 1
+		cfg.Models[i].AllowImages = os.Getenv("AIGW_INTEGRATION_IMAGES") == "1"
 	}
 	directory, err := provider.NewGoverned(cfg)
 	if err != nil {
@@ -78,15 +79,24 @@ func TestNewAPIControlHelper(t *testing.T) {
 
 func TestNewAPITwoProcessRecovery(t *testing.T) {
 	for _, protocol := range []string{"openai", "deepseek", "anthropic"} {
-		t.Run(protocol, func(t *testing.T) { testNewAPITwoProcessRecovery(t, protocol, false) })
+		t.Run(protocol, func(t *testing.T) { testNewAPITwoProcessRecovery(t, protocol, false, false) })
 	}
 }
 func TestNewAPITwoProcessClientTools(t *testing.T) {
 	for _, protocol := range []string{"openai", "deepseek", "anthropic"} {
-		t.Run(protocol, func(t *testing.T) { testNewAPITwoProcessRecovery(t, protocol, true) })
+		t.Run(protocol, func(t *testing.T) { testNewAPITwoProcessRecovery(t, protocol, true, false) })
 	}
 }
-func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools bool) {
+func TestNewAPITwoProcessImages(t *testing.T) {
+	for _, protocol := range []string{"openai", "anthropic"} {
+		t.Run(protocol, func(t *testing.T) { testNewAPITwoProcessRecovery(t, protocol, false, true) })
+	}
+}
+func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images bool) {
+	expectedSpent := int64(48)
+	if images {
+		expectedSpent = 108
+	}
 	binary := os.Getenv("TEST_NEWAPI_SERVER_BINARY")
 	if binary == "" {
 		t.Skip("pinned new-api integration fixture binary required")
@@ -104,6 +114,14 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools bool) {
 	defer releaseStream()
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
+		write := func(data string) (int, error) {
+			if images {
+				data = strings.ReplaceAll(data, `"input_tokens":2`, `"input_tokens":12`)
+				data = strings.ReplaceAll(data, `"prompt_tokens":2`, `"prompt_tokens":12`)
+				data = strings.ReplaceAll(data, `"total_tokens":5`, `"total_tokens":15`)
+			}
+			return io.WriteString(w, data)
+		}
 		if block.Load() {
 			close(arrived)
 			select {
@@ -127,6 +145,11 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools bool) {
 			w.WriteHeader(400)
 			return
 		}
+		if images && !strings.Contains(string(req.Messages), strings.TrimPrefix(testutil.InlinePNG, "data:image/png;base64,")) {
+			t.Error("image bytes lost during conversion")
+			w.WriteHeader(400)
+			return
+		}
 		if req.MaxTokens != 8 {
 			t.Error("converted request exceeded or lost output bound")
 			w.WriteHeader(400)
@@ -146,7 +169,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools bool) {
 					`{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"synthetic"}}`,
 					`{"type":"content_block_stop","index":0}`,
 				} {
-					io.WriteString(w, "data: "+frame+"\n\n")
+					write("data: " + frame + "\n\n")
 				}
 				w.(http.Flusher).Flush()
 				select {
@@ -163,27 +186,27 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools bool) {
 						`{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"\"synthetic\"}"}}`,
 						`{"type":"content_block_stop","index":1}`,
 					} {
-						io.WriteString(w, "data: "+frame+"\n\n")
+						write("data: " + frame + "\n\n")
 					}
 				}
-				io.WriteString(w, "data: "+`{"type":"message_delta","delta":{"stop_reason":"`+reason+`"},"usage":{"output_tokens":3}}`+"\n\ndata: "+`{"type":"message_stop"}`+"\n\n")
+				write("data: " + `{"type":"message_delta","delta":{"stop_reason":"` + reason + `"},"usage":{"output_tokens":3}}` + "\n\ndata: " + `{"type":"message_stop"}` + "\n\n")
 			} else {
 				w.Header().Set("Content-Type", "application/json")
 				if tools {
-					io.WriteString(w, `{"id":"msg_synthetic","type":"message","role":"assistant","model":"governance-model","content":[{"type":"text","text":"synthetic"},{"type":"tool_use","id":"call_new","name":"lookup","input":{"q":"synthetic"}}],"stop_reason":"tool_use","usage":{"input_tokens":2,"output_tokens":3}}`)
+					write(`{"id":"msg_synthetic","type":"message","role":"assistant","model":"governance-model","content":[{"type":"text","text":"synthetic"},{"type":"tool_use","id":"call_new","name":"lookup","input":{"q":"synthetic"}}],"stop_reason":"tool_use","usage":{"input_tokens":2,"output_tokens":3}}`)
 				} else {
-					io.WriteString(w, `{"id":"msg_synthetic","type":"message","role":"assistant","model":"governance-model","content":[{"type":"text","text":"synthetic"}],"stop_reason":"end_turn","usage":{"input_tokens":2,"output_tokens":3}}`)
+					write(`{"id":"msg_synthetic","type":"message","role":"assistant","model":"governance-model","content":[{"type":"text","text":"synthetic"}],"stop_reason":"end_turn","usage":{"input_tokens":2,"output_tokens":3}}`)
 				}
 			}
 			return
 		}
 		if req.Stream {
 			w.Header().Set("Content-Type", "text/event-stream")
-			io.WriteString(w, "data: {\"id\":\"synthetic\",\"model\":\"governance-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"synthetic\"},\"finish_reason\":null}]}\n\n")
+			write("data: {\"id\":\"synthetic\",\"model\":\"governance-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"synthetic\"},\"finish_reason\":null}]}\n\n")
 			if protocol == "deepseek" || tools {
-				io.WriteString(w, "data: "+`{"id":"synthetic","model":"governance-model","choices":[{"index":0,"delta":{},"finish_reason":null}]}`+"\n\n")
+				write("data: " + `{"id":"synthetic","model":"governance-model","choices":[{"index":0,"delta":{},"finish_reason":null}]}` + "\n\n")
 			} else {
-				io.WriteString(w, "data: {\"id\":\"synthetic\",\"model\":\"governance-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n")
+				write("data: {\"id\":\"synthetic\",\"model\":\"governance-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n")
 			}
 			w.(http.Flusher).Flush()
 			select {
@@ -197,20 +220,20 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools bool) {
 					`{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"synthetic\"}"}}]},"finish_reason":null}]}`,
 					`{"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5}}`,
 				} {
-					io.WriteString(w, "data: "+frame+"\n\n")
+					write("data: " + frame + "\n\n")
 				}
-				io.WriteString(w, "data: [DONE]\n\n")
+				write("data: [DONE]\n\n")
 			} else if protocol == "deepseek" {
-				io.WriteString(w, "data: "+`{"id":"synthetic","model":"governance-model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5}}`+"\n\ndata: [DONE]\n\n")
+				write("data: " + `{"id":"synthetic","model":"governance-model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5}}` + "\n\ndata: [DONE]\n\n")
 			} else {
-				io.WriteString(w, "data: {\"id\":\"synthetic\",\"model\":\"governance-model\",\"choices\":[],\"usage\":{\"prompt_tokens\":2,\"completion_tokens\":3,\"total_tokens\":5}}\n\ndata: [DONE]\n\n")
+				write("data: {\"id\":\"synthetic\",\"model\":\"governance-model\",\"choices\":[],\"usage\":{\"prompt_tokens\":2,\"completion_tokens\":3,\"total_tokens\":5}}\n\ndata: [DONE]\n\n")
 			}
 		} else {
 			w.Header().Set("Content-Type", "application/json")
 			if tools {
-				io.WriteString(w, `{"id":"synthetic","object":"chat.completion","model":"governance-model","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_new","type":"function","function":{"name":"lookup","arguments":"{\"q\":\"synthetic\"}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5}}`)
+				write(`{"id":"synthetic","object":"chat.completion","model":"governance-model","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_new","type":"function","function":{"name":"lookup","arguments":"{\"q\":\"synthetic\"}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5}}`)
 			} else {
-				io.WriteString(w, reply)
+				write(reply)
 
 			}
 		}
@@ -297,7 +320,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools bool) {
 	child := func() (string, func()) {
 		ready := filepath.Join(t.TempDir(), "ready")
 		command := exec.Command(os.Args[0], "-test.run=^TestNewAPIControlHelper$")
-		command.Env = append(os.Environ(), "AIGW_INTEGRATION_CHILD=1", "AIGW_INTEGRATION_PROTOCOL="+protocol, "AIGW_INTEGRATION_DSN="+isolatedDSN.String(), "AIGW_INTEGRATION_ORIGIN="+faultProxy.URL, "AIGW_INTEGRATION_READY="+ready)
+		command.Env = append(os.Environ(), "AIGW_INTEGRATION_CHILD=1", "AIGW_INTEGRATION_PROTOCOL="+protocol, "AIGW_INTEGRATION_IMAGES="+map[bool]string{true: "1", false: "0"}[images], "AIGW_INTEGRATION_DSN="+isolatedDSN.String(), "AIGW_INTEGRATION_ORIGIN="+faultProxy.URL, "AIGW_INTEGRATION_READY="+ready)
 		return start(command, ready)
 	}
 	controlURL, stopControl := child()
@@ -307,6 +330,9 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools bool) {
 			req.Model = "reviewed-compatible/fixture"
 		}
 		req.Stream = stream
+		if images {
+			req.Messages = []provider.Message{{Role: "user", Parts: []provider.ContentPart{{Type: "text", Text: "synthetic image query"}, {Type: "image_url", ImageURL: &provider.ImageURL{URL: testutil.InlinePNG, Detail: "auto"}}}}}
+		}
 		if tools {
 			req.Tools = []provider.Tool{{Type: "function", Function: provider.FunctionDefinition{Name: "lookup", Parameters: json.RawMessage(`{"type":"object","properties":{"q":{"type":"string"}}}`)}}}
 			req.ToolChoice = "auto"
@@ -395,7 +421,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools bool) {
 		t.Fatalf("restart recovery mismatch: settled=%d receipts=%d physical=%d", settled, receipts, calls.Load())
 	}
 	var held, spent int64
-	if err := pool.QueryRow(context.Background(), `SELECT held,spent FROM budget_accounts WHERE project_id=$1`, scope.Project).Scan(&held, &spent); err != nil || held != 0 || spent != 48 {
+	if err := pool.QueryRow(context.Background(), `SELECT held,spent FROM budget_accounts WHERE project_id=$1`, scope.Project).Scan(&held, &spent); err != nil || held != 0 || spent != expectedSpent {
 		t.Fatalf("incorrect recovered ledger: held=%d spent=%d", held, spent)
 	}
 	// Kill the data plane after the provider observes a request, before any
@@ -427,7 +453,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools bool) {
 	if err := pool.QueryRow(context.Background(), `SELECT held,spent FROM budget_accounts WHERE project_id=$1`, scope.Project).Scan(&held, &spent); err != nil {
 		t.Fatal(err)
 	}
-	if uncertain != 1 || held != 288 || spent != 48 || calls.Load() != 4 {
+	if uncertain != 1 || held != 288 || spent != expectedSpent || calls.Load() != 4 {
 		t.Fatalf("unknown outcome was replayed/refunded: uncertain=%d held=%d spent=%d physical=%d", uncertain, held, spent, calls.Load())
 	}
 
@@ -485,7 +511,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools bool) {
 	if rejected.StatusCode != 409 || calls.Load() != 4 {
 		t.Fatal("late request bypassed cancelled tombstone")
 	}
-	if err := pool.QueryRow(context.Background(), `SELECT held,spent FROM budget_accounts WHERE project_id=$1`, scope.Project).Scan(&held, &spent); err != nil || held != 288 || spent != 48 {
+	if err := pool.QueryRow(context.Background(), `SELECT held,spent FROM budget_accounts WHERE project_id=$1`, scope.Project).Scan(&held, &spent); err != nil || held != 288 || spent != expectedSpent {
 		t.Fatal("cancellation released an uncertain physical dispatch")
 	}
 

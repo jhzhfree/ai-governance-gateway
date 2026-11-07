@@ -24,7 +24,7 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 		return
 	}
 	route, ok := h.Providers.Find(req.Model)
-	if !ok || !provider.ValidateRequest(req) || (req.HasTools() && h.Executor == nil) {
+	if !ok || !provider.ValidateRequest(req) || ((req.HasTools() || req.HasParts()) && h.Executor == nil) {
 		problem(w, 400, "unsupported_request", id)
 		return
 	}
@@ -213,6 +213,7 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id string, route *provider.Route, settle func(int64) error, report func(string, string), trace *attemptTrace, ctx context.Context, guard *keyword.Session) circuit.Outcome {
 	started, finished := false, false
 	tools := provider.NewToolResponseState(req)
+	var pendingToolFrames [][]byte
 	var actual *int64
 	write := func(data string) error {
 		if !started {
@@ -282,6 +283,12 @@ func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id strin
 				fail("metadata_finalize_failed")
 				return circuit.Success
 			}
+			for _, frame := range pendingToolFrames {
+				if write(string(frame)) != nil {
+					trace.failed("downstream_write_failed")
+					return circuit.Neutral
+				}
+			}
 			_ = write("[DONE]")
 			return circuit.Success
 		}
@@ -314,6 +321,20 @@ func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id strin
 			return circuit.Neutral
 		}
 		normalized, _ := json.Marshal(value)
+		hasCalls := false
+		for _, choice := range value.Choices {
+			if choice.Delta != nil && len(choice.Delta.ToolCalls) > 0 {
+				hasCalls = true
+			}
+		}
+		if hasCalls || len(pendingToolFrames) > 0 {
+			if len(pendingToolFrames) >= 2 || len(normalized) > 64<<10 {
+				fail("upstream_stream_incomplete")
+				return circuit.Failure
+			}
+			pendingToolFrames = append(pendingToolFrames, normalized)
+			continue
+		}
 		if write(string(normalized)) != nil {
 			trace.failed("downstream_write_failed")
 			return circuit.Neutral

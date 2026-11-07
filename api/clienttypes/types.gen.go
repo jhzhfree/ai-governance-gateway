@@ -4,7 +4,11 @@
 package clienttypes
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
+
+	"github.com/oapi-codegen/runtime"
 )
 
 const (
@@ -91,6 +95,19 @@ const (
 const (
 	ChangeDeviceStateActive  ChangeDeviceState = "active"
 	ChangeDeviceStateRevoked ChangeDeviceState = "revoked"
+)
+
+// Defines values for ChatContentPartImageUrlDetail.
+const (
+	ChatContentPartImageUrlDetailAuto ChatContentPartImageUrlDetail = "auto"
+	ChatContentPartImageUrlDetailHigh ChatContentPartImageUrlDetail = "high"
+	ChatContentPartImageUrlDetailLow  ChatContentPartImageUrlDetail = "low"
+)
+
+// Defines values for ChatContentPartType.
+const (
+	ImageUrl ChatContentPartType = "image_url"
+	Text     ChatContentPartType = "text"
 )
 
 // Defines values for ClientToolType.
@@ -400,9 +417,9 @@ const (
 
 // Defines values for SetMemberEnabledRestoreRole.
 const (
-	Admin     SetMemberEnabledRestoreRole = "admin"
-	Developer SetMemberEnabledRestoreRole = "developer"
-	Viewer    SetMemberEnabledRestoreRole = "viewer"
+	SetMemberEnabledRestoreRoleAdmin     SetMemberEnabledRestoreRole = "admin"
+	SetMemberEnabledRestoreRoleDeveloper SetMemberEnabledRestoreRole = "developer"
+	SetMemberEnabledRestoreRoleViewer    SetMemberEnabledRestoreRole = "viewer"
 )
 
 // Defines values for UsageCurrency.
@@ -726,6 +743,33 @@ type ChangeDevice struct {
 
 // ChangeDeviceState defines model for ChangeDevice.State.
 type ChangeDeviceState string
+
+// ChatContentPart Exactly text or image_url according to type. At most four PNG/JPEG images, 256 KiB decoded each, 512 KiB total; dimensions <=4096 per side and <=16 Mi pixels total. No remote fetching.
+type ChatContentPart struct {
+	ImageUrl *struct {
+		Detail *ChatContentPartImageUrlDetail `json:"detail,omitempty"`
+		Url    string                         `json:"url"`
+	} `json:"image_url,omitempty"`
+	Text  *string             `json:"text,omitempty"`
+	Type  ChatContentPartType `json:"type"`
+	union json.RawMessage
+}
+
+// ChatContentPartImageUrlDetail defines model for ChatContentPart.ImageUrl.Detail.
+type ChatContentPartImageUrlDetail string
+
+// ChatContentPartType defines model for ChatContentPart.Type.
+type ChatContentPartType string
+
+// ChatContentPart0 defines model for .
+type ChatContentPart0 struct {
+	Type interface{} `json:"type,omitempty"`
+}
+
+// ChatContentPart1 defines model for .
+type ChatContentPart1 struct {
+	Type interface{} `json:"type,omitempty"`
+}
 
 // ClientTool defines model for ClientTool.
 type ClientTool struct {
@@ -1183,10 +1227,10 @@ type InferenceModelListObject string
 type InferenceRequest struct {
 	MaxTokens int64 `json:"max_tokens"`
 	Messages  []struct {
-		Content    *string                      `json:"content"`
-		Role       InferenceRequestMessagesRole `json:"role"`
-		ToolCallId *string                      `json:"tool_call_id,omitempty"`
-		ToolCalls  *[]ClientToolCall            `json:"tool_calls,omitempty"`
+		Content    *InferenceRequest_Messages_Content `json:"content,omitempty"`
+		Role       InferenceRequestMessagesRole       `json:"role"`
+		ToolCallId *string                            `json:"tool_call_id,omitempty"`
+		ToolCalls  *[]ClientToolCall                  `json:"tool_calls,omitempty"`
 	} `json:"messages"`
 	Model      string                      `json:"model"`
 	Stream     *bool                       `json:"stream,omitempty"`
@@ -1194,6 +1238,17 @@ type InferenceRequest struct {
 
 	// Tools newapi mode only. Client-side functions; gateway does not execute tools.
 	Tools *[]ClientTool `json:"tools,omitempty"`
+}
+
+// InferenceRequestMessagesContent0 defines model for .
+type InferenceRequestMessagesContent0 = string
+
+// InferenceRequestMessagesContent1 defines model for .
+type InferenceRequestMessagesContent1 = []ChatContentPart
+
+// InferenceRequest_Messages_Content defines model for InferenceRequest.Messages.Content.
+type InferenceRequest_Messages_Content struct {
+	union json.RawMessage
 }
 
 // InferenceRequestMessagesRole defines model for InferenceRequest.Messages.Role.
@@ -1494,6 +1549,8 @@ type MemberRecordRole string
 
 // ModelInfo defines model for ModelInfo.
 type ModelInfo struct {
+	// AllowImages Reviewed inline image input capability in newapi mode; not a guarantee of image-content moderation.
+	AllowImages      *bool             `json:"allow_images,omitempty"`
 	Currency         ModelInfoCurrency `json:"currency"`
 	Id               string            `json:"id"`
 	InputPerMillion  int64             `json:"input_per_million"`
@@ -2321,3 +2378,188 @@ type ResetLocalUserPasswordJSONRequestBody = ResetLocalPassword
 
 // StreamMockChatJSONRequestBody defines body for StreamMockChat for application/json ContentType.
 type StreamMockChatJSONRequestBody = InferenceRequest
+
+// AsChatContentPart0 returns the union data inside the ChatContentPart as a ChatContentPart0
+func (t ChatContentPart) AsChatContentPart0() (ChatContentPart0, error) {
+	var body ChatContentPart0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromChatContentPart0 overwrites any union data inside the ChatContentPart as the provided ChatContentPart0
+func (t *ChatContentPart) FromChatContentPart0(v ChatContentPart0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeChatContentPart0 performs a merge with any union data inside the ChatContentPart, using the provided ChatContentPart0
+func (t *ChatContentPart) MergeChatContentPart0(v ChatContentPart0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsChatContentPart1 returns the union data inside the ChatContentPart as a ChatContentPart1
+func (t ChatContentPart) AsChatContentPart1() (ChatContentPart1, error) {
+	var body ChatContentPart1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromChatContentPart1 overwrites any union data inside the ChatContentPart as the provided ChatContentPart1
+func (t *ChatContentPart) FromChatContentPart1(v ChatContentPart1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeChatContentPart1 performs a merge with any union data inside the ChatContentPart, using the provided ChatContentPart1
+func (t *ChatContentPart) MergeChatContentPart1(v ChatContentPart1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ChatContentPart) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if t.ImageUrl != nil {
+		object["image_url"], err = json.Marshal(t.ImageUrl)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'image_url': %w", err)
+		}
+	}
+
+	if t.Text != nil {
+		object["text"], err = json.Marshal(t.Text)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'text': %w", err)
+		}
+	}
+
+	object["type"], err = json.Marshal(t.Type)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'type': %w", err)
+	}
+
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *ChatContentPart) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["image_url"]; found {
+		err = json.Unmarshal(raw, &t.ImageUrl)
+		if err != nil {
+			return fmt.Errorf("error reading 'image_url': %w", err)
+		}
+	}
+
+	if raw, found := object["text"]; found {
+		err = json.Unmarshal(raw, &t.Text)
+		if err != nil {
+			return fmt.Errorf("error reading 'text': %w", err)
+		}
+	}
+
+	if raw, found := object["type"]; found {
+		err = json.Unmarshal(raw, &t.Type)
+		if err != nil {
+			return fmt.Errorf("error reading 'type': %w", err)
+		}
+	}
+
+	return err
+}
+
+// AsInferenceRequestMessagesContent0 returns the union data inside the InferenceRequest_Messages_Content as a InferenceRequestMessagesContent0
+func (t InferenceRequest_Messages_Content) AsInferenceRequestMessagesContent0() (InferenceRequestMessagesContent0, error) {
+	var body InferenceRequestMessagesContent0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromInferenceRequestMessagesContent0 overwrites any union data inside the InferenceRequest_Messages_Content as the provided InferenceRequestMessagesContent0
+func (t *InferenceRequest_Messages_Content) FromInferenceRequestMessagesContent0(v InferenceRequestMessagesContent0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeInferenceRequestMessagesContent0 performs a merge with any union data inside the InferenceRequest_Messages_Content, using the provided InferenceRequestMessagesContent0
+func (t *InferenceRequest_Messages_Content) MergeInferenceRequestMessagesContent0(v InferenceRequestMessagesContent0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsInferenceRequestMessagesContent1 returns the union data inside the InferenceRequest_Messages_Content as a InferenceRequestMessagesContent1
+func (t InferenceRequest_Messages_Content) AsInferenceRequestMessagesContent1() (InferenceRequestMessagesContent1, error) {
+	var body InferenceRequestMessagesContent1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromInferenceRequestMessagesContent1 overwrites any union data inside the InferenceRequest_Messages_Content as the provided InferenceRequestMessagesContent1
+func (t *InferenceRequest_Messages_Content) FromInferenceRequestMessagesContent1(v InferenceRequestMessagesContent1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeInferenceRequestMessagesContent1 performs a merge with any union data inside the InferenceRequest_Messages_Content, using the provided InferenceRequestMessagesContent1
+func (t *InferenceRequest_Messages_Content) MergeInferenceRequestMessagesContent1(v InferenceRequestMessagesContent1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t InferenceRequest_Messages_Content) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *InferenceRequest_Messages_Content) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}

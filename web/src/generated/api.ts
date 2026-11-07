@@ -218,7 +218,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Reviewed JSON/SSE Chat. Text supported by existing executors; newapi additionally supports up to eight client function tools with linked tool-result history. Tool arguments are buffered until complete and validated before release. No server-side tools, multimodal content or automatic tool execution. Verified token usage and durable completion remain required for settlement. */
+        /** @description Reviewed JSON/SSE Chat. newapi mode additionally supports up to eight client function tools and bounded inline PNG/JPEG input on allow_images routes. Function calls are delivered only after verified completion. Body limit 1 MiB for images, 64 KiB otherwise. No remote media URLs, provider-hosted tools, generated media or automatic tool execution. Image costs require a reviewed combined input-token tariff and complete raw usage. */
         post: operations["streamMockChat"];
         delete?: never;
         options?: never;
@@ -1974,7 +1974,7 @@ export interface components {
             messages: {
                 /** @enum {string} */
                 role: "user" | "system" | "assistant" | "tool";
-                content?: string | null;
+                content?: (string | null) | components["schemas"]["ChatContentPart"][];
                 tool_calls?: components["schemas"]["ClientToolCall"][];
                 tool_call_id?: string;
             }[];
@@ -2062,6 +2062,11 @@ export interface components {
             max_input_tokens: number;
             /** Format: int64 */
             max_output_tokens: number;
+            /**
+             * @description Reviewed inline image input capability in newapi mode; not a guarantee of image-content moderation.
+             * @default false
+             */
+            allow_images: boolean;
         };
         ModelPage: {
             data: components["schemas"]["ModelInfo"][];
@@ -3067,6 +3072,23 @@ export interface components {
                 arguments: string;
             };
         };
+        /** @description Exactly text or image_url according to type. At most four PNG/JPEG images, 256 KiB decoded each, 512 KiB total; dimensions <=4096 per side and <=16 Mi pixels total. No remote fetching. */
+        ChatContentPart: {
+            /** @enum {string} */
+            type: "text" | "image_url";
+            text?: string;
+            image_url?: {
+                url: string;
+                /** @enum {string} */
+                detail?: "auto" | "low" | "high";
+            };
+        } & ({
+            /** @enum {unknown} */
+            type?: "text";
+        } | {
+            /** @enum {unknown} */
+            type?: "image_url";
+        });
     };
     responses: never;
     parameters: never;

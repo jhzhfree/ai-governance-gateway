@@ -122,7 +122,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !allowedDevice {
 		return
 	}
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&req); err != nil {
 		problem(w, 400, "invalid_request", id)
@@ -132,11 +132,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		problem(w, 400, "invalid_request", id)
 		return
 	}
+	normalizedRequest, _ := json.Marshal(req)
+	if (!req.HasImages() && len(normalizedRequest) > 64<<10) || len(normalizedRequest) > 1<<20 {
+		problem(w, 400, "request_too_large", id)
+		return
+	}
 	if h.Providers != nil {
 		h.serveProvider(w, r, id, token, req)
 		return
 	}
-	if req.HasTools() || req.Model != "mock-text" || !req.Stream || req.MaxTokens < 1 || req.MaxTokens > 8 || len(req.Messages) != 1 || req.Messages[0].Role != "user" {
+	if req.HasTools() || req.HasParts() || req.Model != "mock-text" || !req.Stream || req.MaxTokens < 1 || req.MaxTokens > 8 || len(req.Messages) != 1 || req.Messages[0].Role != "user" {
 		problem(w, 400, "unsupported_mock_request", id)
 		return
 	}
