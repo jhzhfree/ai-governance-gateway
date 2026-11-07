@@ -2041,8 +2041,8 @@ export interface components {
         };
         ModelInfo: {
             id: string;
-            /** @enum {string} */
-            provider: "mock" | "aliyun" | "volcengine" | "zhipu" | "deepseek";
+            /** @description Recorded supplier identity; new-api directories may use independently reviewed supplier identifiers. Native credential/configuration APIs retain their fixed allowlist. */
+            provider: string;
             /** @enum {string} */
             currency: "MOCK" | "CNY_MICRO";
             /** @enum {string} */
@@ -2094,8 +2094,8 @@ export interface components {
             attempt_id: string;
             request_id: string;
             model: string;
-            /** @enum {string} */
-            provider: "mock" | "aliyun" | "volcengine" | "zhipu" | "deepseek";
+            /** @description Recorded supplier identity; new-api directories may use independently reviewed supplier identifiers. Native credential/configuration APIs retain their fixed allowlist. */
+            provider: string;
             /** @enum {string} */
             region: "local" | "cn-beijing" | "cn-mainland";
             stream: boolean;
@@ -2167,8 +2167,8 @@ export interface components {
         };
         RouteStatus: {
             model: string;
-            /** @enum {string} */
-            provider: "mock" | "aliyun" | "volcengine" | "zhipu" | "deepseek";
+            /** @description Recorded supplier identity; new-api directories may use independently reviewed supplier identifiers. Native credential/configuration APIs retain their fixed allowlist. */
+            provider: string;
             /** @enum {string} */
             state: "not_applicable" | "unobserved" | "closed" | "open" | "half_open";
             retry_after: number;
@@ -2211,8 +2211,8 @@ export interface components {
             subject: string;
         };
         StatementImport: {
-            /** @enum {string} */
-            provider: "aliyun" | "volcengine" | "zhipu" | "deepseek";
+            /** @description Recorded supplier identity; new-api directories may use independently reviewed supplier identifiers. Native credential/configuration APIs retain their fixed allowlist. */
+            provider: string;
             account_ref: string;
             evidence_ref: string;
             csv: string;
@@ -2225,8 +2225,8 @@ export interface components {
         BillingRecord: {
             id: string;
             import_id: string;
-            /** @enum {string} */
-            provider: "aliyun" | "volcengine" | "zhipu" | "deepseek";
+            /** @description Recorded supplier identity; new-api directories may use independently reviewed supplier identifiers. Native credential/configuration APIs retain their fixed allowlist. */
+            provider: string;
             account_ref: string;
             record_id: string;
             request_id: string;

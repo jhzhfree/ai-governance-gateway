@@ -12606,13 +12606,9 @@
           },
           "provider": {
             "type": "string",
-            "enum": [
-              "mock",
-              "aliyun",
-              "volcengine",
-              "zhipu",
-              "deepseek"
-            ]
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+            "maxLength": 64,
+            "description": "Recorded supplier identity; new-api directories may use independently reviewed supplier identifiers. Native credential/configuration APIs retain their fixed allowlist."
           },
           "currency": {
             "type": "string",
@@ -12811,13 +12807,9 @@
           },
           "provider": {
             "type": "string",
-            "enum": [
-              "mock",
-              "aliyun",
-              "volcengine",
-              "zhipu",
-              "deepseek"
-            ]
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+            "maxLength": 64,
+            "description": "Recorded supplier identity; new-api directories may use independently reviewed supplier identifiers. Native credential/configuration APIs retain their fixed allowlist."
           },
           "region": {
             "type": "string",
@@ -13096,13 +13088,9 @@
           },
           "provider": {
             "type": "string",
-            "enum": [
-              "mock",
-              "aliyun",
-              "volcengine",
-              "zhipu",
-              "deepseek"
-            ]
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+            "maxLength": 64,
+            "description": "Recorded supplier identity; new-api directories may use independently reviewed supplier identifiers. Native credential/configuration APIs retain their fixed allowlist."
           },
           "state": {
             "type": "string",
@@ -13261,12 +13249,9 @@
         "properties": {
           "provider": {
             "type": "string",
-            "enum": [
-              "aliyun",
-              "volcengine",
-              "zhipu",
-              "deepseek"
-            ]
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+            "maxLength": 64,
+            "description": "Recorded supplier identity; new-api directories may use independently reviewed supplier identifiers. Native credential/configuration APIs retain their fixed allowlist."
           },
           "account_ref": {
             "type": "string",
@@ -13325,12 +13310,9 @@
           },
           "provider": {
             "type": "string",
-            "enum": [
-              "aliyun",
-              "volcengine",
-              "zhipu",
-              "deepseek"
-            ]
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+            "maxLength": 64,
+            "description": "Recorded supplier identity; new-api directories may use independently reviewed supplier identifiers. Native credential/configuration APIs retain their fixed allowlist."
           },
           "account_ref": {
             "type": "string"

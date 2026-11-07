@@ -17,6 +17,7 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/billing"
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
+	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 )
 
 var errBillingUnavailable = errors.New("current mainland billing configuration required")
@@ -85,7 +86,7 @@ func billingError(err error) error {
 	return err
 }
 func (s *Store) ImportStatement(ctx context.Context, p identity.Principal, org, project string, in ImportInput) (v ImportReceipt, err error) {
-	if (in.Provider != "aliyun" && in.Provider != "volcengine" && in.Provider != "zhipu" && in.Provider != "deepseek") || !billing.Identifier(in.AccountRef) || !billing.Identifier(in.EvidenceRef) {
+	if !provider.ValidSupplierID(in.Provider) || !billing.Identifier(in.AccountRef) || !billing.Identifier(in.EvidenceRef) {
 		return v, ErrInvalid
 	}
 	lines, e := billing.Parse(in.CSV)
@@ -108,6 +109,20 @@ func (s *Store) ImportStatement(ctx context.Context, p identity.Principal, org, 
 		}
 		if _, err := projectRole(ctx, tx, p, org, project); err != nil {
 			return err
+		}
+		known := in.Provider == "aliyun" || in.Provider == "volcengine" || in.Provider == "zhipu" || in.Provider == "deepseek"
+		for _, m := range s.modelsIn(ctx, tx) {
+			if m.Provider == in.Provider {
+				known = true
+			}
+		}
+		if !known {
+			if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM inference_attempts a JOIN budget_reservations r USING(request_id) WHERE r.organization_id=$1 AND r.project_id=$2 AND a.provider=$3)`, org, project, in.Provider).Scan(&known); err != nil {
+				return err
+			}
+		}
+		if !known {
+			return ErrInvalid
 		}
 		var currency string
 		if err := tx.QueryRow(ctx, `SELECT currency FROM organizations WHERE id=$1`, org).Scan(&currency); err != nil {

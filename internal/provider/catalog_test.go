@@ -162,3 +162,43 @@ func TestNormalizedStreamUsesOneGatewayIdentity(t *testing.T) {
 		t.Fatal("usage-only chunk changed completion identity or exposed physical routing")
 	}
 }
+
+func TestGovernedSupplierIdentityDoesNotBorrowNativeProfile(t *testing.T) {
+	cfg := testutil.MainlandConfig()
+	cfg.Models = cfg.Models[:1]
+	cfg.Models[0].Provider = "reviewed-compatible"
+	cfg.Models[0].ID = "reviewed-compatible/fixture"
+	cfg.Models[0].NewAPIChannelID = 17
+	catalog, err := provider.NewGoverned(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(catalog.Models()) != 1 || catalog.Models()[0].Provider != "reviewed-compatible" {
+		t.Fatal("supplier attribution lost")
+	}
+	route, ok := catalog.Find("reviewed-compatible/fixture")
+	if !ok || route.GovernanceChannelID() != 17 {
+		t.Fatal("approved channel binding lost")
+	}
+	if response, err := route.Open(context.Background(), provider.Request{}); err == nil || response != nil {
+		t.Fatal("governed directory used native transport")
+	}
+	cfg.Models[0].NewAPIChannelID = 0
+	if _, err := provider.New(cfg, func(string) string { return "synthetic" }, nil); err == nil {
+		t.Fatal("unknown supplier escaped native allowlist")
+	}
+	if _, err := provider.NewGoverned(cfg); err == nil {
+		t.Fatal("unbound channel accepted")
+	}
+	cfg.Models[0].NewAPIChannelID = 17
+	cfg.Models[0].Residency.Region = "unreviewed"
+	if _, err := provider.NewGoverned(cfg); err == nil {
+		t.Fatal("supplier identity bypassed residency evidence")
+	}
+	cfg.Models[0].Residency = cfg.DeploymentResidency
+	cfg.Models[0].Provider = "https://supplier.example"
+	cfg.Models[0].ID = "https://supplier.example/fixture"
+	if _, err := provider.NewGoverned(cfg); err == nil {
+		t.Fatal("invalid supplier identifier accepted")
+	}
+}

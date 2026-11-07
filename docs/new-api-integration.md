@@ -5,7 +5,7 @@
 - 企业工程：`feature/newapi-foundation-validation`，从 `f3db909` 创建。
 - new-api fork：`feature/enterprise-governance-integration`，从 `e03439033238722c0b8d4437a052445f3aeeed83` 创建；第一阶段未修改该仓库，后续原始用量事实实现见下方阶段进展。
 - 路线：企业入口保留身份、项目、预算、终端与审计；new-api 承接协议/渠道执行，通过明确的用量和物理尝试契约对接。
-- 当前已提供显式 `--execution-engine=newapi`、可信入口、持久派发/outbox、不可变价格/渠道绑定、恢复消费、自动迁移 0026 和 readiness。默认执行器未切换。仅经验证的 OpenAI 兼容 Chat Completions 可用，SSE 通过 v2 完成证明实时返回内容；部署配置和验收见后文“已接通”章节。
+- 当前已提供显式 `--execution-engine=newapi`、可信入口、持久派发/outbox、不可变价格/渠道绑定、恢复消费、自动迁移 0026 和 readiness。默认执行器未切换。客户端为受限文本 Chat Completions，上游已验证 OpenAI 兼容、DeepSeek 与 Anthropic Messages，SSE 通过 v2 完成证明实时返回内容；部署配置和验收见后文“已接通”章节。
 - 本文保留历史阶段证据；历史章节中的待办不代表当前状态。生产发布门禁（实时流式、容量、跨主机/真实账号联合验收等）尚未全部完成。
 
 ## 已落地的接入边界
@@ -130,7 +130,7 @@ new-api 提交 [18f7df9d2](https://github.com/jhzhfree/new-api/commit/18f7df9d2)
 - 入口为 `POST /internal/governance/v1/chat/completions`。仅部署配置的专用服务用户可访问；令牌验证、停用、过期、模型/IP 限制沿用原生机制。身份不从请求 JSON 推导。拒绝 Cookie、query 凭证、多个 Authorization、通过令牌后缀指定渠道及伪造的转发 TLS 头。
 - 指定 `GOVERNANCE_SERVICE_USER_ID` 后注册内部路由；未配置则不注册。服务账户应专用于一个企业控制面集群，不使用管理员个人凭证。专用服务 Token 在普通 `/v1` 等推理入口被拒绝，避免绕过持久治理链。轮换 Token 时保留同一个服务用户；原生服务账户额度也须监控，耗尽或停用会阻止执行及恢复访问。
 - 治理入口校验实际 TLS 连接。new-api 新增 `SERVER_TLS_CERT_FILE` / `SERVER_TLS_KEY_FILE`，成对配置以启用直接 TLS，最低 TLS 1.2；配置错误阻止启动。`GOVERNANCE_ALLOW_LOOPBACK_HTTP=true` 只允许实际 loopback 对端的明文测试连接，不信任 `X-Forwarded-Proto`。
-- 本版仅允许 **OpenAI 兼容渠道类型** 的 Chat Completions；其他原生适配器在执行前拒绝。管理员可在 new-api 维护兼容厂商的 endpoint、模型映射与真实密钥。不能把原生支持的全部协议视为已经过企业治理验收。
+- 本版允许 **OpenAI 兼容、DeepSeek 和 Anthropic 渠道类型**，客户端保持 Chat Completions 文本入口；其他原生适配器在执行前拒绝。管理员可在 new-api 维护兼容厂商的 endpoint、模型映射与真实密钥。不能把原生支持的全部协议视为已经过企业治理验收。
 - 请求正文上限 1 MiB；治理入口最多同时处理 32 个请求；响应上限 4 MiB。只接收 model/messages/max_tokens/stream/stream_options，进一步协议约束沿用控制面和原生校验。
 - 完成钩子核对实际原始计数与返回 JSON/SSE；缺失、重复、冲突、估算、异常结束不发可信证据。非流式成功时先提交状态/outbox，再发送正文和证据头。SSE v2 提前传输内容，完成标记与 trailer 必须等待持久提交；旧 v1 保留缓冲兼容路径。容量、延迟和跨主机故障仍须在目标部署验收。
 - `GET /internal/governance/v1/events` 返回当前服务主体最多 100 个未确认事件，带 `X-Aigw-Events-Version: 1`；`POST /internal/governance/v1/events/:id/ack` 幂等确认；`POST /internal/governance/v1/attempts/:id/cancel` 只允许取消尚未派发的匹配尝试。事件包含执行元数据与计数，不包含正文和可用凭证。
@@ -161,7 +161,7 @@ export AIGW_NEWAPI_ORIGIN=https://newapi.internal.example
 - 企业迁移专项验证 v25→v26、连续启动、历史占额保留、失败 DDL/历史回滚和新表漂移阻断。恢复收据插入失败时预算同步回滚，并发重复投递只结算一次。
 - 双进程联调使用实际 new-api 路由/迁移/鉴权/Relay 和企业 Handler/恢复器；授权与模型上游为合成 fixture，不是生产身份/供应商验收。JSON 与 SSE 均通过。控制面在数据面持久完成、成功响应尚被故障代理扣留时被 SIGKILL，重启恢复三笔结算，共 48 微元，物理请求仍为 3 次。
 - 数据面在供应商已观察到第 4 次请求、尚无完成证据时被 SIGKILL；同一 SQLite 数据重启后，保留 1 笔 uncertain、288 微元占额，既有支出仍 48 微元，物理请求仍为 4 次。fixture 显式设置原生重试次数为 3，治理模式仍不重试。
-- CI 固定使用 new-api `bc2e37a4aa8ba9f7f083888a5dce920ff6c05679` 构建进程 fixture，设置 `TEST_NEWAPI_SERVER_BINARY` 才计作完成该联调；不配置时的 skip 不是验收通过。
+- CI 固定使用 new-api `02fb5353aa555a679042bfe2cd037352ac859191` 构建进程 fixture，设置 `TEST_NEWAPI_SERVER_BINARY` 才计作完成该联调；不配置时的 skip 不是验收通过。
 
 默认执行器仍为 native；本轮没有切换生产流量、发布 V1.0 标签或宣称 AGPL 商业许可问题已解决。目标部署实时流式延迟验收、生产容量与跨主机故障、真实 IdP/终端/供应商账号、安装升级和备份恢复的联合验收仍属于发布门禁。后续协议扩展必须逐项提供用量与审计证据，不能直接开放全部原生功能。
 
@@ -197,3 +197,39 @@ export AIGW_NEWAPI_ORIGIN=https://newapi.internal.example
 真实双进程故障测试新增上游完成屏障：客户端收到内容时只允许前一笔请求已结算，释放屏障后才收到 `[DONE]`；原有 SIGKILL 恢复、未知派发保留占额、迟到重放拒绝继续通过。专项分别验证缺失/重复/失败/正文伪造 trailer、异常尾部及截断，均不能放行 DONE。首块测试是同步顺序断言，不虚构生产 TTFT 或吞吐数据。
 
 实时 SSE 阶段验证：完整 `AIGW_VERIFY_RESTORE=1 bash scripts/verify.sh` 退出码 0；覆盖全部后端 race/vet、契约和逻辑恢复，固定 new-api 竞态 fixture 的双进程测试实际执行。数据面另外禁用治理请求的后台 ping，保证输出 writer 独占；最新 fixture 的 bridge 全包竞态检查再次执行。原始迁移 0026 未修改。
+
+
+### DeepSeek / Anthropic 上游与独立供应商标识
+
+- new-api `02fb5353a` 开放类型 1/43/14（OpenAI/DeepSeek/Anthropic）的受控文本请求，复用现有转换器。所有渠道在真实网络派发前核对转换后的 `max_tokens` 或 `max_completion_tokens`：必须存在唯一、正数且不超过批准上限的值；不满足时不取得派发权、不调用供应商。治理入口另拒绝零值、缺失和超过 1,000,000 的上限。
+- Claude 原始计数在转换/估算之前采集，要求 message_start、累计 message_delta 用量及 message_stop；缺字段、计数倒退、重复起始、终止后数据、错误或额外服务端工具计费不会产生完成证据。缓存读取/创建与普通输入相加后与转换出的 Chat usage 核对。当前目录只有统一输入/输出两种费率，缓存分档价格并未实现；须使用经审核的统一治理费率并通过账单对账核查实际费用。
+- 官方协议语义参考 [Anthropic streaming](https://platform.claude.com/docs/en/build-with-claude/streaming) 与 [DeepSeek Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/)。DeepSeek 联调包含“结束 choice 与 usage 同一最后块”的形态。
+- `newapi` 目录允许独立的供应商标识（小写字母开头，字母/数字/下划线/短横线，最长 64），必须绑定审核渠道、价格、输入/输出边界和有效驻留证据。无需也不能借用其他厂商名称。此规则不开放原生直连或原生凭证管理的厂商白名单。
+- 追加迁移 `0027_governed_suppliers.sql`，保留历史数据并让执行、费用分析和标准账单保存真实标识。账单导入只允许原有四家，或当前审核目录中的标识，或该项目历史执行中已经记录的标识；仍需原有管理员权限、双人审核和原子审计。供应商名称本身不证明驻留、合同或授权。
+- 这里的 Anthropic 是**上游协议兼容性**，不代表官方服务已获大陆驻留认可，也没有新增公网 `/v1/messages`、Responses、工具、多模态或 Gemini API。用户侧仍为既有文本 Chat 入口。真实供应商/账户/驻留/费率必须单独验收。
+- 三协议双进程矩阵实际跑 JSON、实时 SSE、控制面 SIGKILL 恢复、数据面 SIGKILL 保留占额和无派发取消/迟到拒绝；Anthropic 场景使用独立审核供应商标识贯穿执行记录与恢复。另有真实三库 fresh/发布升级矩阵，原生治理专项通过（34.756 秒），适配器包完整竞态检查通过。
+
+审核目录中的新增供应商条目示例（放在既有 `models` 数组内；以下为合成值，不是实际报价或驻留证明）：
+
+```json
+{
+  "id": "reviewed-compatible/text-model",
+  "provider": "reviewed-compatible",
+  "upstream_model": "reviewed-model-alias",
+  "newapi_channel_id": 17,
+  "price_version": "reviewed-v1",
+  "input_per_million": 1000000,
+  "output_per_million": 2000000,
+  "max_input_tokens": 4096,
+  "max_output_tokens": 1024,
+  "residency": {
+    "region": "cn-mainland",
+    "evidence_ref": "replace-with-reviewed-evidence",
+    "expires_at": "2030-01-01T00:00:00Z"
+  }
+}
+```
+
+渠道 ID 必须替换为已核验的真实数据面渠道；部署级驻留证据也仍为必填。既有四家供应商的原生凭证 API 不接受这个自定义标识；该条目仅供 `--execution-engine=newapi` 的文件审核目录使用。
+
+协议与供应商标识阶段最终验证：设置固定的 new-api 竞态 fixture，执行 `AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 bash scripts/verify.sh`，退出码 0。覆盖完整后端竞态与 vet、API 生成一致性、冻结前端依赖、类型/Lint/构建、真实 PostgreSQL/OIDC/本地登录浏览器以及当前/旧版备份恢复。三协议双进程测试实际执行，自定义供应商记录纳入当前版恢复快照。迁移 0027 追加发布，未改动历史 SQL。

@@ -103,6 +103,11 @@ func (Catalog) String() string   { return "[supplier catalog; credentials redact
 func (Catalog) GoString() string { return "[supplier catalog; credentials redacted]" }
 
 var upstreamPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$`)
+var supplierPattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
+
+// ValidSupplierID validates reviewed directory identities, never credentials or endpoints.
+func ValidSupplierID(id string) bool { return id != "mock" && supplierPattern.MatchString(id) }
+
 var pricePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$`)
 var modelPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$`)
 
@@ -148,6 +153,13 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 			return nil, errors.New("newapi directory requires an explicit approved channel; native directories cannot specify one")
 		}
 		p, ok := profiles[m.Provider]
+		// The data plane owns the reviewed upstream endpoint. A new-api
+		// directory may name a reviewed supplier without inventing a native
+		// endpoint or borrowing another supplier's identity.
+		if !requireCredential && !ok && ValidSupplierID(m.Provider) {
+			p = Profile{ID: m.Provider, Region: "cn-mainland"}
+			ok = true
+		}
 		if !ok || !strings.HasPrefix(m.ID, m.Provider+"/") || !modelPattern.MatchString(m.ID) || !upstreamPattern.MatchString(m.UpstreamModel) || !pricePattern.MatchString(m.PriceVersion) || !m.Residency.valid(time.Now()) || m.MaxInputTokens < 1 || m.MaxInputTokens > 2000000 || m.MaxOutputTokens < 1 || m.MaxOutputTokens > 1000000 || m.InputPerMillion <= 0 || m.OutputPerMillion <= 0 || m.InputPerMillion > MaxAmount || m.OutputPerMillion > MaxAmount {
 			return nil, errors.New("model requires a supported mainland supplier, explicit prices, token bounds and current residency evidence")
 		}

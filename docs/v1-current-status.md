@@ -50,4 +50,6 @@ DeepSeek 能力与计费边界见 [接入说明](deepseek.md)。
 
 `feature/newapi-foundation-validation` 已启动，第一阶段为实验性接入契约与治理回归；尚未切换生产入口。详见 [new-api 落地进度](new-api-integration.md)。
 
-new-api 专项已推进到显式 `--execution-engine=newapi`：可信内部入口、原始计数完成钩子、事务 outbox、控制面价格快照/恢复收据、自动迁移 v26、readiness 和双进程 SIGKILL 联调已落地。当前仅开放经验证的 OpenAI 兼容 Chat Completions，SSE 已支持 v2 实时内容传输；详细限制、配置和验证证据以 [接入文档最新章节](new-api-integration.md#已接通可信入口恢复消费与显式启动) 为准。默认入口及 V1.0 发布门禁未改变。
+new-api 专项已推进到显式 `--execution-engine=newapi`：可信内部入口、原始计数完成钩子、事务 outbox、控制面价格快照/恢复收据、自动迁移 v26、readiness 和双进程 SIGKILL 联调已落地。当前客户端保持受限文本 Chat Completions，上游已验证 OpenAI 兼容、DeepSeek 和 Anthropic Messages，SSE 已支持 v2 实时内容传输；详细限制、配置和验证证据以 [接入文档最新章节](new-api-integration.md#已接通可信入口恢复消费与显式启动) 为准。默认入口及 V1.0 发布门禁未改变。
+
+追加迁移 v27 支持 new-api 审核目录的独立供应商标识，贯穿执行记录、费用分析和账单对账；原生直连厂商和凭证白名单不变。实时 SSE、三协议故障矩阵、升级回滚及账单身份专项见接入文档。

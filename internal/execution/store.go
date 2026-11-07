@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 )
 
 var ErrInvalid = errors.New("invalid execution metadata")
@@ -63,10 +64,9 @@ func (s Start) valid() bool {
 		return s.Region == "local"
 	case "aliyun", "volcengine":
 		return s.Region == "cn-beijing"
-	case "zhipu", "deepseek":
-		return s.Region == "cn-mainland"
+	default:
+		return provider.ValidSupplierID(s.Provider) && s.Region == "cn-mainland"
 	}
-	return false
 }
 func (r Result) valid() bool {
 	if !ValidOutcome(r.Outcome) || r.Outcome == "" || r.Outcome == "unfinished" || (r.Outcome == "completed" && r.ErrorCode != "") || (r.Outcome != "completed" && !code.MatchString(r.ErrorCode)) {

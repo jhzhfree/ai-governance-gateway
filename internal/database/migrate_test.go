@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -55,7 +56,7 @@ func TestFreshSchemaAndReadOnlyStatus(t *testing.T) {
 	pool := testutil.EmptyDatabase(t)
 	ctx := context.Background()
 	initial := status(t, pool)
-	if initial.Managed || initial.Ready || initial.CurrentVersion != 0 || len(initial.Pending) != 26 {
+	if initial.Managed || initial.Ready || initial.CurrentVersion != 0 || len(initial.Pending) != 27 {
 		t.Fatal("unexpected unmanaged status")
 	}
 	if relation(t, pool, "aigw_schema_migrations") {
@@ -68,7 +69,7 @@ func TestFreshSchemaAndReadOnlyStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := status(t, pool)
-	if !before.Ready || before.CurrentVersion != 26 || len(before.Applied) != 26 {
+	if !before.Ready || before.CurrentVersion != 27 || len(before.Applied) != 27 {
 		t.Fatal("fresh migration incomplete")
 	}
 	for _, a := range before.Applied {
@@ -202,7 +203,7 @@ func TestConcurrentMigrationsRunExactlyOnce(t *testing.T) {
 	close(start)
 	wg.Wait()
 	r := status(t, pool)
-	if len(r.Applied) != 26 || !r.Ready {
+	if len(r.Applied) != 27 || !r.Ready {
 		t.Fatal("concurrent migration history invalid")
 	}
 }
@@ -1004,5 +1005,44 @@ func TestNewAPIUpgradeRollbackAndReadiness(t *testing.T) {
 	execSQL(t, pool, `ALTER TABLE newapi_execution_receipts DROP COLUMN actual`)
 	if err := database.Check(ctx, pool); err == nil {
 		t.Fatal("receipt schema drift accepted")
+	}
+}
+
+func TestGovernedSupplierUpgradeRollbackAndDrift(t *testing.T) {
+	pool, ledger, scope := testutil.Database(t)
+	ctx := context.Background()
+	testutil.Accounts(t, ledger, scope, 100, 100)
+	if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "supplier-upgrade", PriceVersion: "old-price", Amount: 10}); err != nil {
+		t.Fatal(err)
+	}
+	testutil.RevertGovernedSuppliersMigration(t, pool)
+	execSQL(t, pool, `ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v27 CHECK(version<>27)`)
+	if err := database.Migrate(ctx, pool); err == nil {
+		t.Fatal("failed supplier upgrade accepted")
+	}
+	var definition string
+	if err := pool.QueryRow(ctx, `SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='inference_attempts'::regclass AND conname='inference_attempts_provider_check'`).Scan(&definition); err != nil || !strings.Contains(definition, "deepseek") {
+		t.Fatal("failed upgrade did not restore old constraint")
+	}
+	execSQL(t, pool, `ALTER TABLE aigw_schema_migrations DROP CONSTRAINT reject_v27`)
+	for range 2 {
+		if err := database.Migrate(ctx, pool); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := database.Check(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	execSQL(t, pool, `INSERT INTO inference_attempts(attempt_id,request_id,model,provider,region,stream) VALUES('supplier-attempt','supplier-upgrade','reviewed-compatible/fixture','reviewed-compatible','cn-mainland',false)`)
+	reservation, err := ledger.Get(ctx, "supplier-upgrade")
+	if err != nil || reservation.State != "reserved" || reservation.Amount != 10 {
+		t.Fatal("supplier upgrade altered existing hold")
+	}
+	if _, err := pool.Exec(ctx, `UPDATE inference_attempts SET provider='https://not-an-identifier' WHERE attempt_id='supplier-attempt'`); err == nil {
+		t.Fatal("invalid supplier identity accepted")
+	}
+	execSQL(t, pool, `ALTER TABLE inference_attempts DROP CONSTRAINT inference_attempts_provider_check`)
+	if err := database.Check(ctx, pool); err == nil {
+		t.Fatal("supplier constraint drift accepted")
 	}
 }

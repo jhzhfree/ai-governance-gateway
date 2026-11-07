@@ -49,6 +49,10 @@ func TestNewAPIControlHelper(t *testing.T) {
 	cfg := testutil.MainlandConfig()
 	for i := range cfg.Models {
 		cfg.Models[i].UpstreamModel = "governance-model"
+		if os.Getenv("AIGW_INTEGRATION_PROTOCOL") == "anthropic" && cfg.Models[i].ID == "zhipu/fixture" {
+			cfg.Models[i].ID = "reviewed-compatible/fixture"
+			cfg.Models[i].Provider = "reviewed-compatible"
+		}
 		cfg.Models[i].NewAPIChannelID = 1
 	}
 	directory, err := provider.NewGoverned(cfg)
@@ -73,6 +77,11 @@ func TestNewAPIControlHelper(t *testing.T) {
 }
 
 func TestNewAPITwoProcessRecovery(t *testing.T) {
+	for _, protocol := range []string{"openai", "deepseek", "anthropic"} {
+		t.Run(protocol, func(t *testing.T) { testNewAPITwoProcessRecovery(t, protocol) })
+	}
+}
+func testNewAPITwoProcessRecovery(t *testing.T, protocol string) {
 	binary := os.Getenv("TEST_NEWAPI_SERVER_BINARY")
 	if binary == "" {
 		t.Skip("pinned new-api integration fixture binary required")
@@ -98,22 +107,67 @@ func TestNewAPITwoProcessRecovery(t *testing.T) {
 			}
 			return
 		}
-		var req provider.Request
+		var req struct {
+			Stream    bool `json:"stream"`
+			MaxTokens uint `json:"max_tokens"`
+		}
 		if json.NewDecoder(r.Body).Decode(&req) != nil {
 			w.WriteHeader(400)
+			return
+		}
+		if req.MaxTokens != 8 {
+			t.Error("converted request exceeded or lost output bound")
+			w.WriteHeader(400)
+			return
+		}
+		if protocol == "anthropic" {
+			if r.URL.Path != "/v1/messages" {
+				t.Error("wrong Anthropic upstream path")
+				w.WriteHeader(400)
+				return
+			}
+			if req.Stream {
+				w.Header().Set("Content-Type", "text/event-stream")
+				for _, frame := range []string{
+					`{"type":"message_start","message":{"id":"msg_synthetic","type":"message","role":"assistant","model":"governance-model","content":[],"usage":{"input_tokens":2,"output_tokens":0}}}`,
+					`{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`,
+					`{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"synthetic"}}`,
+					`{"type":"content_block_stop","index":0}`,
+				} {
+					io.WriteString(w, "data: "+frame+"\n\n")
+				}
+				w.(http.Flusher).Flush()
+				select {
+				case <-streamRelease:
+				case <-r.Context().Done():
+					return
+				}
+				io.WriteString(w, "data: "+`{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":3}}`+"\n\ndata: "+`{"type":"message_stop"}`+"\n\n")
+			} else {
+				w.Header().Set("Content-Type", "application/json")
+				io.WriteString(w, `{"id":"msg_synthetic","type":"message","role":"assistant","model":"governance-model","content":[{"type":"text","text":"synthetic"}],"stop_reason":"end_turn","usage":{"input_tokens":2,"output_tokens":3}}`)
+			}
 			return
 		}
 		if req.Stream {
 			w.Header().Set("Content-Type", "text/event-stream")
 			io.WriteString(w, "data: {\"id\":\"synthetic\",\"model\":\"governance-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"synthetic\"},\"finish_reason\":null}]}\n\n")
-			io.WriteString(w, "data: {\"id\":\"synthetic\",\"model\":\"governance-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n")
+			if protocol == "deepseek" {
+				io.WriteString(w, "data: "+`{"id":"synthetic","model":"governance-model","choices":[{"index":0,"delta":{},"finish_reason":null}]}`+"\n\n")
+			} else {
+				io.WriteString(w, "data: {\"id\":\"synthetic\",\"model\":\"governance-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n")
+			}
 			w.(http.Flusher).Flush()
 			select {
 			case <-streamRelease:
 			case <-r.Context().Done():
 				return
 			}
-			io.WriteString(w, "data: {\"id\":\"synthetic\",\"model\":\"governance-model\",\"choices\":[],\"usage\":{\"prompt_tokens\":2,\"completion_tokens\":3,\"total_tokens\":5}}\n\ndata: [DONE]\n\n")
+			if protocol == "deepseek" {
+				io.WriteString(w, "data: "+`{"id":"synthetic","model":"governance-model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5}}`+"\n\ndata: [DONE]\n\n")
+			} else {
+				io.WriteString(w, "data: {\"id\":\"synthetic\",\"model\":\"governance-model\",\"choices\":[],\"usage\":{\"prompt_tokens\":2,\"completion_tokens\":3,\"total_tokens\":5}}\n\ndata: [DONE]\n\n")
+			}
 		} else {
 			w.Header().Set("Content-Type", "application/json")
 			io.WriteString(w, reply)
@@ -158,7 +212,7 @@ func TestNewAPITwoProcessRecovery(t *testing.T) {
 	}
 	root := t.TempDir()
 	native := exec.Command(binary)
-	native.Env = append(os.Environ(), "GOVERNANCE_FIXTURE_DIR="+root, "GOVERNANCE_FIXTURE_UPSTREAM="+upstream.URL)
+	native.Env = append(os.Environ(), "GOVERNANCE_FIXTURE_DIR="+root, "GOVERNANCE_FIXTURE_UPSTREAM="+upstream.URL, "GOVERNANCE_FIXTURE_PROTOCOL="+protocol)
 	nativeURL, stopNative := start(native, filepath.Join(root, "address"))
 	defer stopNative()
 	target, _ := url.Parse(nativeURL)
@@ -201,12 +255,15 @@ func TestNewAPITwoProcessRecovery(t *testing.T) {
 	child := func() (string, func()) {
 		ready := filepath.Join(t.TempDir(), "ready")
 		command := exec.Command(os.Args[0], "-test.run=^TestNewAPIControlHelper$")
-		command.Env = append(os.Environ(), "AIGW_INTEGRATION_CHILD=1", "AIGW_INTEGRATION_DSN="+isolatedDSN.String(), "AIGW_INTEGRATION_ORIGIN="+faultProxy.URL, "AIGW_INTEGRATION_READY="+ready)
+		command.Env = append(os.Environ(), "AIGW_INTEGRATION_CHILD=1", "AIGW_INTEGRATION_PROTOCOL="+protocol, "AIGW_INTEGRATION_DSN="+isolatedDSN.String(), "AIGW_INTEGRATION_ORIGIN="+faultProxy.URL, "AIGW_INTEGRATION_READY="+ready)
 		return start(command, ready)
 	}
 	controlURL, stopControl := child()
 	call := func(origin string, stream bool) (int, []byte) {
 		req := request()
+		if protocol == "anthropic" {
+			req.Model = "reviewed-compatible/fixture"
+		}
 		req.Stream = stream
 		data, _ := json.Marshal(req)
 		r, _ := http.NewRequest("POST", origin+"/v1/chat/completions", bytes.NewReader(data))
@@ -220,11 +277,24 @@ func TestNewAPITwoProcessRecovery(t *testing.T) {
 		defer res.Body.Close()
 		if stream {
 			reader := bufio.NewReader(res.Body)
-			first, readErr := reader.ReadString('\n')
-			if readErr != nil || !strings.Contains(first, "synthetic") {
-				releaseStream()
-				t.Fatal("stream content did not precede upstream completion")
+			var prefix strings.Builder
+			for i := 0; i < 32; i++ {
+				line, readErr := reader.ReadString('\n')
+				if readErr != nil {
+					releaseStream()
+					t.Fatal("stream content did not precede upstream completion")
+				}
+				prefix.WriteString(line)
+				if strings.Contains(line, "synthetic") {
+					break
+				}
 			}
+			first := prefix.String()
+			if !strings.Contains(first, "synthetic") {
+				releaseStream()
+				t.Fatal("early content missing")
+			}
+
 			var settledBefore int
 			if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM budget_reservations WHERE state='settled'`).Scan(&settledBefore); err != nil || settledBefore != 1 {
 				releaseStream()
@@ -295,7 +365,7 @@ func TestNewAPITwoProcessRecovery(t *testing.T) {
 		t.Fatal("data-plane termination did not return")
 	}
 	restartedNative := exec.Command(binary)
-	restartedNative.Env = append(os.Environ(), "GOVERNANCE_FIXTURE_DIR="+root, "GOVERNANCE_FIXTURE_UPSTREAM="+upstream.URL, "GOVERNANCE_FIXTURE_LISTEN="+target.Host)
+	restartedNative.Env = append(os.Environ(), "GOVERNANCE_FIXTURE_DIR="+root, "GOVERNANCE_FIXTURE_UPSTREAM="+upstream.URL, "GOVERNANCE_FIXTURE_PROTOCOL="+protocol, "GOVERNANCE_FIXTURE_LISTEN="+target.Host)
 	_, stopNativeAgain := start(restartedNative, filepath.Join(root, "address"))
 	defer stopNativeAgain()
 	// A recovery poll may observe this restart; it is not authority to replay.

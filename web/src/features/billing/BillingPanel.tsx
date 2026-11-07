@@ -32,6 +32,7 @@ export function BillingPanel({
   const client = useQueryClient();
   const [decision, setDecision] = useState('');
   const [csv, setCSV] = useState('');
+  const [supplier, setSupplier] = useState('aliyun');
   const [error, setError] = useState<unknown>(null);
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState('');
@@ -60,7 +61,7 @@ export function BillingPanel({
         method: 'POST',
         csrf,
         body: {
-          provider: data.get('provider'),
+          provider: supplier === '__reviewed' ? data.get('reviewed_supplier') : supplier,
           account_ref: data.get('account'),
           evidence_ref: data.get('evidence'),
           csv,
@@ -135,13 +136,32 @@ export function BillingPanel({
         >
           <label>
             账单供应商{' '}
-            <select name="provider" aria-label="账单供应商">
+            <select
+              name="provider"
+              aria-label="账单供应商"
+              value={supplier}
+              onChange={(event) => setSupplier(event.target.value)}
+            >
               <option value="aliyun">阿里云百炼</option>
               <option value="volcengine">火山方舟</option>
               <option value="zhipu">智谱</option>
               <option value="deepseek">DeepSeek</option>
+              <option value="__reviewed">其他已审核供应商</option>
             </select>
           </label>{' '}
+          {supplier === '__reviewed' && (
+            <label>
+              已审核供应商标识{' '}
+              <input
+                name="reviewed_supplier"
+                aria-label="已审核供应商标识"
+                required
+                maxLength={64}
+                pattern="[a-z][a-z0-9_\-]{0,63}"
+              />
+              <small>填写模型目录或该项目历史调用中的供应商标识。</small>
+            </label>
+          )}
           <label>
             供应商账户引用{' '}
             <input name="account" aria-label="供应商账户引用" required maxLength={128} />

@@ -365,6 +365,17 @@ test('normalized bill import, duplicate detection and rejection preserve budget'
     .fill(
       'record_id,request_id,period,currency,amount,input_tokens,output_tokens\nbrowser-invoice,,2026-11,CNY_MICRO,10,0,0\n',
     );
+  await page.getByLabel('账单供应商', { exact: true }).selectOption('__reviewed');
+  await page.getByLabel('已审核供应商标识', { exact: true }).fill('reviewed-browser');
+  const rejectedSupplier = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/billing/imports') && response.request().method() === 'POST',
+  );
+  await page.getByRole('button', { name: '导入标准账单', exact: true }).click();
+  const rejectedResponse = await rejectedSupplier;
+  expect(rejectedResponse.status()).toBe(400);
+  expect(rejectedResponse.request().postDataJSON().provider).toBe('reviewed-browser');
+  await page.getByLabel('账单供应商', { exact: true }).selectOption('aliyun');
   await page.getByRole('button', { name: '导入标准账单', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: '已导入 1 条账单' })).toBeVisible();
   await page.getByRole('button', { name: '导入标准账单', exact: true }).click();

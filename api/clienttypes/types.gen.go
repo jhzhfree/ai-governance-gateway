@@ -67,14 +67,6 @@ const (
 	UsageMismatch      BillingRecordIssues = "usage_mismatch"
 )
 
-// Defines values for BillingRecordProvider.
-const (
-	BillingRecordProviderAliyun     BillingRecordProvider = "aliyun"
-	BillingRecordProviderDeepseek   BillingRecordProvider = "deepseek"
-	BillingRecordProviderVolcengine BillingRecordProvider = "volcengine"
-	BillingRecordProviderZhipu      BillingRecordProvider = "zhipu"
-)
-
 // Defines values for BillingReviewAction.
 const (
 	Approve BillingReviewAction = "approve"
@@ -143,15 +135,6 @@ const (
 	ExecutionAttemptOutcomeCompleted  ExecutionAttemptOutcome = "completed"
 	ExecutionAttemptOutcomeFailed     ExecutionAttemptOutcome = "failed"
 	ExecutionAttemptOutcomeUnfinished ExecutionAttemptOutcome = "unfinished"
-)
-
-// Defines values for ExecutionAttemptProvider.
-const (
-	ExecutionAttemptProviderAliyun     ExecutionAttemptProvider = "aliyun"
-	ExecutionAttemptProviderDeepseek   ExecutionAttemptProvider = "deepseek"
-	ExecutionAttemptProviderMock       ExecutionAttemptProvider = "mock"
-	ExecutionAttemptProviderVolcengine ExecutionAttemptProvider = "volcengine"
-	ExecutionAttemptProviderZhipu      ExecutionAttemptProvider = "zhipu"
 )
 
 // Defines values for ExecutionAttemptRegion.
@@ -293,15 +276,6 @@ const (
 	ModelInfoCurrencyMOCK     ModelInfoCurrency = "MOCK"
 )
 
-// Defines values for ModelInfoProvider.
-const (
-	ModelInfoProviderAliyun     ModelInfoProvider = "aliyun"
-	ModelInfoProviderDeepseek   ModelInfoProvider = "deepseek"
-	ModelInfoProviderMock       ModelInfoProvider = "mock"
-	ModelInfoProviderVolcengine ModelInfoProvider = "volcengine"
-	ModelInfoProviderZhipu      ModelInfoProvider = "zhipu"
-)
-
 // Defines values for ModelInfoRegion.
 const (
 	ModelInfoRegionCnBeijing  ModelInfoRegion = "cn-beijing"
@@ -386,15 +360,6 @@ const (
 	RequestRecordStateUncertain      RequestRecordState = "uncertain"
 )
 
-// Defines values for RouteStatusProvider.
-const (
-	RouteStatusProviderAliyun     RouteStatusProvider = "aliyun"
-	RouteStatusProviderDeepseek   RouteStatusProvider = "deepseek"
-	RouteStatusProviderMock       RouteStatusProvider = "mock"
-	RouteStatusProviderVolcengine RouteStatusProvider = "volcengine"
-	RouteStatusProviderZhipu      RouteStatusProvider = "zhipu"
-)
-
 // Defines values for RouteStatusState.
 const (
 	Closed        RouteStatusState = "closed"
@@ -420,14 +385,6 @@ const (
 	Admin     SetMemberEnabledRestoreRole = "admin"
 	Developer SetMemberEnabledRestoreRole = "developer"
 	Viewer    SetMemberEnabledRestoreRole = "viewer"
-)
-
-// Defines values for StatementImportProvider.
-const (
-	Aliyun     StatementImportProvider = "aliyun"
-	Deepseek   StatementImportProvider = "deepseek"
-	Volcengine StatementImportProvider = "volcengine"
-	Zhipu      StatementImportProvider = "zhipu"
 )
 
 // Defines values for UsageCurrency.
@@ -559,30 +516,32 @@ type BillingPage struct {
 
 // BillingRecord defines model for BillingRecord.
 type BillingRecord struct {
-	AccountRef        string                `json:"account_ref"`
-	Actual            *string               `json:"actual"`
-	Amount            string                `json:"amount"`
-	CreatedAt         time.Time             `json:"created_at"`
-	Currency          BillingRecordCurrency `json:"currency"`
-	Decision          BillingRecordDecision `json:"decision"`
-	EvidenceRef       string                `json:"evidence_ref"`
-	Id                string                `json:"id"`
-	ImportId          string                `json:"import_id"`
-	Importer          BillingActor          `json:"importer"`
-	InputTokens       int64                 `json:"input_tokens"`
-	Issues            []BillingRecordIssues `json:"issues"`
-	LedgerState       string                `json:"ledger_state"`
-	OutputTokens      int64                 `json:"output_tokens"`
-	Period            string                `json:"period"`
-	Provider          BillingRecordProvider `json:"provider"`
-	Reason            *string               `json:"reason"`
-	RecordId          string                `json:"record_id"`
-	RequestId         string                `json:"request_id"`
-	Reserved          *string               `json:"reserved"`
-	ResolvedRequestId *string               `json:"resolved_request_id"`
-	ReviewedAt        *time.Time            `json:"reviewed_at"`
-	Reviewer          *BillingActor         `json:"reviewer"`
-	Revision          int                   `json:"revision"`
+	AccountRef   string                `json:"account_ref"`
+	Actual       *string               `json:"actual"`
+	Amount       string                `json:"amount"`
+	CreatedAt    time.Time             `json:"created_at"`
+	Currency     BillingRecordCurrency `json:"currency"`
+	Decision     BillingRecordDecision `json:"decision"`
+	EvidenceRef  string                `json:"evidence_ref"`
+	Id           string                `json:"id"`
+	ImportId     string                `json:"import_id"`
+	Importer     BillingActor          `json:"importer"`
+	InputTokens  int64                 `json:"input_tokens"`
+	Issues       []BillingRecordIssues `json:"issues"`
+	LedgerState  string                `json:"ledger_state"`
+	OutputTokens int64                 `json:"output_tokens"`
+	Period       string                `json:"period"`
+
+	// Provider Recorded supplier identity; new-api directories may use independently reviewed supplier identifiers. Native credential/configuration APIs retain their fixed allowlist.
+	Provider          string        `json:"provider"`
+	Reason            *string       `json:"reason"`
+	RecordId          string        `json:"record_id"`
+	RequestId         string        `json:"request_id"`
+	Reserved          *string       `json:"reserved"`
+	ResolvedRequestId *string       `json:"resolved_request_id"`
+	ReviewedAt        *time.Time    `json:"reviewed_at"`
+	Reviewer          *BillingActor `json:"reviewer"`
+	Revision          int           `json:"revision"`
 }
 
 // BillingRecordCurrency defines model for BillingRecord.Currency.
@@ -593,9 +552,6 @@ type BillingRecordDecision string
 
 // BillingRecordIssues defines model for BillingRecord.Issues.
 type BillingRecordIssues string
-
-// BillingRecordProvider defines model for BillingRecord.Provider.
-type BillingRecordProvider string
 
 // BillingReview defines model for BillingReview.
 type BillingReview struct {
@@ -1041,27 +997,26 @@ type Error struct {
 
 // ExecutionAttempt One durable attempt per reserved request; no retries. Completed means valid upstream result and durable local accounting/metadata, not client receipt. Unfinished can include crashed processes. Timing is wall-clock gateway execution time including accounting and metadata writes. Null on old or unrecorded requests.
 type ExecutionAttempt struct {
-	AttemptId      string                   `json:"attempt_id"`
-	DurationMs     *int64                   `json:"duration_ms"`
-	ErrorCode      string                   `json:"error_code"`
-	FinishedAt     *time.Time               `json:"finished_at"`
-	InputTokens    *int64                   `json:"input_tokens"`
-	Model          string                   `json:"model"`
-	Outcome        ExecutionAttemptOutcome  `json:"outcome"`
-	OutputTokens   *int64                   `json:"output_tokens"`
-	Provider       ExecutionAttemptProvider `json:"provider"`
-	Region         ExecutionAttemptRegion   `json:"region"`
-	RequestId      string                   `json:"request_id"`
-	StartedAt      time.Time                `json:"started_at"`
-	Stream         bool                     `json:"stream"`
-	UpstreamStatus *int                     `json:"upstream_status"`
+	AttemptId    string                  `json:"attempt_id"`
+	DurationMs   *int64                  `json:"duration_ms"`
+	ErrorCode    string                  `json:"error_code"`
+	FinishedAt   *time.Time              `json:"finished_at"`
+	InputTokens  *int64                  `json:"input_tokens"`
+	Model        string                  `json:"model"`
+	Outcome      ExecutionAttemptOutcome `json:"outcome"`
+	OutputTokens *int64                  `json:"output_tokens"`
+
+	// Provider Recorded supplier identity; new-api directories may use independently reviewed supplier identifiers. Native credential/configuration APIs retain their fixed allowlist.
+	Provider       string                 `json:"provider"`
+	Region         ExecutionAttemptRegion `json:"region"`
+	RequestId      string                 `json:"request_id"`
+	StartedAt      time.Time              `json:"started_at"`
+	Stream         bool                   `json:"stream"`
+	UpstreamStatus *int                   `json:"upstream_status"`
 }
 
 // ExecutionAttemptOutcome defines model for ExecutionAttempt.Outcome.
 type ExecutionAttemptOutcome string
-
-// ExecutionAttemptProvider defines model for ExecutionAttempt.Provider.
-type ExecutionAttemptProvider string
 
 // ExecutionAttemptRegion defines model for ExecutionAttempt.Region.
 type ExecutionAttemptRegion string
@@ -1490,15 +1445,14 @@ type ModelInfo struct {
 	MaxOutputTokens  int64             `json:"max_output_tokens"`
 	OutputPerMillion int64             `json:"output_per_million"`
 	PriceVersion     string            `json:"price_version"`
-	Provider         ModelInfoProvider `json:"provider"`
-	Region           ModelInfoRegion   `json:"region"`
+
+	// Provider Recorded supplier identity; new-api directories may use independently reviewed supplier identifiers. Native credential/configuration APIs retain their fixed allowlist.
+	Provider string          `json:"provider"`
+	Region   ModelInfoRegion `json:"region"`
 }
 
 // ModelInfoCurrency defines model for ModelInfo.Currency.
 type ModelInfoCurrency string
-
-// ModelInfoProvider defines model for ModelInfo.Provider.
-type ModelInfoProvider string
 
 // ModelInfoRegion defines model for ModelInfo.Region.
 type ModelInfoRegion string
@@ -1731,14 +1685,13 @@ type RotateBudgetPeriod struct {
 
 // RouteStatus defines model for RouteStatus.
 type RouteStatus struct {
-	Model      string              `json:"model"`
-	Provider   RouteStatusProvider `json:"provider"`
-	RetryAfter int                 `json:"retry_after"`
-	State      RouteStatusState    `json:"state"`
-}
+	Model string `json:"model"`
 
-// RouteStatusProvider defines model for RouteStatus.Provider.
-type RouteStatusProvider string
+	// Provider Recorded supplier identity; new-api directories may use independently reviewed supplier identifiers. Native credential/configuration APIs retain their fixed allowlist.
+	Provider   string           `json:"provider"`
+	RetryAfter int              `json:"retry_after"`
+	State      RouteStatusState `json:"state"`
+}
 
 // RouteStatusState defines model for RouteStatus.State.
 type RouteStatusState string
@@ -1816,14 +1769,13 @@ type SetProviderCredential struct {
 
 // StatementImport defines model for StatementImport.
 type StatementImport struct {
-	AccountRef  string                  `json:"account_ref"`
-	Csv         string                  `json:"csv"`
-	EvidenceRef string                  `json:"evidence_ref"`
-	Provider    StatementImportProvider `json:"provider"`
-}
+	AccountRef  string `json:"account_ref"`
+	Csv         string `json:"csv"`
+	EvidenceRef string `json:"evidence_ref"`
 
-// StatementImportProvider defines model for StatementImport.Provider.
-type StatementImportProvider string
+	// Provider Recorded supplier identity; new-api directories may use independently reviewed supplier identifiers. Native credential/configuration APIs retain their fixed allowlist.
+	Provider string `json:"provider"`
+}
 
 // SupplierStatus defines model for SupplierStatus.
 type SupplierStatus struct {

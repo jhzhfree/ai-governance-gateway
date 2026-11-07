@@ -277,3 +277,31 @@ func TestBillDuplicateRequestAndTerminalDifferenceBlocked(t *testing.T) {
 		t.Fatal("terminal discrepancy rewrote settled amount")
 	}
 }
+
+func TestReviewedSupplierHistoricalBillingAndScope(t *testing.T) {
+	f := providerSetup(t, testutil.SupplierFixture(t))
+	o, p, _ := providerProject(f)
+	base := projectPath(o, p) + "/billing"
+	in := billImport("reviewed-invoice,reviewed-hold,2026-11,CNY_MICRO,40,3,2")
+	in.Provider = "reviewed-compatible"
+	f.request(f.token("alice"), "POST", base+"/imports", in, 400)
+	heldForBill(t, f, o, p, "reviewed-hold", 100)
+	if _, err := f.pool.Exec(context.Background(), `UPDATE inference_attempts SET provider='reviewed-compatible',region='cn-mainland' WHERE request_id='reviewed-hold'`); err != nil {
+		t.Fatal(err)
+	}
+	f.member(o, "reviewer", "admin")
+	f.request(f.token("alice"), "POST", base+"/imports", in, 200)
+	records := parse[billPage](t, f.request(f.token("alice"), "GET", base+"/records", nil, 200))
+	if len(records.Data) != 1 || records.Data[0].Provider != "reviewed-compatible" {
+		t.Fatal("supplier attribution lost")
+	}
+	review := base + "/records/" + records.Data[0].ID + "/review"
+	f.request(f.token("alice"), "POST", review, approveBill("reviewed-hold"), 403)
+	f.request(f.token("reviewer"), "POST", review, approveBill("reviewed-hold"), 200)
+	f.request(f.token("reviewer"), "POST", review, approveBill("reviewed-hold"), 200)
+	reservation, err := budget.New(f.pool).Get(context.Background(), "reviewed-hold")
+	if err != nil || reservation.Actual == nil || *reservation.Actual != 40 || reservation.State != "settled" {
+		t.Fatal("reviewed supplier did not settle once")
+	}
+	f.request(f.token("outsider"), "GET", base+"/records", nil, 404)
+}
