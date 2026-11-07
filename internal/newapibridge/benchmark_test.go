@@ -61,7 +61,7 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 			b.Fatal("synthetic upstream delay must be 0..10000 ms")
 		}
 	}
-	for _, protocol := range []string{"chat", "stream", "embedding", "responses", "responses_stream"} {
+	for _, protocol := range []string{"chat", "stream", "embedding", "responses", "responses_stream", "messages", "cache_ttl"} {
 		for _, content := range []bool{false, true} {
 			b.Run(fmt.Sprintf("%s/content=%t", protocol, content), func(b *testing.B) {
 				ctx := context.Background()
@@ -77,7 +77,11 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 						}
 					}
 
-					if r.Header.Get("Authorization") != "Bearer syntheticvendor" {
+					credential := r.Header.Get("Authorization")
+					if protocol == "cache_ttl" {
+						credential = "Bearer " + r.Header.Get("X-Api-Key")
+					}
+					if credential != "Bearer syntheticvendor" {
 						w.WriteHeader(400)
 						return
 					}
@@ -89,6 +93,18 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 						}
 					}
 					w.Header().Set("Content-Type", "application/json")
+					if protocol == "cache_ttl" {
+						if r.URL.Path != "/v1/messages" {
+							w.WriteHeader(400)
+							return
+						}
+						fmt.Fprint(w, `{"id":"msg_synthetic","type":"message","role":"assistant","model":"governance-model","content":[{"type":"text","text":"synthetic"}],"stop_reason":"end_turn","usage":{"input_tokens":2,"output_tokens":3,"cache_read_input_tokens":4,"cache_creation_input_tokens":5,"cache_creation":{"ephemeral_5m_input_tokens":3,"ephemeral_1h_input_tokens":2}}}`)
+						return
+					}
+					if protocol == "messages" {
+						fmt.Fprint(w, `{"id":"synthetic","object":"chat.completion","model":"governance-model","choices":[{"index":0,"message":{"role":"assistant","content":"synthetic"},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5,"prompt_tokens_details":{"cached_tokens":1,"cached_creation_tokens":0}}}`)
+						return
+					}
 					if protocol == "embedding" {
 						fmt.Fprint(w, `{"object":"list","data":[{"object":"embedding","index":0,"embedding":[0.1,0.2]}],"model":"governance-model","usage":{"prompt_tokens":2,"total_tokens":2}}`)
 						return
@@ -111,9 +127,13 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 				}))
 				b.Cleanup(upstream.Close)
 				root := b.TempDir()
+				nativeProtocol := "openai"
+				if protocol == "cache_ttl" {
+					nativeProtocol = "anthropic"
+				}
 				command := exec.Command(binary)
 				command.Dir = root
-				command.Env = append(os.Environ(), "GOVERNANCE_FIXTURE_DIR="+root, "GOVERNANCE_FIXTURE_UPSTREAM="+upstream.URL, "GOVERNANCE_FIXTURE_PROTOCOL=openai", "SQL_MAX_OPEN_CONNS="+sqliteConnections, "SQL_MAX_IDLE_CONNS=1", "GOMAXPROCS="+strconv.Itoa(runtime.GOMAXPROCS(0)))
+				command.Env = append(os.Environ(), "GOVERNANCE_FIXTURE_DIR="+root, "GOVERNANCE_FIXTURE_UPSTREAM="+upstream.URL, "GOVERNANCE_FIXTURE_PROTOCOL="+nativeProtocol, "SQL_MAX_OPEN_CONNS="+sqliteConnections, "SQL_MAX_IDLE_CONNS=1", "GOMAXPROCS="+strconv.Itoa(runtime.GOMAXPROCS(0)))
 				nativeLog, err := os.CreateTemp(root, "native-*.log")
 				if err != nil {
 					b.Fatal("fixture log unavailable")
@@ -169,6 +189,12 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 				if protocol != "embedding" {
 					cfg.Models[0].MaxOutputTokens = 32
 				}
+				if protocol == "messages" || protocol == "cache_ttl" {
+					cfg.Models[0].CachePricing = &provider.CachePricing{ReadPerMillion: 500000, WritePerMillion: 3000000}
+					if protocol == "cache_ttl" {
+						cfg.Models[0].CachePricing.WriteTTL = &provider.CacheWriteTTL{FiveMinutePerMillion: 3000000, OneHourPerMillion: 6000000}
+					}
+				}
 				directory, err := provider.NewGoverned(cfg)
 				if err != nil {
 					b.Fatal(err)
@@ -212,6 +238,13 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 				path := "/v1/chat/completions"
 				payload := `{"model":"zhipu/fixture","max_tokens":32,"messages":[{"role":"user","content":"synthetic"}]}`
 				cost := int64(16)
+				if protocol == "messages" {
+					path = "/v1/messages"
+					cost = 15
+				}
+				if protocol == "cache_ttl" {
+					cost = 39
+				}
 				if protocol == "stream" {
 					payload = `{"model":"zhipu/fixture","stream":true,"max_tokens":32,"messages":[{"role":"user","content":"synthetic"}]}`
 				}
@@ -243,6 +276,10 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 					}
 					if w.Code != 200 {
 						return false
+					}
+					if protocol == "messages" {
+						var result provider.MessagesResult
+						return json.Unmarshal(w.Body.Bytes(), &result) == nil && result.Type == "message" && result.StopReason == "end_turn" && result.Usage.InputTokens == 1 && result.Usage.CacheReadInputTokens == 1 && result.Usage.CacheCreationInputTokens == 0 && result.Usage.OutputTokens == 3
 					}
 					if protocol == "responses_stream" {
 						return strings.Contains(w.Body.String(), `"type":"response.completed"`) && !strings.Contains(w.Body.String(), "[DONE]")
@@ -287,6 +324,9 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 					b.Logf("synthetic native SQLite lock diagnostics: %d", strings.Count(string(logData), "sqlite error 5")+strings.Count(string(logData), "database is locked"))
 					b.Fatalf("benchmark requests failed or retried: failures=%d calls=%d expected=%d", failures.Load(), upstreamCalls.Load(), b.N+1)
 				}
+				if delayMS >= 1000 && b.N >= workers && (peak.Load() != int64(workers) || gatewayPeak.Load() != int64(workers)) {
+					b.Fatal("configured long-call concurrency was not reached")
+				}
 				var held, spent int64
 				if err := db.QueryRow(ctx, `SELECT held,spent FROM budget_accounts WHERE organization_id=$1 AND project_id=''`, org.ID).Scan(&held, &spent); err != nil || held != 0 || spent != int64(b.N+1)*cost {
 					b.Fatal("benchmark account conservation failed")
@@ -308,6 +348,12 @@ func BenchmarkNewAPIGovernance(b *testing.B) {
 					b.Fatal("missing durable receipts")
 				}
 
+				if protocol == "cache_ttl" {
+					var proven int64
+					if err := db.QueryRow(ctx, `SELECT count(*) FROM newapi_execution_receipts WHERE cache_details_version=2 AND cache_read_tokens=4 AND cache_write_tokens=5 AND cache_write_5m_tokens=3 AND cache_write_1h_tokens=2 AND actual=39`).Scan(&proven); err != nil || proven != int64(b.N+1) {
+						b.Fatal("mixed duration evidence missing under load")
+					}
+				}
 				var complete, total int64
 				if err := db.QueryRow(ctx, `SELECT count(*) FILTER (WHERE state='complete'),count(*) FROM content_audit_records`).Scan(&complete, &total); err != nil {
 					b.Fatal("audit completion query failed")

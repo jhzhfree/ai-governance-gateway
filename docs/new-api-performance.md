@@ -105,3 +105,28 @@ bash scripts/benchmark-newapi.sh
 三轮每请求分配字节均降低约 9–12%，分配次数降低约 11%；吞吐无重复性退化，但尾延迟未一致改善。只将减少三次检查点往返和分配下降作为本轮结论，不作为生产 SLA。优化后另外两组审计开启的 20 并发/2 秒合成长流全部通过（39.217 秒），完整回执/费用/封存一致；其中部分时间与测试二进制编译重叠，该轮仅为正确性证据，不用于吞吐对比。
 
 初始化批次阶段完整门禁：同一 d7ae87e36 竞态 fixture，`AIGW_VERIFY_RESTORE=1 AIGW_VERIFY_SDK=1 bash scripts/verify.sh` 退出码 0。HTTP API 274.286 秒、bridge 390.659 秒、当前/旧版恢复 4.793 秒、最终 SDK/Responses 20.736 秒；后端 race/vet/契约通过。子进程专用 TestNewAPIControlHelper 在主测试进程按设计 skip，其实际子进程场景已执行，不是缺少测试数据库或二进制而跳过验收。公共字段/UI 未变化，本阶段未重复浏览器。
+
+## Messages 与混合缓存时长：20 并发扩展基线
+
+控制面生产逻辑固定在 ecb57bb9cd25164ef3384738071fda8f1b9f2c5f；本阶段只扩充 benchmark 与验证文档。数据面固定 600c8a7071fb7ec445f3a317a4bc7b5c21014cfc，独立非 race 二进制。实际 cgroup cpu.max 为 `400000 100000`（4 vCPU），memory.max 为 `17179869184`（16 GiB）。目标用户提供“4核8c 32G，峰值并发20”；这里的 GOMAXPROCS=4/8 是同一 4 vCPU 配额上的调度比较，不是两种物理 CPU 测试，也不是目标 32 GiB 环境验收。
+
+新增 `messages`（公开 Messages JSON，OpenAI 原始缓存读 1、写 0、普通输入 1、输出 3）和 `cache_ttl`（公开 Chat JSON、Anthropic 原始输入 2＋缓存读 4＋缓存写 5，写入分布 3/2、输出 3）。每组 100 个计时请求＋1 次预热，20 workers，每个合成供应商调用延迟 2000ms，内容审计开/关分别测试。8 组全部通过，总命令耗时 151.730 秒。
+
+| 场景 | 内容审计 | GOMAXPROCS | req/s | p50 ms | p95 ms | p99 ms | 控制面 B/op |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Messages JSON | 关 | 4 | 9.396 | 2054 | 2309 | 2362 | 79669 |
+| Messages JSON | 关 | 8 | 9.402 | 2041 | 2313 | 2369 | 85138 |
+| Messages JSON | 开 | 4 | 9.346 | 2060 | 2351 | 2416 | 111638 |
+| Messages JSON | 开 | 8 | 9.219 | 2069 | 2421 | 2520 | 121180 |
+| 混合写入时长 | 关 | 4 | 9.291 | 2081 | 2323 | 2388 | 79746 |
+| 混合写入时长 | 关 | 8 | 9.374 | 2041 | 2347 | 2406 | 84087 |
+| 混合写入时长 | 开 | 4 | 9.258 | 2082 | 2350 | 2418 | 113623 |
+| 混合写入时长 | 开 | 8 | 9.243 | 2079 | 2332 | 2419 | 124823 |
+
+所有组的网关与供应商实测峰值均为 20，新增断言拒绝“配置 20 但实际未达到”的长调用基线。每组无错误、无重试，供应商实际调用数与持久回执数均为 101；Messages 组每次费用 15 微人民币，总额 1515；混合时长组每次 39，总额 3939，所有回执 version=2 且 5 分钟/1 小时原始量均为 3/2。预算 held=0，审计开启时 101 份全部 complete，关闭时无正文记录，审计链验证通过。
+
+复现参数：`TEST_NEWAPI_SERVER_BINARY=<上述非race二进制> AIGW_BENCH_PATTERN='^BenchmarkNewAPIGovernance$/(messages|cache_ttl)/' AIGW_BENCH_CPUS=4,8 AIGW_BENCH_ITERATIONS=100 AIGW_BENCH_CONCURRENCY=20 AIGW_BENCH_UPSTREAM_DELAY_MS=2000 bash scripts/benchmark-newapi.sh`，另需专用 TEST_DATABASE_URL 和固定 Go。先以 5 次请求、GOMAXPROCS=4 无延迟执行四组冒烟，均通过；长调用和完整回归分别运行，避免压测期间启动额外测试竞争资源。
+
+这些是本地合成供应商的端到端延迟，包含 2 秒固定等待；不能从百分位直接减去 2 秒声称精确网关开销。B/op 是计时控制面进程的分配量，不是 RSS/峰值内存，不包含独立数据面和 PostgreSQL。未测真实 TLS/网络/IdP/设备 Agent、长时间 soak、目标 32 GiB、跨主机故障或真实账单，不据此承诺生产 SLA。后端完整门禁结果另记。
+
+容量扩展提交前再执行 `TEST_NEWAPI_SERVER_BINARY=<600c8a707竞态二进制> AIGW_VERIFY_RESTORE=1 bash scripts/verify.sh`，退出码 0。全部后端 race/vet、模块/格式/API 契约、数据库与双进程故障测试，以及旧版/当前逻辑恢复通过；HTTP API 288.751 秒，恢复 4.917 秒。此阶段未改 Web/公共 API/生产逻辑，未重复浏览器和 SDK；上一细分计费阶段已完成相应完整门禁。开发日志为 `ttl-messages-capacity-smoke.log`、`ttl-messages-capacity20.log`、`ttl-capacity-full-backend.log`。
