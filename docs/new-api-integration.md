@@ -161,7 +161,7 @@ export AIGW_NEWAPI_ORIGIN=https://newapi.internal.example
 - 企业迁移专项验证 v25→v26、连续启动、历史占额保留、失败 DDL/历史回滚和新表漂移阻断。恢复收据插入失败时预算同步回滚，并发重复投递只结算一次。
 - 双进程联调使用实际 new-api 路由/迁移/鉴权/Relay 和企业 Handler/恢复器；授权与模型上游为合成 fixture，不是生产身份/供应商验收。JSON 与 SSE 均通过。控制面在数据面持久完成、成功响应尚被故障代理扣留时被 SIGKILL，重启恢复三笔结算，共 48 微元，物理请求仍为 3 次。
 - 数据面在供应商已观察到第 4 次请求、尚无完成证据时被 SIGKILL；同一 SQLite 数据重启后，保留 1 笔 uncertain、288 微元占额，既有支出仍 48 微元，物理请求仍为 4 次。fixture 显式设置原生重试次数为 3，治理模式仍不重试。
-- CI 固定使用 new-api `f95a8968a4165d2ce3eb4a880c921787760cdbd8` 构建进程 fixture，设置 `TEST_NEWAPI_SERVER_BINARY` 才计作完成该联调；不配置时的 skip 不是验收通过。
+- CI 固定使用 new-api `ba305e7754a1fe37a2d76050e440ec95387bfe89` 构建进程 fixture，设置 `TEST_NEWAPI_SERVER_BINARY` 才计作完成该联调；不配置时的 skip 不是验收通过。
 
 默认执行器仍为 native；本轮没有切换生产流量、发布 V1.0 标签或宣称 AGPL 商业许可问题已解决。目标部署实时流式延迟验收、生产容量与跨主机故障、真实 IdP/终端/供应商账号、安装升级和备份恢复的联合验收仍属于发布门禁。后续协议扩展必须逐项提供用量与审计证据，不能直接开放全部原生功能。
 
@@ -333,3 +333,12 @@ export AIGW_NEWAPI_ORIGIN=https://newapi.internal.example
 合成工具/图片故障用例的输入上限提升到 1024，以覆盖实际本地估算；第四笔未知派发保留 2080 微元（1024×2 + 8×4），不是此前 128 上限的 288 微元。三笔完成仍由原始用量结算：工具 48、图片 108 微元。没有数据库 schema 变化，仍为 v27。
 
 输入准入阶段完整门禁：固定数据面 `f95a8968a4165d2ce3eb4a880c921787760cdbd8` 的专用竞态 fixture，执行 `TEST_NEWAPI_SERVER_BINARY=... AIGW_VERIFY_RESTORE=1 bash scripts/verify.sh`，退出码 0。含全部后端竞态、真实 PostgreSQL、三协议文本/工具与双协议图片双进程故障、当前及旧版逻辑恢复。此前本地误用主程序入口的运行已废弃，不计入证据；CI 固定使用专用 fixture 入口。
+
+
+### 最终派发配置复核
+
+原有入口已拒绝渠道参数/头部覆盖、系统提示注入、body passthrough、全局 Chat→Responses 和自定义协议转换。本阶段在转换完成、取得持久派发权之前追加最终复核：运行时头部覆盖、`tls_insecure_skip_verify`、模型映射标记或实际模型名与审核模型名不一致均拒绝。受控目录的 `upstream_model` 必须直接填写真实目标模型，不能依赖 new-api alias、自动模型后缀改写或模型映射完成隐藏切换。
+
+配置拒绝不访问供应商，写入 cancelled 凭据供控制面恢复退款，不生成完成用量。已覆盖三类真实 relay 中的 model_mapping/TLS 配置拒绝及单元测试的运行时头部变更。此复核不冻结渠道端点、代理和凭证，也不替代配置版本化审核；这些变化仍需运营变更管理和驻留复审，不能声称已实现完整渠道配置指纹。
+
+最终派发复核阶段：固定 `ba305e7754a1fe37a2d76050e440ec95387bfe89` 专用竞态 fixture，完整执行 `AIGW_VERIFY_RESTORE=1 bash scripts/verify.sh`，退出码 0；三协议文本/函数、双协议图片故障矩阵、全部后端和真实数据库恢复通过。无数据库或公共 API 变化。
