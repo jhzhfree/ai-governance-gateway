@@ -77,6 +77,10 @@ export async function api<T>(
 
 export type ProviderConfiguration = components['schemas']['ProviderConfiguration'];
 export type ProviderConfigurationStatus = components['schemas']['ProviderConfigurationStatus'];
+export type NewAPIChannel = components['schemas']['NewAPIChannel'];
+export type NewAPIChannelPage = components['schemas']['NewAPIChannelPage'];
+export type NewAPIChannelOperation = components['schemas']['NewAPIChannelOperation'];
+export type NewAPIChannelOperations = components['schemas']['NewAPIChannelOperations'];
 
 export type BudgetAccount = components['schemas']['BudgetAccount'];
 export type BudgetChange = components['schemas']['BudgetChange'];

@@ -9,6 +9,7 @@ import (
 // RevertCacheTTLMigration removes only v30 in disposable upgrade fixtures.
 func RevertCacheTTLMigration(t testing.TB, pool *pgxpool.Pool) {
 	t.Helper()
+	RevertChannelManagementMigration(t, pool)
 	_, err := pool.Exec(context.Background(), `ALTER TABLE newapi_execution_bindings DROP CONSTRAINT newapi_cache_ttl_tariff_check;
  ALTER TABLE newapi_execution_bindings DROP COLUMN cache_write_5m_price,DROP COLUMN cache_write_1h_price;
  ALTER TABLE newapi_execution_receipts DROP CONSTRAINT newapi_cache_evidence_check;

@@ -56,7 +56,7 @@ func TestFreshSchemaAndReadOnlyStatus(t *testing.T) {
 	pool := testutil.EmptyDatabase(t)
 	ctx := context.Background()
 	initial := status(t, pool)
-	if initial.Managed || initial.Ready || initial.CurrentVersion != 0 || len(initial.Pending) != 30 {
+	if initial.Managed || initial.Ready || initial.CurrentVersion != 0 || len(initial.Pending) != 31 {
 		t.Fatal("unexpected unmanaged status")
 	}
 	if relation(t, pool, "aigw_schema_migrations") {
@@ -69,7 +69,7 @@ func TestFreshSchemaAndReadOnlyStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := status(t, pool)
-	if !before.Ready || before.CurrentVersion != 30 || len(before.Applied) != 30 {
+	if !before.Ready || before.CurrentVersion != 31 || len(before.Applied) != 31 {
 		t.Fatal("fresh migration incomplete")
 	}
 	for _, a := range before.Applied {
@@ -203,7 +203,7 @@ func TestConcurrentMigrationsRunExactlyOnce(t *testing.T) {
 	close(start)
 	wg.Wait()
 	r := status(t, pool)
-	if len(r.Applied) != 30 || !r.Ready {
+	if len(r.Applied) != 31 || !r.Ready {
 		t.Fatal("concurrent migration history invalid")
 	}
 }
@@ -1125,5 +1125,37 @@ func TestCacheTTLUpgradeRollbackAndReadiness(t *testing.T) {
 	execSQL(t, pool, `ALTER TABLE newapi_execution_bindings DROP CONSTRAINT newapi_cache_ttl_tariff_check`)
 	if database.Check(ctx, pool) == nil {
 		t.Fatal("missing cache tariff constraint accepted")
+	}
+}
+
+func TestChannelManagementUpgradeRollbackAndReadiness(t *testing.T) {
+	pool, ledger, scope := testutil.Database(t)
+	ctx := context.Background()
+	testutil.Accounts(t, ledger, scope, 100, 100)
+	testutil.RevertChannelManagementMigration(t, pool)
+	execSQL(t, pool, `ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v31 CHECK(version<>31)`)
+	if database.Migrate(ctx, pool) == nil {
+		t.Fatal("failed channel management upgrade accepted")
+	}
+	var exists bool
+	if err := pool.QueryRow(ctx, `SELECT to_regclass('newapi_channel_operations') IS NOT NULL`).Scan(&exists); err != nil || exists {
+		t.Fatal("failed migration left administration tables")
+	}
+	execSQL(t, pool, `ALTER TABLE aigw_schema_migrations DROP CONSTRAINT reject_v31`)
+	for range 2 {
+		if err := database.Migrate(ctx, pool); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := database.Check(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	var accounts int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM budget_accounts`).Scan(&accounts); err != nil || accounts != 2 {
+		t.Fatal("channel migration changed existing accounts")
+	}
+	execSQL(t, pool, `ALTER TABLE newapi_channel_operations DROP COLUMN data_plane_origin`)
+	if database.Check(ctx, pool) == nil {
+		t.Fatal("administration schema drift accepted")
 	}
 }

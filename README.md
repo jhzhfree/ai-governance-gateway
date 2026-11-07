@@ -11,6 +11,7 @@ V1 开发分支默认在网关启动时自动执行版本化数据库升级，�
 - [预算运营与关键字匹配](docs/budget-and-keywords.md)
 - [P0/P1 交付跟踪](docs/p0-p1-delivery.md)
 - [真实供应商页面配置与应用接入](docs/provider-management.md)
+- [new-api 双进程部署与统一渠道管理](docs/new-api-deployment.md#统一供应商渠道管理)
 - [Ubuntu 24.04 环境搭建、开发与部署](docs/deployment/ubuntu-24.04.md)
 - [开发环境安装记录（本机实测）](docs/dev-environment-setup.md)
 - [开发调试与构建发布命令](docs/dev-and-release-commands.md)
@@ -45,7 +46,7 @@ V1 开发分支默认在网关启动时自动执行版本化数据库升级，�
 
 首期提供 Web 控制台、终端 TUI 和兼容 OpenAI 常用接口的网关。终端暂指命令行交互界面，移动端、桌面壳及 Agent 编排不在首期范围。
 
-供应商 API Key 现支持页面录入/替换与加密存储（迁移 0013），配置前完成独立主密钥初始化，详见[页面凭证配置](docs/provider-credentials.md)。
+原生执行模式的供应商 API Key 支持页面录入/替换与加密存储（迁移 0013），配置前完成独立主密钥初始化，详见[页面凭证配置](docs/provider-credentials.md)。显式 newapi 模式通过同一控制台管理真实 new-api 渠道，供应商凭据由数据面保存，企业侧保存版本化模型审核与非秘密操作历史（迁移 0031）；两种模式的凭据存储不能混同。
 
 部署级指标：见 [境内 Prometheus 监控配置](docs/monitoring.md)。`AIGW_METRICS_TOKEN` 为空时关闭 `/metrics`，启用后需要独立抓取令牌。
 

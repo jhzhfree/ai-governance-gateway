@@ -44,6 +44,7 @@ type migration struct {
 const legacyBaselineVersion = 3
 
 var managedTables = map[int][]string{
+	31: {"newapi_channel_operations", "newapi_model_configuration", "newapi_model_configuration_events"},
 	26: {"newapi_execution_bindings", "newapi_execution_receipts"},
 	25: {"system_management_events"},
 	23: {"terminal_devices", "device_state_events", "project_device_policies", "device_policy_events", "device_sessions", "device_proof_nonces", "device_request_bindings"},

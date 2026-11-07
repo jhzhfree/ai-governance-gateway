@@ -59,9 +59,10 @@ GO_BIN="$go_bin" bash modules/engine/scripts/verify.sh
 GO_BIN="$go_bin" bash scripts/check-go-api.sh
 "$go_bin" vet -mod=readonly ./api/... ./cmd/... ./internal/...
 # Go's timeout covers the entire package, not each individual test. The growing
-# PostgreSQL/race HTTP API suite exceeds two minutes in both local and hosted
-# runners. Keep one default for CI and local runs; per-operation deadlines remain.
-test_timeout="${AIGW_GO_TEST_TIMEOUT:-600s}"
+# PostgreSQL/race and dual-process recovery suites can exceed ten minutes on
+# shared runners. Keep one default for CI and local runs; per-operation and
+# per-scenario failure deadlines remain unchanged.
+test_timeout="${AIGW_GO_TEST_TIMEOUT:-900s}"
 printf 'Backend package timeout: %s (race enabled)\n' "$test_timeout"
 "$go_bin" test -mod=readonly -race -count=1 -timeout="$test_timeout" -v ./api/... ./cmd/... ./internal/...
 
@@ -69,7 +70,7 @@ if [[ "${AIGW_VERIFY_WEB:-0}" == 1 ]]; then
   npm --prefix web ci --no-audit --no-fund
   npm --prefix web run api:check
   npm --prefix web run build
-  "$go_bin" test -mod=readonly -race -tags=web_e2e -run '^Test(ConsoleBrowser|LocalConsoleBrowser)$' -count=1 -timeout=240s -v ./internal/browser
+  "$go_bin" test -mod=readonly -race -tags=web_e2e -run '^Test(ConsoleBrowser|LocalConsoleBrowser|NewAPIConsoleBrowser)$' -count=1 -timeout=360s -v ./internal/browser
 fi
 
 # Optional recovery gate requires compatible local PostgreSQL client tools.

@@ -16,7 +16,7 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/contentaudit"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
 	"github.com/jhzhfree/ai-governance-gateway/internal/localauth"
-	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
+	"github.com/jhzhfree/ai-governance-gateway/internal/newapibridge"
 	"github.com/jhzhfree/ai-governance-gateway/internal/systemhost"
 )
 
@@ -30,15 +30,16 @@ var (
 const MaxAPIAmount int64 = 9007199254740991
 
 type Store struct {
-	host          systemhost.Agent
-	hostAdmin     identity.Principal
-	hostNode      string
-	deviceOrigin  string
-	localIdentity *localauth.Service
-	providers     *provider.Manager
-	content       *contentaudit.Service
-	pool          *pgxpool.Pool
-	catalog       ModelCatalog
+	channelManager *newapibridge.ChannelManager
+	host           systemhost.Agent
+	hostAdmin      identity.Principal
+	hostNode       string
+	deviceOrigin   string
+	localIdentity  *localauth.Service
+	providers      ProviderManagement
+	content        *contentaudit.Service
+	pool           *pgxpool.Pool
+	catalog        ModelCatalog
 }
 
 func New(p *pgxpool.Pool) *Store { return &Store{pool: p} }

@@ -207,11 +207,11 @@ const (
 
 // Defines values for InferenceModelOwnedBy.
 const (
-	InferenceModelOwnedByAliyun     InferenceModelOwnedBy = "aliyun"
-	InferenceModelOwnedByDeepseek   InferenceModelOwnedBy = "deepseek"
-	InferenceModelOwnedByMock       InferenceModelOwnedBy = "mock"
-	InferenceModelOwnedByVolcengine InferenceModelOwnedBy = "volcengine"
-	InferenceModelOwnedByZhipu      InferenceModelOwnedBy = "zhipu"
+	Aliyun     InferenceModelOwnedBy = "aliyun"
+	Deepseek   InferenceModelOwnedBy = "deepseek"
+	Mock       InferenceModelOwnedBy = "mock"
+	Volcengine InferenceModelOwnedBy = "volcengine"
+	Zhipu      InferenceModelOwnedBy = "zhipu"
 )
 
 // Defines values for InferenceModelListObject.
@@ -373,7 +373,7 @@ const (
 
 // Defines values for ModelInfoApi.
 const (
-	Embeddings ModelInfoApi = "embeddings"
+	ModelInfoApiEmbeddings ModelInfoApi = "embeddings"
 )
 
 // Defines values for ModelInfoCurrency.
@@ -387,6 +387,20 @@ const (
 	ModelInfoRegionCnBeijing  ModelInfoRegion = "cn-beijing"
 	ModelInfoRegionCnMainland ModelInfoRegion = "cn-mainland"
 	ModelInfoRegionLocal      ModelInfoRegion = "local"
+)
+
+// Defines values for NewAPIChannelOperationState.
+const (
+	NewAPIChannelOperationStateApplied  NewAPIChannelOperationState = "applied"
+	NewAPIChannelOperationStatePending  NewAPIChannelOperationState = "pending"
+	NewAPIChannelOperationStateRejected NewAPIChannelOperationState = "rejected"
+)
+
+// Defines values for NewAPIChannelWriteType.
+const (
+	NewAPIChannelWriteTypeN1  NewAPIChannelWriteType = 1
+	NewAPIChannelWriteTypeN14 NewAPIChannelWriteType = 14
+	NewAPIChannelWriteTypeN43 NewAPIChannelWriteType = 43
 )
 
 // Defines values for OrganizationCurrency.
@@ -426,15 +440,19 @@ const (
 
 // Defines values for ProviderConfigurationVersion.
 const (
-	N1 ProviderConfigurationVersion = 1
+	ProviderConfigurationVersionN1 ProviderConfigurationVersion = 1
 )
 
-// Defines values for ProviderModelConfigurationProvider.
+// Defines values for ProviderConfigurationStatusExecutionEngine.
 const (
-	ProviderModelConfigurationProviderAliyun     ProviderModelConfigurationProvider = "aliyun"
-	ProviderModelConfigurationProviderDeepseek   ProviderModelConfigurationProvider = "deepseek"
-	ProviderModelConfigurationProviderVolcengine ProviderModelConfigurationProvider = "volcengine"
-	ProviderModelConfigurationProviderZhipu      ProviderModelConfigurationProvider = "zhipu"
+	Native ProviderConfigurationStatusExecutionEngine = "native"
+	Newapi ProviderConfigurationStatusExecutionEngine = "newapi"
+)
+
+// Defines values for ProviderModelConfigurationApi.
+const (
+	ProviderModelConfigurationApiEmbeddings ProviderModelConfigurationApi = "embeddings"
+	ProviderModelConfigurationApiEmpty      ProviderModelConfigurationApi = ""
 )
 
 // Defines values for ProviderResidencyRegion.
@@ -576,9 +594,9 @@ const (
 
 // Defines values for ListBillingRecordsParamsDecision.
 const (
-	Approved ListBillingRecordsParamsDecision = "approved"
-	Pending  ListBillingRecordsParamsDecision = "pending"
-	Rejected ListBillingRecordsParamsDecision = "rejected"
+	ListBillingRecordsParamsDecisionApproved ListBillingRecordsParamsDecision = "approved"
+	ListBillingRecordsParamsDecisionPending  ListBillingRecordsParamsDecision = "pending"
+	ListBillingRecordsParamsDecisionRejected ListBillingRecordsParamsDecision = "rejected"
 )
 
 // Defines values for ListRequestsParamsState.
@@ -1932,6 +1950,72 @@ type ModelPage struct {
 	NextCursor string      `json:"next_cursor"`
 }
 
+// NewAPIChannel defines model for NewAPIChannel.
+type NewAPIChannel struct {
+	BaseUrl              string   `json:"base_url"`
+	CredentialConfigured bool     `json:"credential_configured"`
+	EditRevision         string   `json:"edit_revision"`
+	Editable             bool     `json:"editable"`
+	Enabled              bool     `json:"enabled"`
+	Id                   int      `json:"id"`
+	KeyCount             int      `json:"key_count"`
+	Models               []string `json:"models"`
+	Name                 string   `json:"name"`
+	Revision             string   `json:"revision"`
+	Type                 int      `json:"type"`
+}
+
+// NewAPIChannelOperation defines model for NewAPIChannelOperation.
+type NewAPIChannelOperation struct {
+	ActorIssuer  string                      `json:"actor_issuer"`
+	ActorSubject string                      `json:"actor_subject"`
+	ChannelId    int                         `json:"channel_id"`
+	CreatedAt    time.Time                   `json:"created_at"`
+	Id           string                      `json:"id"`
+	Receipt      *NewAPIChannelReceipt       `json:"receipt,omitempty"`
+	State        NewAPIChannelOperationState `json:"state"`
+}
+
+// NewAPIChannelOperationState defines model for NewAPIChannelOperation.State.
+type NewAPIChannelOperationState string
+
+// NewAPIChannelOperations defines model for NewAPIChannelOperations.
+type NewAPIChannelOperations struct {
+	Data []NewAPIChannelOperation `json:"data"`
+}
+
+// NewAPIChannelPage defines model for NewAPIChannelPage.
+type NewAPIChannelPage struct {
+	Data       []NewAPIChannel `json:"data"`
+	NextCursor string          `json:"next_cursor"`
+}
+
+// NewAPIChannelReceipt defines model for NewAPIChannelReceipt.
+type NewAPIChannelReceipt struct {
+	ActorIssuer    string `json:"actor_issuer"`
+	ActorSubject   string `json:"actor_subject"`
+	AfterRevision  string `json:"after_revision"`
+	BeforeRevision string `json:"before_revision"`
+	ChannelId      int    `json:"channel_id"`
+	CreatedAt      int64  `json:"created_at"`
+	OperationId    string `json:"operation_id"`
+}
+
+// NewAPIChannelWrite defines model for NewAPIChannelWrite.
+type NewAPIChannelWrite struct {
+	ApiKey           *string                `json:"api_key,omitempty"`
+	BaseUrl          string                 `json:"base_url"`
+	Enabled          bool                   `json:"enabled"`
+	ExpectedRevision string                 `json:"expected_revision"`
+	Models           []string               `json:"models"`
+	Name             string                 `json:"name"`
+	OperationId      string                 `json:"operation_id"`
+	Type             NewAPIChannelWriteType `json:"type"`
+}
+
+// NewAPIChannelWriteType defines model for NewAPIChannelWrite.Type.
+type NewAPIChannelWriteType int
+
 // Organization defines model for Organization.
 type Organization struct {
 	Currency OrganizationCurrency `json:"currency"`
@@ -2039,31 +2123,45 @@ type ProviderConfigurationVersion int
 
 // ProviderConfigurationStatus defines model for ProviderConfigurationStatus.
 type ProviderConfigurationStatus struct {
-	CanManage              bool                   `json:"can_manage"`
-	Configuration          *ProviderConfiguration `json:"configuration,omitempty"`
-	CredentialStorageReady bool                   `json:"credential_storage_ready"`
-	Managed                bool                   `json:"managed"`
-	Models                 []ModelInfo            `json:"models"`
-	Ready                  bool                   `json:"ready"`
-	Revision               int64                  `json:"revision"`
-	Suppliers              []SupplierStatus       `json:"suppliers"`
+	CanManage              bool                                        `json:"can_manage"`
+	CanManageChannels      *bool                                       `json:"can_manage_channels,omitempty"`
+	Configuration          *ProviderConfiguration                      `json:"configuration,omitempty"`
+	CredentialStorageReady bool                                        `json:"credential_storage_ready"`
+	ExecutionEngine        *ProviderConfigurationStatusExecutionEngine `json:"execution_engine,omitempty"`
+	Managed                bool                                        `json:"managed"`
+	Models                 []ModelInfo                                 `json:"models"`
+	Ready                  bool                                        `json:"ready"`
+	Revision               int64                                       `json:"revision"`
+	Suppliers              []SupplierStatus                            `json:"suppliers"`
 }
+
+// ProviderConfigurationStatusExecutionEngine defines model for ProviderConfigurationStatus.ExecutionEngine.
+type ProviderConfigurationStatusExecutionEngine string
 
 // ProviderModelConfiguration defines model for ProviderModelConfiguration.
 type ProviderModelConfiguration struct {
-	Id               string                             `json:"id"`
-	InputPerMillion  int64                              `json:"input_per_million"`
-	MaxInputTokens   int64                              `json:"max_input_tokens"`
-	MaxOutputTokens  int64                              `json:"max_output_tokens"`
-	OutputPerMillion int64                              `json:"output_per_million"`
-	PriceVersion     string                             `json:"price_version"`
-	Provider         ProviderModelConfigurationProvider `json:"provider"`
-	Residency        ProviderResidency                  `json:"residency"`
-	UpstreamModel    string                             `json:"upstream_model"`
+	AllowImages         *bool                          `json:"allow_images,omitempty"`
+	AllowMessagesStream *bool                          `json:"allow_messages_stream,omitempty"`
+	AllowedTools        *[]string                      `json:"allowed_tools,omitempty"`
+	Api                 *ProviderModelConfigurationApi `json:"api,omitempty"`
+
+	// CachePricing Reviewed newapi enterprise cache tariff. Omitted means uniform input pricing; explicit zero is a free category.
+	CachePricing          *CachePricing     `json:"cache_pricing,omitempty"`
+	Id                    string            `json:"id"`
+	InputPerMillion       int64             `json:"input_per_million"`
+	MaxInputTokens        int64             `json:"max_input_tokens"`
+	MaxOutputTokens       int64             `json:"max_output_tokens"`
+	NewapiChannelId       *int              `json:"newapi_channel_id,omitempty"`
+	NewapiChannelRevision *string           `json:"newapi_channel_revision,omitempty"`
+	OutputPerMillion      int64             `json:"output_per_million"`
+	PriceVersion          string            `json:"price_version"`
+	Provider              string            `json:"provider"`
+	Residency             ProviderResidency `json:"residency"`
+	UpstreamModel         string            `json:"upstream_model"`
 }
 
-// ProviderModelConfigurationProvider defines model for ProviderModelConfiguration.Provider.
-type ProviderModelConfigurationProvider string
+// ProviderModelConfigurationApi defines model for ProviderModelConfiguration.Api.
+type ProviderModelConfigurationApi string
 
 // ProviderResidency defines model for ProviderResidency.
 type ProviderResidency struct {
@@ -2474,6 +2572,11 @@ type Usage struct {
 // UsageCurrency defines model for Usage.Currency.
 type UsageCurrency string
 
+// ListNewAPIChannelsParams defines parameters for ListNewAPIChannels.
+type ListNewAPIChannelsParams struct {
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+}
+
 // ListOrganizationsParams defines parameters for ListOrganizations.
 type ListOrganizationsParams struct {
 	Limit *int    `form:"limit,omitempty" json:"limit,omitempty"`
@@ -2734,6 +2837,12 @@ type CreateGovernedTextMessageParams struct {
 
 // CreateGovernedTextMessageParamsAnthropicVersion defines parameters for CreateGovernedTextMessage.
 type CreateGovernedTextMessageParamsAnthropicVersion string
+
+// CreateNewAPIChannelJSONRequestBody defines body for CreateNewAPIChannel for application/json ContentType.
+type CreateNewAPIChannelJSONRequestBody = NewAPIChannelWrite
+
+// UpdateNewAPIChannelJSONRequestBody defines body for UpdateNewAPIChannel for application/json ContentType.
+type UpdateNewAPIChannelJSONRequestBody = NewAPIChannelWrite
 
 // CreateOrganizationJSONRequestBody defines body for CreateOrganization for application/json ContentType.
 type CreateOrganizationJSONRequestBody = CreateOrganization

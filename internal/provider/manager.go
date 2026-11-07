@@ -33,6 +33,8 @@ type SupplierStatus struct {
 	CredentialSource     string `json:"credential_source"`
 }
 type ConfigurationStatus struct {
+	ExecutionEngine        string           `json:"execution_engine,omitempty"`
+	CanManageChannels      bool             `json:"can_manage_channels,omitempty"`
 	CredentialStorageReady bool             `json:"credential_storage_ready"`
 	Managed                bool             `json:"managed"`
 	CanManage              bool             `json:"can_manage"`

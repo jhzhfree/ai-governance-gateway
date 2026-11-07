@@ -195,3 +195,16 @@
 完整 `AIGW_VERIFY_WEB=0 GOMAXPROCS=4 bash scripts/verify.sh` 退出码 0，239 个主模块顶层测试及执行模块各包（49 个测试）通过，无失败或跳过，含真实隔离 PostgreSQL、race/vet、API/模块检查。最后补强 origin 边界与预算拒绝子场景后，newapibridge 全包 race 再验通过（6.728 秒），vet 通过。有效 JSON/SSE 结算、缺证据/缺 usage/缺 DONE 保留 uncertain 占额、额度不足不派发均有回归。日志 `/workspace/.onboarding/logs/newapi-foundation-verify.log`、`newapi-bridge-budget-final.log`。未修改 Web，本轮不重复浏览器。
 
 实际 new-api 在当前 Go 1.27.3 环境构建和 --help 检查成功，日志 `newapi-validation-build.log`、`newapi-validation-help.log`；不是其完整数据库/协议测试通过。未启动外部管理服务、未接入真实供应商或复制 new-api 代码进企业主模块，未发布商业版本。真实双进程推理与后端证据/outbox 仍待下一阶段。
+
+
+## 统一供应商渠道管理（本阶段）
+
+新增企业控制台到真实 new-api 的窄管理接口，独立服务身份、平台权限、目标 origin 白名单、密钥只写、版本冲突检测、事务审计及幂等回执。企业侧迁移 0031 持久保存非秘密操作历史与审核目录；newapi 模式不传 --providers 时启用数据库目录，单执行器保留并发上限和在途配置。新增渠道/编辑/启停/凭据轮换、目录审核发布及故障回执核查页面。支持类型 1/43/14；高级协议覆盖及其他渠道类型只读，不声称完整替代原生控制台。数据面固定 `934d85c3cd6f8eb0ef51514cb833ce5719cc6531`，控制面基线 07a4bb2；本阶段是开发候选交付，不包含生产切流。
+
+验证已完成：真实 SQLite 3.50.4、MySQL 8.4.13、PostgreSQL 17.11 渠道写入／冲突／回执／审计回滚／撤销与内存缓存刷新；三库 fresh 和官方发布 706144769e5bed5a47b78721e3bb11da3cf4c0b9 的升级／重复启动。`go test -race ./controller -run '^TestGovernance(ChannelManagementDatabaseMatrix|JournalDatabaseMatrix)$' -count=1 -timeout=5m -v` 通过，日志 `unified-channels-native-matrix-final.log`；缓存启用追加矩阵日志 `unified-channels-cache-matrix.log`。已审核渠道的高优先级竞争、模型权限拒绝和分组能力拒绝通过。浏览器连接真实 OIDC、PostgreSQL 和原生子进程，创建渠道→显式审核→项目授权→实际合成推理→停用的流程连续 5 次通过，日志 `unified-channels-browser-final.log`。
+
+数据面完整本地 race 回归（common、dto、middleware、model、relay/common、relay/channel、OpenAI／Claude／DeepSeek 适配器、service、controller）通过，controller 包 689.987 秒，原生可执行文件构建通过；`unified-channels-native-full-final.log` / `unified-channels-native-build.log`。Responses／Messages 的固定 SDK 与协议专项通过，74.319 秒，`unified-channels-sdk.log`。首次原生全包检查发现本轮测试未恢复全局分组配置，已补充清理；另两个测试要求空的外部测试库，因此最终全包按 CI 使用 SQLite，三库路径使用专用隔离矩阵，未将该首次失败算作通过。
+
+控制面首次完整门禁的模块/API/vet 和其余后端包通过；HTTP API 458.220 秒，迁移包 228.028 秒。newapibridge 在累计 600 秒触发整包上限，当时最后一个 Messages 流恢复场景刚开始（0 秒），此前子场景已通过；该次门禁退出 1，不记为完整通过。将本地/CI 的默认包级上限统一为 900 秒，未改变单请求、故障场景或生产超时；受影响套件以 900 秒独立复验；本提交完整门禁结果以关联远端 CI 为准。
+
+控制面冻结 npm 安装、Go/TS OpenAPI 一致性、TypeScript、ESLint、Prettier、生产构建通过；最终真实浏览器 17 项组织 OIDC＋1 项统一 new-api 渠道＋1 项本地身份场景全部通过（92.380 秒）。当前与旧版 PostgreSQL 备份恢复两条路径通过（5.161 秒）。数据面新提交远端 CI [42380813055](https://github.com/jhzhfree/new-api/actions/runs/42380813055) 已 success；控制面绑定该确切版本后独立执行远端门禁。真实供应商、生产目标主机及商业分发验收不在本阶段测试结论内。

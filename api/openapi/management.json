@@ -12092,6 +12092,518 @@
           }
         }
       }
+    },
+    "/api/v1/newapi/channels": {
+      "get": {
+        "operationId": "listNewAPIChannels",
+        "description": "Deployment-bound platform administration of new-api channels. Supplier credentials are write-only; mutations return durable operation state and never imply model approval.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewAPIChannelPage"
+                }
+              }
+            }
+          }
+        },
+        "summary": "listNewAPIChannels",
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createNewAPIChannel",
+        "description": "Deployment-bound platform administration of new-api channels. Supplier credentials are write-only; mutations return durable operation state and never imply model approval.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          },
+          {
+            "browserSessionDev": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewAPIChannelOperation"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Configuration revision conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Outcome pending; query operation receipt before another mutation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewAPIChannelOperation"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [],
+        "summary": "createNewAPIChannel",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewAPIChannelWrite"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/newapi/channels/{channel}": {
+      "put": {
+        "operationId": "updateNewAPIChannel",
+        "description": "Deployment-bound platform administration of new-api channels. Supplier credentials are write-only; mutations return durable operation state and never imply model approval.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          },
+          {
+            "browserSessionDev": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewAPIChannelOperation"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Configuration revision conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Outcome pending; query operation receipt before another mutation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewAPIChannelOperation"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "channel",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "summary": "updateNewAPIChannel",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewAPIChannelWrite"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/newapi/channel-operations": {
+      "get": {
+        "operationId": "listNewAPIChannelOperations",
+        "description": "Deployment-bound platform administration of new-api channels. Supplier credentials are write-only; mutations return durable operation state and never imply model approval.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewAPIChannelOperations"
+                }
+              }
+            }
+          }
+        },
+        "summary": "listNewAPIChannelOperations"
+      }
+    },
+    "/api/v1/newapi/channel-operations/{operation}/recover": {
+      "post": {
+        "operationId": "recoverNewAPIChannelOperation",
+        "description": "Deployment-bound platform administration of new-api channels. Supplier credentials are write-only; mutations return durable operation state and never imply model approval.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          },
+          {
+            "browserSessionDev": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewAPIChannelOperation"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Configuration revision conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "operation",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "summary": "recoverNewAPIChannelOperation"
+      }
     }
   },
   "components": {
@@ -14504,12 +15016,7 @@
           },
           "provider": {
             "type": "string",
-            "enum": [
-              "aliyun",
-              "volcengine",
-              "zhipu",
-              "deepseek"
-            ]
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$"
           },
           "upstream_model": {
             "type": "string",
@@ -14528,7 +15035,7 @@
           "output_per_million": {
             "type": "integer",
             "format": "int64",
-            "minimum": 1,
+            "minimum": 0,
             "maximum": 9007199254740991
           },
           "max_input_tokens": {
@@ -14540,11 +15047,42 @@
           "max_output_tokens": {
             "type": "integer",
             "format": "int64",
-            "minimum": 1,
+            "minimum": 0,
             "maximum": 1000000
           },
           "residency": {
             "$ref": "#/components/schemas/ProviderResidency"
+          },
+          "newapi_channel_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "newapi_channel_revision": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "allowed_tools": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string"
+            }
+          },
+          "allow_images": {
+            "type": "boolean"
+          },
+          "allow_messages_stream": {
+            "type": "boolean"
+          },
+          "api": {
+            "type": "string",
+            "enum": [
+              "",
+              "embeddings"
+            ]
+          },
+          "cache_pricing": {
+            "$ref": "#/components/schemas/CachePricing"
           }
         },
         "required": [
@@ -14662,6 +15200,16 @@
             "$ref": "#/components/schemas/ProviderConfiguration"
           },
           "credential_storage_ready": {
+            "type": "boolean"
+          },
+          "execution_engine": {
+            "type": "string",
+            "enum": [
+              "native",
+              "newapi"
+            ]
+          },
+          "can_manage_channels": {
             "type": "boolean"
           }
         },
@@ -18090,6 +18638,228 @@
           }
         },
         "description": "Explicit cache write duration rates; overrides aggregate write_per_million. Requires original tariff-v2 evidence."
+      },
+      "NewAPIChannel": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "integer"
+          },
+          "base_url": {
+            "type": "string"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "credential_configured": {
+            "type": "boolean"
+          },
+          "key_count": {
+            "type": "integer"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "edit_revision": {
+            "type": "string"
+          },
+          "editable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "base_url",
+          "models",
+          "enabled",
+          "credential_configured",
+          "key_count",
+          "revision",
+          "edit_revision",
+          "editable"
+        ]
+      },
+      "NewAPIChannelPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NewAPIChannel"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "next_cursor"
+        ]
+      },
+      "NewAPIChannelWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{16,64}$"
+          },
+          "expected_revision": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "type": {
+            "type": "integer",
+            "enum": [
+              1,
+              14,
+              43
+            ]
+          },
+          "base_url": {
+            "type": "string",
+            "maxLength": 2048
+          },
+          "models": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 32,
+            "items": {
+              "type": "string"
+            }
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "api_key": {
+            "type": "string",
+            "writeOnly": true,
+            "maxLength": 65536
+          }
+        },
+        "required": [
+          "operation_id",
+          "expected_revision",
+          "name",
+          "type",
+          "base_url",
+          "models",
+          "enabled"
+        ]
+      },
+      "NewAPIChannelReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "operation_id": {
+            "type": "string"
+          },
+          "actor_issuer": {
+            "type": "string"
+          },
+          "actor_subject": {
+            "type": "string"
+          },
+          "channel_id": {
+            "type": "integer"
+          },
+          "before_revision": {
+            "type": "string"
+          },
+          "after_revision": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "operation_id",
+          "actor_issuer",
+          "actor_subject",
+          "channel_id",
+          "before_revision",
+          "after_revision",
+          "created_at"
+        ]
+      },
+      "NewAPIChannelOperation": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "channel_id": {
+            "type": "integer"
+          },
+          "actor_issuer": {
+            "type": "string"
+          },
+          "actor_subject": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "applied",
+              "rejected"
+            ]
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/NewAPIChannelReceipt"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "channel_id",
+          "actor_issuer",
+          "actor_subject",
+          "state",
+          "created_at"
+        ]
+      },
+      "NewAPIChannelOperations": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NewAPIChannelOperation"
+            }
+          }
+        },
+        "required": [
+          "data"
+        ]
       }
     }
   }

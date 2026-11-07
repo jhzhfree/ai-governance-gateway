@@ -1883,6 +1883,90 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/newapi/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * listNewAPIChannels
+         * @description Deployment-bound platform administration of new-api channels. Supplier credentials are write-only; mutations return durable operation state and never imply model approval.
+         */
+        get: operations["listNewAPIChannels"];
+        put?: never;
+        /**
+         * createNewAPIChannel
+         * @description Deployment-bound platform administration of new-api channels. Supplier credentials are write-only; mutations return durable operation state and never imply model approval.
+         */
+        post: operations["createNewAPIChannel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/newapi/channels/{channel}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * updateNewAPIChannel
+         * @description Deployment-bound platform administration of new-api channels. Supplier credentials are write-only; mutations return durable operation state and never imply model approval.
+         */
+        put: operations["updateNewAPIChannel"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/newapi/channel-operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * listNewAPIChannelOperations
+         * @description Deployment-bound platform administration of new-api channels. Supplier credentials are write-only; mutations return durable operation state and never imply model approval.
+         */
+        get: operations["listNewAPIChannelOperations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/newapi/channel-operations/{operation}/recover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * recoverNewAPIChannelOperation
+         * @description Deployment-bound platform administration of new-api channels. Supplier credentials are write-only; mutations return durable operation state and never imply model approval.
+         */
+        post: operations["recoverNewAPIChannelOperation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2476,8 +2560,7 @@ export interface components {
         };
         ProviderModelConfiguration: {
             id: string;
-            /** @enum {string} */
-            provider: "aliyun" | "volcengine" | "zhipu" | "deepseek";
+            provider: string;
             upstream_model: string;
             price_version: string;
             /** Format: int64 */
@@ -2489,6 +2572,14 @@ export interface components {
             /** Format: int64 */
             max_output_tokens: number;
             residency: components["schemas"]["ProviderResidency"];
+            newapi_channel_id?: number;
+            newapi_channel_revision?: string;
+            allowed_tools?: string[];
+            allow_images?: boolean;
+            allow_messages_stream?: boolean;
+            /** @enum {string} */
+            api?: "" | "embeddings";
+            cache_pricing?: components["schemas"]["CachePricing"];
         };
         ProviderConfiguration: {
             /** @enum {integer} */
@@ -2517,6 +2608,9 @@ export interface components {
             models: components["schemas"]["ModelInfo"][];
             configuration?: components["schemas"]["ProviderConfiguration"];
             credential_storage_ready: boolean;
+            /** @enum {string} */
+            execution_engine?: "native" | "newapi";
+            can_manage_channels?: boolean;
         };
         PublishProviderConfiguration: {
             /** Format: int64 */
@@ -3362,6 +3456,58 @@ export interface components {
             five_minute_per_million: number;
             /** Format: int64 */
             one_hour_per_million: number;
+        };
+        NewAPIChannel: {
+            id: number;
+            name: string;
+            type: number;
+            base_url: string;
+            models: string[];
+            enabled: boolean;
+            credential_configured: boolean;
+            key_count: number;
+            revision: string;
+            edit_revision: string;
+            editable: boolean;
+        };
+        NewAPIChannelPage: {
+            data: components["schemas"]["NewAPIChannel"][];
+            next_cursor: string;
+        };
+        NewAPIChannelWrite: {
+            operation_id: string;
+            expected_revision: string;
+            name: string;
+            /** @enum {integer} */
+            type: 1 | 14 | 43;
+            base_url: string;
+            models: string[];
+            enabled: boolean;
+            api_key?: string;
+        };
+        NewAPIChannelReceipt: {
+            operation_id: string;
+            actor_issuer: string;
+            actor_subject: string;
+            channel_id: number;
+            before_revision: string;
+            after_revision: string;
+            /** Format: int64 */
+            created_at: number;
+        };
+        NewAPIChannelOperation: {
+            id: string;
+            channel_id: number;
+            actor_issuer: string;
+            actor_subject: string;
+            /** @enum {string} */
+            state: "pending" | "applied" | "rejected";
+            receipt?: components["schemas"]["NewAPIChannelReceipt"];
+            /** Format: date-time */
+            created_at: string;
+        };
+        NewAPIChannelOperations: {
+            data: components["schemas"]["NewAPIChannelOperation"][];
         };
     };
     responses: never;
@@ -11870,6 +12016,390 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MessagesError"];
+                };
+            };
+        };
+    };
+    listNewAPIChannels: {
+        parameters: {
+            query?: {
+                after?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewAPIChannelPage"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    createNewAPIChannel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewAPIChannelWrite"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewAPIChannelOperation"];
+                };
+            };
+            /** @description Outcome pending; query operation receipt before another mutation. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewAPIChannelOperation"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Configuration revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    updateNewAPIChannel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                channel: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewAPIChannelWrite"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewAPIChannelOperation"];
+                };
+            };
+            /** @description Outcome pending; query operation receipt before another mutation. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewAPIChannelOperation"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Configuration revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listNewAPIChannelOperations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewAPIChannelOperations"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    recoverNewAPIChannelOperation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                operation: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewAPIChannelOperation"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Configuration revision conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
         };

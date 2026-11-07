@@ -68,8 +68,8 @@ func (c config) validate() error {
 		return errors.New("bifrost requires managed providers and valid execution pool limits")
 	}
 
-	if c.executionEngine == "newapi" && (c.mockOnly || c.providerConfig == "" || c.engineLimits.MaxConcurrent < 1 || c.engineLimits.MaxConcurrent > 1024) {
-		return errors.New("newapi requires an explicit credential-free provider directory and valid concurrency limit")
+	if c.executionEngine == "newapi" && (c.mockOnly || c.engineLimits.MaxConcurrent < 1 || c.engineLimits.MaxConcurrent > 1024) {
+		return errors.New("newapi requires a valid concurrency limit and non-mock execution")
 	}
 
 	if c.schemaMode != "" && c.schemaMode != "auto" && c.schemaMode != "check" {
@@ -142,33 +142,52 @@ func run(ctx context.Context, c config, factory EngineFactory, listener net.List
 	ledger := budget.New(pool)
 	store := control.New(pool)
 	var providers provider.Routing
-	if c.providerConfig != "" {
+	if c.executionEngine == "newapi" {
+		var file *provider.Config
+		if c.providerConfig != "" {
+			cfg, err := provider.ReadConfig(c.providerConfig)
+			if err != nil {
+				return err
+			}
+			file = &cfg
+		}
+		adminToken := os.Getenv("AIGW_NEWAPI_ADMIN_TOKEN")
+		if adminToken != "" && adminToken == os.Getenv("AIGW_NEWAPI_SERVICE_TOKEN") {
+			return errors.New("new-api administration and execution require separate credentials")
+		}
+		manager, err := newapibridge.NewChannelManager(pool, os.Getenv("AIGW_NEWAPI_ORIGIN"), adminToken, identity.Principal{Issuer: os.Getenv("AIGW_PROVIDER_ADMIN_ISSUER"), Subject: os.Getenv("AIGW_PROVIDER_ADMIN_SUBJECT")}, os.Getenv("AIGW_NEWAPI_ALLOW_LOOPBACK_HTTP") == "true", file)
+		if err != nil {
+			return err
+		}
+		defer manager.Close()
+		cfg := newapibridge.Config{Origin: os.Getenv("AIGW_NEWAPI_ORIGIN"), ServiceToken: os.Getenv("AIGW_NEWAPI_SERVICE_TOKEN"), MaxConcurrent: c.engineLimits.MaxConcurrent, AllowLoopbackHTTP: os.Getenv("AIGW_NEWAPI_ALLOW_LOOPBACK_HTTP") == "true", Journal: newapibridge.NewJournal(pool)}
+		if file != nil {
+			directory, err := provider.NewGoverned(*file)
+			if err != nil {
+				return err
+			}
+			selected, err = newapibridge.NewRuntime(resources, cfg, directory)
+		} else {
+			selected, err = newapibridge.NewManagedRuntime(resources, cfg, manager)
+		}
+		if err != nil {
+			return err
+		}
+		defer func() { cancelResources(); selected.Close() }()
+		providers = selected
+		store = control.NewWithCatalog(pool, providers).WithProviderManager(manager).WithNewAPIChannels(manager)
+	} else if c.providerConfig != "" {
 		cfg, err := provider.ReadConfig(c.providerConfig)
 		if err != nil {
 			return err
 		}
-		if c.executionEngine == "newapi" {
-			var directory *provider.Catalog
-			directory, err = provider.NewGoverned(cfg)
-			if err != nil {
-				return err
-			}
-			selected, err = newapibridge.NewRuntime(resources, newapibridge.Config{Origin: os.Getenv("AIGW_NEWAPI_ORIGIN"), ServiceToken: os.Getenv("AIGW_NEWAPI_SERVICE_TOKEN"), MaxConcurrent: c.engineLimits.MaxConcurrent, AllowLoopbackHTTP: os.Getenv("AIGW_NEWAPI_ALLOW_LOOPBACK_HTTP") == "true", Journal: newapibridge.NewJournal(pool)}, directory)
-			if err != nil {
-				return err
-			}
-			defer func() { cancelResources(); selected.Close() }()
-			providers = selected
-		} else {
-			providers, err = provider.New(cfg, os.Getenv, nil)
-		}
+		providers, err = provider.New(cfg, os.Getenv, nil)
 		if err != nil {
 			return err
 		}
 		store = control.NewWithCatalog(pool, providers)
 	}
-
-	if !c.mockOnly && c.providerConfig == "" {
+	if c.executionEngine != "newapi" && !c.mockOnly && c.providerConfig == "" {
 		manager := provider.NewManager(pool, os.Getenv, nil, identity.Principal{Issuer: os.Getenv("AIGW_PROVIDER_ADMIN_ISSUER"), Subject: os.Getenv("AIGW_PROVIDER_ADMIN_SUBJECT")})
 		providers = manager
 		if c.executionEngine == "bifrost" {

@@ -6,7 +6,13 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 )
 
-func (s *Store) WithProviderManager(m *provider.Manager) *Store { s.providers = m; return s }
+type ProviderManagement interface {
+	Status(context.Context, identity.Principal) (provider.ConfigurationStatus, error)
+	Publish(context.Context, identity.Principal, int64, provider.Config) error
+	SetCredential(context.Context, identity.Principal, string, int64, string) error
+}
+
+func (s *Store) WithProviderManager(m ProviderManagement) *Store { s.providers = m; return s }
 func (s *Store) ProviderConfiguration(ctx context.Context, p identity.Principal) (provider.ConfigurationStatus, error) {
 	if s.providers != nil {
 		return s.providers.Status(ctx, p)

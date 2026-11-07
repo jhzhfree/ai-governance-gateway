@@ -27,12 +27,15 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/keyword"
 	"github.com/jhzhfree/ai-governance-gateway/internal/localauth"
 	"github.com/jhzhfree/ai-governance-gateway/internal/mockprovider"
+	"github.com/jhzhfree/ai-governance-gateway/internal/newapibridge"
 	"github.com/jhzhfree/ai-governance-gateway/internal/observe"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 	"github.com/jhzhfree/ai-governance-gateway/internal/testutil"
 )
 
-func TestConsoleBrowser(t *testing.T) {
+func TestConsoleBrowser(t *testing.T)       { testConsoleBrowser(t, false) }
+func TestNewAPIConsoleBrowser(t *testing.T) { testConsoleBrowser(t, true) }
+func testConsoleBrowser(t *testing.T, governed bool) {
 	pool, ledger, _ := testutil.Database(t)
 	issuer := testutil.NewIssuer(t)
 	catalog := testutil.MainlandManager(t, pool, identity.Principal{Issuer: issuer.URL, Subject: "alice"}, testutil.SupplierFixture(t))
@@ -40,6 +43,29 @@ func TestConsoleBrowser(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := control.NewWithCatalog(pool, combinedFixtureCatalog{catalog}).WithProviderManager(catalog)
+	var engine *newapibridge.ManagedRuntime
+	var nativeUpstream string
+	if governed {
+		vendor := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"synthetic","object":"chat.completion","model":"governance-model","choices":[{"index":0,"message":{"role":"assistant","content":"synthetic"},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5}}`))
+		}))
+		t.Cleanup(vendor.Close)
+		nativeUpstream = vendor.URL
+		nativeOrigin := testutil.NewAPIProcess(t, vendor.URL)
+		manager, err := newapibridge.NewChannelManager(pool, nativeOrigin, "sk-syntheticchanneladminfixture", identity.Principal{Issuer: issuer.URL, Subject: "alice"}, true, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(manager.Close)
+		engine, err = newapibridge.NewManagedRuntime(context.Background(), newapibridge.Config{Origin: nativeOrigin, ServiceToken: "sk-syntheticgovernancefixture", AllowLoopbackHTTP: true, MaxConcurrent: 4, Journal: newapibridge.NewJournal(pool)}, manager)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(engine.Close)
+		store = control.NewWithCatalog(pool, engine).WithProviderManager(manager).WithNewAPIChannels(manager)
+	}
+
 	store.WithSystem(browserHostClient(t), identity.Principal{Issuer: issuer.URL, Subject: "alice"}, "browser-fixture")
 	content := testutil.ContentAudit(t, pool)
 	store.WithContentAudit(content)
@@ -71,6 +97,11 @@ func TestConsoleBrowser(t *testing.T) {
 	t.Cleanup(upstream.Close)
 	mockGateway := &gateway.Handler{DeviceProof: store.VerifyDeviceRequest, Keywords: keyword.New(pool), Content: content, ListModels: store.KeyModels, Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Ledger: ledger, Authorize: store.ResolveKey, Client: upstream.Client(), Upstream: upstream.URL + "/v1/chat/completions"}
 	realGateway := &gateway.Handler{DeviceProof: store.VerifyDeviceRequest, Keywords: keyword.New(pool), Content: content, ListModels: store.KeyModels, Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Ledger: ledger, Authorize: store.ResolveKey, Providers: catalog}
+	if governed {
+		realGateway.Executor = engine
+		realGateway.Providers = engine
+		realGateway.Report = func(id, code string) { t.Logf("governed browser request outcome=%s", code) }
+	}
 	// Mixed mode exists in this synthetic fixture only, to regress the legacy UI.
 	mux.HandleFunc("/v1/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v1/models" {
@@ -102,6 +133,9 @@ func TestConsoleBrowser(t *testing.T) {
 	cmd := exec.CommandContext(ctx, "npm", "run", "test:e2e")
 	cmd.Dir = webDir
 	cmd.Env = append(os.Environ(), "AIGW_E2E_BASE_URL="+origin)
+	if governed {
+		cmd.Env = append(cmd.Env, "AIGW_E2E_AUTH_MODE=newapi", "AIGW_E2E_NEWAPI_UPSTREAM="+nativeUpstream)
+	}
 	output, err := cmd.CombinedOutput()
 	t.Log(string(output))
 	if err != nil {

@@ -15,6 +15,7 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/contentaudit"
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
+	"github.com/jhzhfree/ai-governance-gateway/internal/newapibridge"
 	"github.com/jhzhfree/ai-governance-gateway/internal/observe"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 	"github.com/jhzhfree/ai-governance-gateway/internal/systemhost"
@@ -97,6 +98,11 @@ func NewWithRuntime(store *control.Store, auth identity.Authenticator, session S
 	mux.HandleFunc("GET /api/v1/organizations/{org}/projects/{project}/keywords/matches", h.keywordMatches)
 
 	mux.HandleFunc("GET /api/v1/providers", h.providerConfiguration)
+	mux.HandleFunc("GET /api/v1/newapi/channels", h.newAPIChannels)
+	mux.HandleFunc("POST /api/v1/newapi/channels", h.writeNewAPIChannel)
+	mux.HandleFunc("PUT /api/v1/newapi/channels/{channel}", h.writeNewAPIChannel)
+	mux.HandleFunc("GET /api/v1/newapi/channel-operations", h.newAPIChannelOperations)
+	mux.HandleFunc("POST /api/v1/newapi/channel-operations/{operation}/recover", h.recoverNewAPIChannelOperation)
 	mux.HandleFunc("PUT /api/v1/providers", h.publishProviders)
 	mux.HandleFunc("PUT /api/v1/providers/{provider}/credential", h.setProviderCredential)
 	mux.HandleFunc("GET /api/v1/models", func(w http.ResponseWriter, r *http.Request) {
@@ -190,7 +196,7 @@ func failure(w http.ResponseWriter, r *http.Request, err error) {
 		status, code = 409, "conflict"
 	case errors.Is(err, systemhost.ErrConflict):
 		status, code = 409, "conflict"
-	case errors.Is(err, systemhost.ErrInvalid) || errors.Is(err, control.ErrInvalid) || errors.Is(err, admission.ErrInvalid):
+	case errors.Is(err, systemhost.ErrInvalid) || errors.Is(err, control.ErrInvalid) || errors.Is(err, admission.ErrInvalid) || errors.Is(err, newapibridge.ErrInvalid):
 		status, code = 400, "invalid_request"
 	}
 	send(w, status, map[string]any{"error": map[string]string{"code": code, "message": code, "request_id": w.Header().Get("X-Request-ID")}})

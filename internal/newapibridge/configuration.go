@@ -13,8 +13,12 @@ import (
 // CheckChannelRevisions gates new inference only. Recovery of immutable old
 // bindings must run independently even while current channel configuration drifts.
 func (e *Executor) CheckChannelRevisions(ctx context.Context) error {
-	ids := make([]int, 0, len(e.revisions))
-	for id := range e.revisions {
+	return e.checkChannelRevisions(ctx, e.revisions)
+}
+
+func (e *Executor) checkChannelRevisions(ctx context.Context, revisions map[int]string) error {
+	ids := make([]int, 0, len(revisions))
+	for id := range revisions {
 		ids = append(ids, id)
 	}
 	sort.Ints(ids)
@@ -40,7 +44,7 @@ func (e *Executor) CheckChannelRevisions(ctx context.Context) error {
 		}
 		decoder := json.NewDecoder(bytes.NewReader(raw))
 		decoder.DisallowUnknownFields()
-		if decoder.Decode(&value) != nil || decoder.Decode(&struct{}{}) != io.EOF || value.ChannelID != id || !value.Enabled || value.Revision != e.revisions[id] {
+		if decoder.Decode(&value) != nil || decoder.Decode(&struct{}{}) != io.EOF || value.ChannelID != id || !value.Enabled || value.Revision != revisions[id] {
 			return ErrConfigurationDrift
 		}
 	}

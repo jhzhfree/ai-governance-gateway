@@ -1,8 +1,14 @@
 import { useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Tag } from 'tdesign-react';
-import { api, type ProviderConfiguration, type ProviderConfigurationStatus } from '../../api';
+import {
+  api,
+  type ProviderConfiguration,
+  type ProviderConfigurationStatus,
+  type NewAPIChannel,
+} from '../../api';
 import { ErrorBox } from '../../shared/Feedback';
+import { NewAPIProviderPanel } from './NewAPIProviderPanel';
 
 const names: Record<string, string> = {
   deepseek: 'DeepSeek',
@@ -16,6 +22,8 @@ export function ProviderPanel({ identity, csrf }: { identity: string[]; csrf: st
     queryKey: [...identity, 'providers'],
     queryFn: ({ signal }) => api<ProviderConfigurationStatus>('/api/v1/providers', { signal }),
   });
+  if (query.data?.execution_engine === 'newapi')
+    return <NewAPIProviderPanel status={query.data} identity={identity} csrf={csrf} />;
   return (
     <>
       <section className="panel governance-panel">
@@ -188,7 +196,15 @@ export function ProviderPanel({ identity, csrf }: { identity: string[]; csrf: st
     </>
   );
 }
-function ProviderEditor({ status, csrf }: { status: ProviderConfigurationStatus; csrf: string }) {
+export function ProviderEditor({
+  status,
+  csrf,
+  channels = [],
+}: {
+  status: ProviderConfigurationStatus;
+  csrf: string;
+  channels?: NewAPIChannel[];
+}) {
   const client = useQueryClient();
   const [draft, setDraft] = useState<ProviderConfiguration>(
     status.configuration ?? { version: 1, deployment_residency: emptyResidency(), models: [] },
@@ -196,6 +212,7 @@ function ProviderEditor({ status, csrf }: { status: ProviderConfigurationStatus;
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState('');
+  const governed = status.execution_engine === 'newapi';
   const changeModel = (index: number, field: string, value: string | number) => {
     setDraft((old) => ({
       ...old,
@@ -279,17 +296,27 @@ function ProviderEditor({ status, csrf }: { status: ProviderConfigurationStatus;
             <legend>模型路由 {index + 1}</legend>
             <label>
               供应商
-              <select
-                aria-label={`供应商 ${index + 1}`}
-                value={model.provider}
-                onChange={(e) => changeModel(index, 'provider', e.target.value)}
-              >
-                {Object.entries(names).map(([id, name]) => (
-                  <option value={id} key={id}>
-                    {name}
-                  </option>
-                ))}
-              </select>
+              {governed ? (
+                <input
+                  aria-label={`供应商 ${index + 1}`}
+                  required
+                  pattern="[a-z][a-z0-9_-]{0,63}"
+                  value={model.provider}
+                  onChange={(e) => changeModel(index, 'provider', e.target.value)}
+                />
+              ) : (
+                <select
+                  aria-label={`供应商 ${index + 1}`}
+                  value={model.provider}
+                  onChange={(e) => changeModel(index, 'provider', e.target.value)}
+                >
+                  {Object.entries(names).map(([id, name]) => (
+                    <option value={id} key={id}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </label>
             <label>
               网关模型别名
@@ -312,6 +339,196 @@ function ProviderEditor({ status, csrf }: { status: ProviderConfigurationStatus;
                 onChange={(e) => changeModel(index, 'upstream_model', e.target.value)}
               />
             </label>
+            {governed && (
+              <>
+                <label>
+                  审核渠道
+                  <select
+                    aria-label={`审核渠道 ${index + 1}`}
+                    value={model.newapi_channel_id ?? ''}
+                    required
+                    onChange={(e) => {
+                      const channel = channels.find((c) => c.id === Number(e.target.value));
+                      if (channel)
+                        setDraft((old) => ({
+                          ...old,
+                          models: old.models.map((m, i) =>
+                            i === index
+                              ? {
+                                  ...m,
+                                  newapi_channel_id: channel.id,
+                                  newapi_channel_revision: channel.revision,
+                                  upstream_model: m.upstream_model || channel.models[0],
+                                }
+                              : m,
+                          ),
+                        }));
+                    }}
+                  >
+                    <option value="">选择并核对渠道</option>
+                    {model.newapi_channel_id &&
+                      !channels.some((c) => c.id === model.newapi_channel_id) && (
+                        <option value={model.newapi_channel_id}>
+                          已配置渠道 #{model.newapi_channel_id}（请翻页查看）
+                        </option>
+                      )}
+                    {channels
+                      .filter((c) => c.editable && c.enabled)
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          #{c.id} {c.name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <p>
+                  审核指纹：<code>{model.newapi_channel_revision || '尚未选择'}</code>
+                  。渠道变化后须重新选择并核对端点、凭证所属账号、模型与价格。
+                </p>
+                <label>
+                  接口能力
+                  <select
+                    aria-label={`接口能力 ${index + 1}`}
+                    value={model.api ?? ''}
+                    onChange={(e) =>
+                      setDraft((old) => ({
+                        ...old,
+                        models: old.models.map((m, i) =>
+                          i === index
+                            ? {
+                                ...m,
+                                api: e.target.value as '' | 'embeddings',
+                                ...(e.target.value === 'embeddings'
+                                  ? {
+                                      max_output_tokens: 0,
+                                      output_per_million: 0,
+                                      allow_images: false,
+                                      allow_messages_stream: false,
+                                      allowed_tools: [],
+                                      cache_pricing: undefined,
+                                    }
+                                  : {}),
+                              }
+                            : m,
+                        ),
+                      }))
+                    }
+                  >
+                    <option value="">Chat / 受控文本 Responses 与 Messages</option>
+                    <option value="embeddings">文本 Embeddings</option>
+                  </select>
+                </label>
+                {model.api !== 'embeddings' && (
+                  <>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={model.allow_images ?? false}
+                        onChange={(e) =>
+                          setDraft((old) => ({
+                            ...old,
+                            models: old.models.map((m, i) =>
+                              i === index ? { ...m, allow_images: e.target.checked } : m,
+                            ),
+                          }))
+                        }
+                      />
+                      允许已审核内联图片
+                    </label>
+                    <label>
+                      审核客户端函数名称（逗号分隔）
+                      <input
+                        aria-label={`审核函数 ${index + 1}`}
+                        value={(model.allowed_tools ?? []).join(',')}
+                        onChange={(e) =>
+                          setDraft((old) => ({
+                            ...old,
+                            models: old.models.map((m, i) =>
+                              i === index
+                                ? { ...m, allowed_tools: e.target.value.split(',').filter(Boolean) }
+                                : m,
+                            ),
+                          }))
+                        }
+                      />
+                    </label>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={!!model.cache_pricing}
+                        onChange={(e) =>
+                          setDraft((old) => ({
+                            ...old,
+                            models: old.models.map((m, i) =>
+                              i === index
+                                ? {
+                                    ...m,
+                                    cache_pricing: e.target.checked
+                                      ? { read_per_million: 0, write_per_million: 0 }
+                                      : undefined,
+                                    allow_messages_stream: false,
+                                  }
+                                : m,
+                            ),
+                          }))
+                        }
+                      />
+                      按供应商原始缓存计数细分计费
+                    </label>
+                    {model.cache_pricing && (
+                      <>
+                        {(['read_per_million', 'write_per_million'] as const).map((field) => (
+                          <label key={field}>
+                            {field === 'read_per_million' ? '缓存读取' : '缓存写入'}单价（微元/百万
+                            token）
+                            <input
+                              type="number"
+                              min={0}
+                              max={9007199254740991}
+                              required
+                              value={model.cache_pricing![field]}
+                              onChange={(e) =>
+                                setDraft((old) => ({
+                                  ...old,
+                                  models: old.models.map((m, i) =>
+                                    i === index
+                                      ? {
+                                          ...m,
+                                          cache_pricing: {
+                                            ...m.cache_pricing!,
+                                            [field]: Number(e.target.value),
+                                          },
+                                        }
+                                      : m,
+                                  ),
+                                }))
+                              }
+                            />
+                          </label>
+                        ))}
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={model.allow_messages_stream ?? false}
+                            onChange={(e) =>
+                              setDraft((old) => ({
+                                ...old,
+                                models: old.models.map((m, i) =>
+                                  i === index
+                                    ? { ...m, allow_messages_stream: e.target.checked }
+                                    : m,
+                                ),
+                              }))
+                            }
+                          />
+                          已审核 Anthropic Messages 实时流与原始起始用量
+                        </label>
+                      </>
+                    )}
+                  </>
+                )}
+              </>
+            )}
             <label>
               价格版本
               <input
@@ -336,10 +553,21 @@ function ProviderEditor({ status, csrf }: { status: ProviderConfigurationStatus;
                   aria-label={`${label} ${index + 1}`}
                   type="number"
                   required
-                  min={1}
+                  min={
+                    governed &&
+                    model.api === 'embeddings' &&
+                    (field === 'output_per_million' || field === 'max_output_tokens')
+                      ? 0
+                      : 1
+                  }
                   max={max}
                   step={1}
-                  value={model[field] || ''}
+                  value={
+                    model.api === 'embeddings' &&
+                    (field === 'output_per_million' || field === 'max_output_tokens')
+                      ? 0
+                      : model[field] || ''
+                  }
                   onChange={(e) => changeModel(index, field, Number(e.target.value))}
                 />
               </label>
@@ -423,6 +651,12 @@ function ProviderEditor({ status, csrf }: { status: ProviderConfigurationStatus;
         >
           添加模型路由
         </Button>
+        {governed && (
+          <label>
+            <input type="checkbox" required aria-label="确认渠道与价格审核" />
+            已核对渠道端点、账号、模型能力、计费与驻留依据，同意发布本目录。
+          </label>
+        )}
         <Button theme="primary" type="submit" loading={pending} disabled={!draft.models.length}>
           发布供应商配置
         </Button>
@@ -493,6 +727,7 @@ function CredentialForm({
             disabled={!enabled || pending}
           />
         </label>
+
         <Button type="submit" theme="primary" loading={pending} disabled={!enabled}>
           保存{names[supplier.id] ?? supplier.id}密钥
         </Button>
