@@ -145,7 +145,7 @@ func TestResponsesGovernanceAuditAndStatelessBoundary(t *testing.T) {
 	f, calls := responsesFixture(t)
 	o, p, key := providerProject(f)
 	enableContent(f, o, p, 65536)
-	payload := map[string]any{"model": "zhipu/fixture", "input": "synthetic response input", "instructions": "synthetic instructions", "max_output_tokens": 16, "store": false}
+	payload := map[string]any{"model": "zhipu/fixture", "input": []any{map[string]any{"type": "message", "role": "user", "content": []any{map[string]string{"type": "input_text", "text": "syn"}, map[string]string{"type": "input_text", "text": "thetic response input"}}}}, "instructions": "synthetic instructions", "max_output_tokens": 16, "store": false}
 	body := f.request(key.Secret, "POST", "/v1/responses", payload, 200)
 	if !strings.Contains(string(body), `"object":"response"`) || !strings.Contains(string(body), `"type":"output_text"`) || !strings.Contains(string(body), `"input_tokens":2`) {
 		t.Fatal("responses output contract lost")
@@ -177,7 +177,7 @@ func TestResponsesGovernanceAuditAndStatelessBoundary(t *testing.T) {
 	}
 	grantAuditor(f, o, p, "auditor", true)
 	detail := parse[contentaudit.Detail](t, f.request(f.token("auditor"), "POST", base+"/records/"+page.Data[0].RequestID+"/reveal", map[string]string{"reason": "verify responses protocol audit"}, 200))
-	if !strings.Contains(detail.Request.Content, `"protocol":"responses"`) || detail.Response == nil || !strings.Contains(detail.Response.Content, `"object":"response"`) {
+	if !strings.Contains(detail.Request.Content, `"protocol":"responses"`) || !strings.Contains(detail.Request.Content, "synthetic response input") || detail.Response == nil || !strings.Contains(detail.Response.Content, `"object":"response"`) {
 		t.Fatal("audit protocol semantics lost")
 	}
 	f.request("invalid-project-key", "POST", "/v1/responses", payload, 401)
@@ -187,6 +187,18 @@ func TestResponsesGovernanceAuditAndStatelessBoundary(t *testing.T) {
 			copy[k] = v
 		}
 		copy[field] = value
+		f.request(key.Secret, "POST", "/v1/responses", copy, 400)
+	}
+	for _, raw := range []string{
+		`[{"role":"user","content":[{"type":"input_text","text":"x","image_url":"https://invalid.test"}]}]`,
+		`[{"role":"user","content":"x","id":"msg_previous"}]`,
+		`[{"role":"developer","content":"x"}]`,
+	} {
+		copy := map[string]any{}
+		for k, v := range payload {
+			copy[k] = v
+		}
+		copy["input"] = json.RawMessage(raw)
 		f.request(key.Secret, "POST", "/v1/responses", copy, 400)
 	}
 	delete(payload, "store")
@@ -205,7 +217,7 @@ func TestResponsesGovernanceAuditAndStatelessBoundary(t *testing.T) {
 	payload["stream"] = true
 	f.request(key.Secret, "POST", "/v1/responses", payload, 400)
 	delete(payload, "stream")
-	f.request(f.token("alice"), "PUT", policyPath, map[string]any{"expected_revision": 1, "rules": []keyword.Rule{{ID: "deny", Kind: "literal", Pattern: "synthetic", Direction: "input", Action: "block"}}}, 200)
+	f.request(f.token("alice"), "PUT", policyPath, map[string]any{"expected_revision": 1, "rules": []keyword.Rule{{ID: "deny", Kind: "literal", Pattern: "synthetic response", Direction: "input", Action: "block"}}}, 200)
 	f.request(key.Secret, "POST", "/v1/responses", payload, 403)
 	f.request(f.token("alice"), "PUT", policyPath, map[string]any{"expected_revision": 2, "rules": []keyword.Rule{}}, 200)
 	if _, err := f.pool.Exec(context.Background(), `UPDATE budget_accounts SET limit_amount=spent WHERE organization_id=$1 AND project_id=$2`, o.ID, p.ID); err != nil {

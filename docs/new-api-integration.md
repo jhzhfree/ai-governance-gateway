@@ -5,7 +5,7 @@
 - 企业工程：`feature/newapi-foundation-validation`，从 `f3db909` 创建。
 - new-api fork：`feature/enterprise-governance-integration`，从 `e03439033238722c0b8d4437a052445f3aeeed83` 创建；第一阶段未修改该仓库，后续原始用量事实实现见下方阶段进展。
 - 路线：企业入口保留身份、项目、预算、终端与审计；new-api 承接协议/渠道执行，通过明确的用量和物理尝试契约对接。
-- 当前已提供显式 `--execution-engine=newapi`、可信入口、持久派发/outbox、不可变价格/渠道绑定、恢复消费、自动迁移至 0027 和 readiness。默认执行器未切换。客户端为受限文本 Chat Completions，上游已验证 OpenAI 兼容、DeepSeek 与 Anthropic Messages，SSE 通过 v2 完成证明实时返回内容；部署配置和验收见后文“已接通”章节。
+- 当前已提供显式 `--execution-engine=newapi`、可信入口、持久派发/outbox、不可变价格/渠道绑定、恢复消费、自动迁移至 0030 和 readiness。默认执行器未切换。公共入口包含受控 Chat（文本／客户端函数／审核内联图片）、文本 Embeddings、无状态文本 Responses（字符串／结构化输入、JSON／实时 SSE）以及 Messages（文本 JSON／审核 Anthropic 实时 SSE）。缓存读写及时长计费已接通；上游已验证 OpenAI 兼容、DeepSeek 与 Anthropic Messages，SSE 通过 v2 完成证明实时返回内容；部署配置和验收见后文“已接通”章节。
 - 本文保留历史阶段证据；历史章节中的待办不代表当前状态。生产发布门禁（目标部署流式延迟、容量、跨主机/真实账号联合验收等）尚未全部完成。
 
 ## 已落地的接入边界
@@ -568,3 +568,14 @@ Anthropic 从原始 usage.cache_creation 读取 ephemeral_5m_input_tokens 与 ep
 先部署上述数据面，再部署控制面，最后审核并开启模型能力；控制面 readiness 要求新数据面声明早期证据版本。OpenAI/DeepSeek 当前不提供本契约需要的原始起始输入量，不能通过启用开关获得支持。真实供应商缓存、流式计数及终端 SDK/网络仍需外部验收。协议依据：[Messages 流式事件顺序与用量说明](https://platform.claude.com/docs/en/build-with-claude/streaming)。
 
 Messages 实时流完整门禁退出码 0：固定 fb0c2251b 竞态数据面 fixture，执行 `AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 AIGW_VERIFY_SDK=1 bash scripts/verify.sh`。后端 race/vet、契约、自动升级和双进程回归通过，HTTP API 315.576 秒、bridge 531.422 秒；Web 冻结依赖/类型/Lint/构建和 17 项 OIDC＋1 项本地账号浏览器 77.112 秒通过；当前/旧版逻辑恢复 4.701 秒、最终两套 SDK 与协议专项 61.597 秒通过。主进程 TestNewAPIControlHelper 是专用子进程守卫，相关进程故障场景已实际执行。日志 `messages-live-full-gates.log` 保留于开发环境。上一控制面 bd4f414 的 CI 42364178883 和新数据面 fb0c2251b 的 CI 42364706827 均为 success；当前控制面提交的 CI 单独跟踪。没有真实供应商调用、生产迁移或发布。
+
+
+### Responses 有界结构化文本输入
+
+在既有字符串入口之外，增加 1–63 条 system/user/assistant 文本消息，最后一条 user；instructions 在前，消息角色／顺序不变。system/user 支持 1–16 个 input_text 块，按顺序无额外分隔拼接，每条最多 16 KiB；assistant 仅字符串。请求仍由 64 KiB 公共边界及规范化后大小检查约束。独立嵌套严格解码拒绝未知属性，不把 developer 映射成 system，不丢弃 phase、ID、媒体、工具、缓存控制等语义。没有服务器会话，也不支持把 Responses 输出对象原样作为历史输入。
+
+复用受控 Chat 的目录、设备证明、权限、预算、关键词、内容审计、原始证据及恢复链。输入关键词在规范化拼接后处理，审计记录 protocol=responses 和规范化角色／内容；旧字符串仍保留。OpenAPI 和 Go/TS 类型同步，无数据库迁移，仍 schema v30。
+
+定向验证包括结构与总文本边界、嵌套未审核字段在供应商派发前拒绝，结构化输入的 OpenAPI、预算、关键词拒绝／输出脱敏、审计查看，以及固定 OpenAI Python SDK 3.46.0 流事件解析。独立进程 Responses 恢复用例改用结构化文本，涵盖派发后故障、完成事件接管和持久回执。具体结果与完整门禁另记。本地 SDK 生成类型仅用作字段形态参考，不代表支持其全部协议；无真实供应商或生产操作。
+
+Responses 结构化输入定向结果：provider 1.066 秒、HTTP 16.720 秒、固定 SDK 8.232 秒、三类上游独立进程恢复 55.234 秒通过；补充的跨块关键词匹配专项 3.667 秒通过。完整 `AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 AIGW_VERIFY_SDK=1 bash scripts/verify.sh`（固定 fb0c2251b 竞态 fixture）退出码 0：HTTP 315.666 秒、bridge 525.478 秒、17 项 OIDC＋1 项本地账号浏览器 75.297 秒、当前／旧版恢复 5.102 秒、最终 SDK／协议 59.807 秒。race/vet、生成 Go/TS 契约、Web 冻结依赖／类型／Lint／构建通过。第一次生成脚本引用不存在的 schema 名称后停止，改为已有 ResponsesCreateRequest 并重新生成及通过一致性检查；没有手改生成文件。日志 `responses-input-contract.log`、`responses-input-process.log`、`responses-input-sdk.log`、`responses-input-split-policy.log`、`responses-input-full-gates.log`。上一 Messages 流提交 6057c5a 的远端 CI 42366262420 已全部 success（含安装包）；本次提交的 CI 仍需独立核对。

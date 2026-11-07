@@ -34,7 +34,7 @@ assert response.object == "response" and response.status == "completed" and resp
 assert response.output_text == "synthetic response text"
 assert response.usage.input_tokens == 2 and response.usage.output_tokens == 3 and response.usage.total_tokens == 5
 assert response.id.startswith("resp_")
-events = list(client.responses.create(model="zhipu/fixture", input="synthetic SDK input", instructions="synthetic SDK instructions", max_output_tokens=16, store=False, stream=True))
+events = list(client.responses.create(model="zhipu/fixture", input=[{"type":"message","role":"user","content":[{"type":"input_text","text":"synthetic SDK input"}]}], instructions="synthetic SDK instructions", max_output_tokens=16, store=False, stream=True))
 assert "".join(event.delta for event in events if event.type == "response.output_text.delta") == "synthetic response text"
 assert events[-1].type == "response.completed"
 assert events[-1].response.output_text == "synthetic response text"

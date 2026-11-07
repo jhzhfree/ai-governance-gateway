@@ -1858,7 +1858,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Reviewed newapi stateless text Responses subset, executed through the governed Chat contract. Explicit store=false required; string input and optional instructions, max_output_tokens >=16 within reviewed route bound. 16 KiB per text and 64 KiB request. JSON or stream=true SSE; no tools, media, background, previous-response/conversation state or retrieval. Standard authorization/device/budget/keywords and consented content audit apply; store=false does not disable enterprise audit. SSE text deltas are live; completed/incomplete terminal events require original completion proof, settlement and audit seal. Missing proof retains uncertain funds. Aggregate text <=1 MiB, emitted event <=2 MiB; failure may close without a terminal event. No retry or fabricated usage details. */
+        /** @description Reviewed newapi stateless text Responses subset, executed through the governed Chat contract. Explicit store=false required; text input and optional instructions, max_output_tokens >=16 within reviewed route bound. 16 KiB per text and 64 KiB request. JSON or stream=true SSE; no tools, media, background, previous-response/conversation state or retrieval. Standard authorization/device/budget/keywords and consented content audit apply; store=false does not disable enterprise audit. SSE text deltas are live; completed/incomplete terminal events require original completion proof, settlement and audit seal. Missing proof retains uncertain funds. Aggregate text <=1 MiB, emitted event <=2 MiB; failure may close without a terminal event. No retry or fabricated usage details. Input accepts a string or 1–63 ordered system/user/assistant text messages ending with user. Only user/system may use 1–16 input_text parts; joined text is at most 16 KiB per message. Developer role, assistant block arrays, phase, IDs, tools, media and cache control are rejected. */
         post: operations["createStatelessTextResponse"];
         delete?: never;
         options?: never;
@@ -3221,7 +3221,17 @@ export interface components {
         };
         ResponsesCreateRequest: {
             model: string;
-            input: string;
+            input: string | {
+                /** @enum {string} */
+                type?: "message";
+                /** @enum {string} */
+                role: "system" | "user" | "assistant";
+                content: string | {
+                    /** @enum {string} */
+                    type: "input_text";
+                    text: string;
+                }[];
+            }[];
             instructions?: string | null;
             max_output_tokens: number;
             /** @enum {boolean} */

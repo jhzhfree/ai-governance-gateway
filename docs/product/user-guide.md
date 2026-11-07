@@ -310,7 +310,7 @@ new-api 模式下供应商密钥由数据面管理。客户端继续调用 `/v1/
 
 ### 无状态文本 Responses
 
-审核 newapi Chat 模型也可通过 `POST /v1/responses` 的受控文本子集调用。必须显式提供 `store:false`、`model`、字符串 `input` 和 `max_output_tokens`（至少 16 且不超过目录上限），可提供字符串 `instructions`。当前支持 stream:true 实时文本，不支持工具、图片、后台任务、会话或历史响应检索；未知字段会拒绝，不会被静默丢弃。项目 Key 与受控设备身份沿用原治理链，终端代理已允许此路径。
+审核 newapi Chat 模型也可通过 `POST /v1/responses` 的受控文本子集调用。必须显式提供 `store:false`、`model`、文本 `input` 和 `max_output_tokens`（至少 16 且不超过目录上限），可提供字符串 `instructions`。当前支持 stream:true 实时文本，不支持工具、图片、后台任务、会话或历史响应检索；未知字段会拒绝，不会被静默丢弃。项目 Key 与受控设备身份沿用原治理链，终端代理已允许此路径。
 
 `store:false` 表示不提供 Responses 历史存储/检索，不关闭项目明确开启的企业内容审计。审计记录包含协议标记、规范化请求和实际公开响应，依旧受加密、捕获上限、独立授权与保留策略约束。返回的 input/output token 来自供应商原始证据；未知缓存/推理细项不填写假零。请求示例与限制见 [Responses 接入](../new-api-integration.md#无状态文本-responses-公共协议)。
 
@@ -329,3 +329,10 @@ newapi 执行模式下可调用 `/v1/messages` 文本 JSON 子集。模型目录
 模型经管理员审核为 Anthropic 文本流渠道后，可在模型目录启用 `allow_messages_stream:true`，同时配置缓存费率。模型授权页会显示“已审核 Messages 文本实时流”。客户端向 `/v1/messages` 发送 `stream:true`，可以使用固定 SDK 的 `messages.stream()`；默认关闭的模型会在供应商派发前拒绝流式请求。
 
 起始事件展示供应商原始的初始输入／输出和缓存计数，最终输出计数在结束事件更新；起始计数不是已结算账单。只有收到 `message_stop` 才表示网关正常完成交付。断流、错误事件或客户端取消后，先查看请求账本与审计状态，不自行重试或将未知费用补成零。当前实时输出只支持字面量关键词告警；项目配置输出阻断／脱敏规则时会拒绝实时流，可继续使用已支持相应策略的非流式请求。
+
+
+### Responses 结构化文本输入
+
+`input` 可使用原有字符串，或 1–63 条按顺序排列的 `system`／`assistant`／`user` 消息，最后一条必须为 user。每条 content 可为非空字符串；system/user 还可使用 1–16 个 `{"type":"input_text","text":"..."}`，按顺序直接拼接，每条合计不超过 16 KiB。instructions 会作为首条 system 指令，整个请求仍不超过 64 KiB。assistant 目前只接受字符串，不接受输出消息对象或块数组。
+
+例如 `input:[{"role":"assistant","content":"上一轮文字"},{"role":"user","content":[{"type":"input_text","text":"继续说明"}]}]`；仍必须设置 `store:false`。这只是客户端提供的文本历史，不提供服务端会话或历史响应检索。developer、phase、消息 ID、工具结果、媒体和缓存控制字段都会明确拒绝。审计保存规范化角色／文本，不保留原有文本块的分段方式；关键词检查在拼接后执行，不能通过拆分文本块绕过规则。

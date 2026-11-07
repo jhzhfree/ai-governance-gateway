@@ -531,7 +531,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 		}
 		if option.responses {
 			path = "/v1/responses"
-			data, _ = json.Marshal(map[string]any{"model": req.Model, "input": "synthetic responses input", "max_output_tokens": 16, "store": false, "stream": stream})
+			data, _ = json.Marshal(map[string]any{"model": req.Model, "input": []any{map[string]any{"role": "user", "content": []map[string]string{{"type": "input_text", "text": "synthetic responses input"}}}}, "max_output_tokens": 16, "store": false, "stream": stream})
 		}
 		if option.messages {
 			path = "/v1/messages"

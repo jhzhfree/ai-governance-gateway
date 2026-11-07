@@ -461,6 +461,23 @@ const (
 	ResponsesCreateRequestBackgroundFalse ResponsesCreateRequestBackground = false
 )
 
+// Defines values for ResponsesCreateRequestInput1Content1Type.
+const (
+	InputText ResponsesCreateRequestInput1Content1Type = "input_text"
+)
+
+// Defines values for ResponsesCreateRequestInput1Role.
+const (
+	ResponsesCreateRequestInput1RoleAssistant ResponsesCreateRequestInput1Role = "assistant"
+	ResponsesCreateRequestInput1RoleSystem    ResponsesCreateRequestInput1Role = "system"
+	ResponsesCreateRequestInput1RoleUser      ResponsesCreateRequestInput1Role = "user"
+)
+
+// Defines values for ResponsesCreateRequestInput1Type.
+const (
+	ResponsesCreateRequestInput1TypeMessage ResponsesCreateRequestInput1Type = "message"
+)
+
 // Defines values for ResponsesCreateRequestStore.
 const (
 	ResponsesCreateRequestStoreFalse ResponsesCreateRequestStore = false
@@ -468,7 +485,7 @@ const (
 
 // Defines values for ResponsesOutputMessageRole.
 const (
-	Assistant ResponsesOutputMessageRole = "assistant"
+	ResponsesOutputMessageRoleAssistant ResponsesOutputMessageRole = "assistant"
 )
 
 // Defines values for ResponsesOutputMessageStatus.
@@ -479,7 +496,7 @@ const (
 
 // Defines values for ResponsesOutputMessageType.
 const (
-	ResponsesOutputMessageTypeMessage ResponsesOutputMessageType = "message"
+	Message ResponsesOutputMessageType = "message"
 )
 
 // Defines values for ResponsesOutputTextType.
@@ -2086,7 +2103,7 @@ type ResetLocalPassword struct {
 // ResponsesCreateRequest defines model for ResponsesCreateRequest.
 type ResponsesCreateRequest struct {
 	Background      *ResponsesCreateRequestBackground `json:"background"`
-	Input           string                            `json:"input"`
+	Input           ResponsesCreateRequest_Input      `json:"input"`
 	Instructions    *string                           `json:"instructions"`
 	MaxOutputTokens int                               `json:"max_output_tokens"`
 	Model           string                            `json:"model"`
@@ -2096,6 +2113,44 @@ type ResponsesCreateRequest struct {
 
 // ResponsesCreateRequestBackground defines model for ResponsesCreateRequest.Background.
 type ResponsesCreateRequestBackground bool
+
+// ResponsesCreateRequestInput0 defines model for .
+type ResponsesCreateRequestInput0 = string
+
+// ResponsesCreateRequestInput1 defines model for .
+type ResponsesCreateRequestInput1 = []struct {
+	Content ResponsesCreateRequest_Input_1_Content `json:"content"`
+	Role    ResponsesCreateRequestInput1Role       `json:"role"`
+	Type    *ResponsesCreateRequestInput1Type      `json:"type,omitempty"`
+}
+
+// ResponsesCreateRequestInput1Content0 defines model for .
+type ResponsesCreateRequestInput1Content0 = string
+
+// ResponsesCreateRequestInput1Content1 defines model for .
+type ResponsesCreateRequestInput1Content1 = []struct {
+	Text string                                   `json:"text"`
+	Type ResponsesCreateRequestInput1Content1Type `json:"type"`
+}
+
+// ResponsesCreateRequestInput1Content1Type defines model for ResponsesCreateRequest.Input.1.Content.1.Type.
+type ResponsesCreateRequestInput1Content1Type string
+
+// ResponsesCreateRequest_Input_1_Content defines model for ResponsesCreateRequest.Input.1.Content.
+type ResponsesCreateRequest_Input_1_Content struct {
+	union json.RawMessage
+}
+
+// ResponsesCreateRequestInput1Role defines model for ResponsesCreateRequest.Input.1.Role.
+type ResponsesCreateRequestInput1Role string
+
+// ResponsesCreateRequestInput1Type defines model for ResponsesCreateRequest.Input.1.Type.
+type ResponsesCreateRequestInput1Type string
+
+// ResponsesCreateRequest_Input defines model for ResponsesCreateRequest.Input.
+type ResponsesCreateRequest_Input struct {
+	union json.RawMessage
+}
 
 // ResponsesCreateRequestStore defines model for ResponsesCreateRequest.Store.
 type ResponsesCreateRequestStore bool
@@ -3023,6 +3078,130 @@ func (t InferenceRequest_Messages_Content) MarshalJSON() ([]byte, error) {
 }
 
 func (t *InferenceRequest_Messages_Content) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsResponsesCreateRequestInput1Content0 returns the union data inside the ResponsesCreateRequest_Input_1_Content as a ResponsesCreateRequestInput1Content0
+func (t ResponsesCreateRequest_Input_1_Content) AsResponsesCreateRequestInput1Content0() (ResponsesCreateRequestInput1Content0, error) {
+	var body ResponsesCreateRequestInput1Content0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromResponsesCreateRequestInput1Content0 overwrites any union data inside the ResponsesCreateRequest_Input_1_Content as the provided ResponsesCreateRequestInput1Content0
+func (t *ResponsesCreateRequest_Input_1_Content) FromResponsesCreateRequestInput1Content0(v ResponsesCreateRequestInput1Content0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeResponsesCreateRequestInput1Content0 performs a merge with any union data inside the ResponsesCreateRequest_Input_1_Content, using the provided ResponsesCreateRequestInput1Content0
+func (t *ResponsesCreateRequest_Input_1_Content) MergeResponsesCreateRequestInput1Content0(v ResponsesCreateRequestInput1Content0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsResponsesCreateRequestInput1Content1 returns the union data inside the ResponsesCreateRequest_Input_1_Content as a ResponsesCreateRequestInput1Content1
+func (t ResponsesCreateRequest_Input_1_Content) AsResponsesCreateRequestInput1Content1() (ResponsesCreateRequestInput1Content1, error) {
+	var body ResponsesCreateRequestInput1Content1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromResponsesCreateRequestInput1Content1 overwrites any union data inside the ResponsesCreateRequest_Input_1_Content as the provided ResponsesCreateRequestInput1Content1
+func (t *ResponsesCreateRequest_Input_1_Content) FromResponsesCreateRequestInput1Content1(v ResponsesCreateRequestInput1Content1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeResponsesCreateRequestInput1Content1 performs a merge with any union data inside the ResponsesCreateRequest_Input_1_Content, using the provided ResponsesCreateRequestInput1Content1
+func (t *ResponsesCreateRequest_Input_1_Content) MergeResponsesCreateRequestInput1Content1(v ResponsesCreateRequestInput1Content1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ResponsesCreateRequest_Input_1_Content) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ResponsesCreateRequest_Input_1_Content) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsResponsesCreateRequestInput0 returns the union data inside the ResponsesCreateRequest_Input as a ResponsesCreateRequestInput0
+func (t ResponsesCreateRequest_Input) AsResponsesCreateRequestInput0() (ResponsesCreateRequestInput0, error) {
+	var body ResponsesCreateRequestInput0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromResponsesCreateRequestInput0 overwrites any union data inside the ResponsesCreateRequest_Input as the provided ResponsesCreateRequestInput0
+func (t *ResponsesCreateRequest_Input) FromResponsesCreateRequestInput0(v ResponsesCreateRequestInput0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeResponsesCreateRequestInput0 performs a merge with any union data inside the ResponsesCreateRequest_Input, using the provided ResponsesCreateRequestInput0
+func (t *ResponsesCreateRequest_Input) MergeResponsesCreateRequestInput0(v ResponsesCreateRequestInput0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsResponsesCreateRequestInput1 returns the union data inside the ResponsesCreateRequest_Input as a ResponsesCreateRequestInput1
+func (t ResponsesCreateRequest_Input) AsResponsesCreateRequestInput1() (ResponsesCreateRequestInput1, error) {
+	var body ResponsesCreateRequestInput1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromResponsesCreateRequestInput1 overwrites any union data inside the ResponsesCreateRequest_Input as the provided ResponsesCreateRequestInput1
+func (t *ResponsesCreateRequest_Input) FromResponsesCreateRequestInput1(v ResponsesCreateRequestInput1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeResponsesCreateRequestInput1 performs a merge with any union data inside the ResponsesCreateRequest_Input, using the provided ResponsesCreateRequestInput1
+func (t *ResponsesCreateRequest_Input) MergeResponsesCreateRequestInput1(v ResponsesCreateRequestInput1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ResponsesCreateRequest_Input) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ResponsesCreateRequest_Input) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

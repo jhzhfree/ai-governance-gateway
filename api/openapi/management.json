@@ -11854,7 +11854,7 @@
     "/v1/responses": {
       "post": {
         "operationId": "createStatelessTextResponse",
-        "description": "Reviewed newapi stateless text Responses subset, executed through the governed Chat contract. Explicit store=false required; string input and optional instructions, max_output_tokens >=16 within reviewed route bound. 16 KiB per text and 64 KiB request. JSON or stream=true SSE; no tools, media, background, previous-response/conversation state or retrieval. Standard authorization/device/budget/keywords and consented content audit apply; store=false does not disable enterprise audit. SSE text deltas are live; completed/incomplete terminal events require original completion proof, settlement and audit seal. Missing proof retains uncertain funds. Aggregate text <=1 MiB, emitted event <=2 MiB; failure may close without a terminal event. No retry or fabricated usage details.",
+        "description": "Reviewed newapi stateless text Responses subset, executed through the governed Chat contract. Explicit store=false required; text input and optional instructions, max_output_tokens >=16 within reviewed route bound. 16 KiB per text and 64 KiB request. JSON or stream=true SSE; no tools, media, background, previous-response/conversation state or retrieval. Standard authorization/device/budget/keywords and consented content audit apply; store=false does not disable enterprise audit. SSE text deltas are live; completed/incomplete terminal events require original completion proof, settlement and audit seal. Missing proof retains uncertain funds. Aggregate text <=1 MiB, emitted event <=2 MiB; failure may close without a terminal event. No retry or fabricated usage details. Input accepts a string or 1–63 ordered system/user/assistant text messages ending with user. Only user/system may use 1–16 input_text parts; joined text is at most 16 KiB per message. Developer role, assistant block arrays, phase, IDs, tools, media and cache control are rejected.",
         "security": [
           {
             "projectKey": []
@@ -17500,9 +17500,78 @@
             "type": "string"
           },
           "input": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 16384
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 16384
+              },
+              {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 63,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "role",
+                    "content"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "message"
+                      ]
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "system",
+                        "user",
+                        "assistant"
+                      ]
+                    },
+                    "content": {
+                      "oneOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 16384
+                        },
+                        {
+                          "type": "array",
+                          "minItems": 1,
+                          "maxItems": 16,
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "type",
+                              "text"
+                            ],
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "input_text"
+                                ]
+                              },
+                              "text": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 16384
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "description": "Text messages only. Assistant content must be a string; other roles may use input_text parts totaling at most 16 KiB. Final message must be user. No phase, IDs, tools, media, cache controls or state."
+                }
+              }
+            ]
           },
           "instructions": {
             "type": "string",
