@@ -55,7 +55,7 @@ func TestFreshSchemaAndReadOnlyStatus(t *testing.T) {
 	pool := testutil.EmptyDatabase(t)
 	ctx := context.Background()
 	initial := status(t, pool)
-	if initial.Managed || initial.Ready || initial.CurrentVersion != 0 || len(initial.Pending) != 24 {
+	if initial.Managed || initial.Ready || initial.CurrentVersion != 0 || len(initial.Pending) != 25 {
 		t.Fatal("unexpected unmanaged status")
 	}
 	if relation(t, pool, "aigw_schema_migrations") {
@@ -68,7 +68,7 @@ func TestFreshSchemaAndReadOnlyStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := status(t, pool)
-	if !before.Ready || before.CurrentVersion != 24 || len(before.Applied) != 24 {
+	if !before.Ready || before.CurrentVersion != 25 || len(before.Applied) != 25 {
 		t.Fatal("fresh migration incomplete")
 	}
 	for _, a := range before.Applied {
@@ -202,7 +202,7 @@ func TestConcurrentMigrationsRunExactlyOnce(t *testing.T) {
 	close(start)
 	wg.Wait()
 	r := status(t, pool)
-	if len(r.Applied) != 24 || !r.Ready {
+	if len(r.Applied) != 25 || !r.Ready {
 		t.Fatal("concurrent migration history invalid")
 	}
 }
@@ -213,6 +213,7 @@ func TestMigrationBatchRollsBackDDLAndHistory(t *testing.T) {
 	if err := database.Migrate(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
+	testutil.RevertSystemManagementMigration(t, pool)
 	testutil.RevertDeepSeekMigration(t, pool)
 	execSQL(t, pool, `DROP TABLE device_request_bindings,device_proof_nonces,device_sessions,device_policy_events,project_device_policies,device_state_events,terminal_devices; ALTER TABLE organization_member_lifecycle DROP COLUMN revoked_devices; DELETE FROM aigw_schema_migrations WHERE version=23; DROP TABLE budget_approval_requests,budget_approval_policies,budget_approval_policy_versions; DELETE FROM aigw_schema_migrations WHERE version=22; DROP TABLE request_department_attributions; DELETE FROM aigw_schema_migrations WHERE version=21; DROP TABLE department_versions,department_projects,department_members,departments,department_configurations; ALTER TABLE organization_member_lifecycle DROP COLUMN removed_department_grants; DELETE FROM aigw_schema_migrations WHERE version=20; DROP TABLE organization_member_lifecycle; DROP INDEX project_keys_creator_live; ALTER TABLE organization_members DROP CONSTRAINT organization_owner_enabled; ALTER TABLE organization_members DROP COLUMN lifecycle_revision,DROP COLUMN enabled; DELETE FROM aigw_schema_migrations WHERE version=19; DROP TABLE organization_ownership_transfers; DROP INDEX organization_single_owner; DELETE FROM aigw_schema_migrations WHERE version=18; DROP TABLE content_audit_checkpoint_parts,content_audit_checkpoints; DELETE FROM aigw_schema_migrations WHERE version=17; DROP TABLE budget_alert_policy_versions,budget_alerts,budget_alert_policies; DELETE FROM aigw_schema_migrations WHERE version=16; DROP TABLE local_security_events,local_auth_throttle,local_access_tokens,local_users; DELETE FROM aigw_schema_migrations WHERE version=15; DROP TABLE keyword_policy_versions,keyword_matches,keyword_policies,budget_period_changes,budget_cycles,budget_limit_changes; DELETE FROM aigw_schema_migrations WHERE version=14; DROP TABLE provider_credential_events,provider_credentials; DELETE FROM aigw_schema_migrations WHERE version=13; DROP TABLE provider_configuration_events,provider_configuration; DELETE FROM aigw_schema_migrations WHERE version=12; DROP TABLE content_audit_access_log,content_audit_chain,content_audit_heads,content_audit_payloads,content_audit_records,content_audit_deks,content_audit_auditors,content_audit_policies; DELETE FROM aigw_schema_migrations WHERE version=11`)
 	execSQL(t, pool, `DROP TABLE billing_records,billing_imports; DELETE FROM aigw_schema_migrations WHERE version=10`)
@@ -250,7 +251,7 @@ func TestHistoryAndSchemaDriftFailClosed(t *testing.T) {
 	}{
 		{"checksum", `UPDATE aigw_schema_migrations SET checksum=repeat('0',64) WHERE version=1`, database.ErrChecksum},
 		{"gap", `DELETE FROM aigw_schema_migrations WHERE version=2`, database.ErrHistory},
-		{"newer", `INSERT INTO aigw_schema_migrations(version,name,checksum,schema_hash,adopted) VALUES(25,'0025_future.sql',repeat('0',64),repeat('0',64),false)`, database.ErrNewer},
+		{"newer", `INSERT INTO aigw_schema_migrations(version,name,checksum,schema_hash,adopted) SELECT max(version)+1,'future.sql',repeat('0',64),repeat('0',64),false FROM aigw_schema_migrations`, database.ErrNewer},
 		{"missing_index", `DROP INDEX budget_recovery_idx`, database.ErrSchemaDrift},
 		{"extra_column", `ALTER TABLE browser_sessions ADD COLUMN unexpected text`, database.ErrSchemaDrift},
 		{"missing_table", `DROP TABLE browser_sessions`, database.ErrSchemaDrift},
@@ -312,6 +313,7 @@ func TestRequestHistoryIndexUpgradePreservesData(t *testing.T) {
 	if _, err := ledger.Reserve(context.Background(), budget.Quote{Scope: scope, RequestID: "history-upgrade", PriceVersion: "mock-v1", Amount: 10}); err != nil {
 		t.Fatal(err)
 	}
+	testutil.RevertSystemManagementMigration(t, pool)
 	testutil.RevertDeepSeekMigration(t, pool)
 	execSQL(t, pool, `DROP TABLE device_request_bindings,device_proof_nonces,device_sessions,device_policy_events,project_device_policies,device_state_events,terminal_devices; ALTER TABLE organization_member_lifecycle DROP COLUMN revoked_devices; DELETE FROM aigw_schema_migrations WHERE version=23; DROP TABLE budget_approval_requests,budget_approval_policies,budget_approval_policy_versions; DELETE FROM aigw_schema_migrations WHERE version=22; DROP TABLE request_department_attributions; DELETE FROM aigw_schema_migrations WHERE version=21; DROP TABLE department_versions,department_projects,department_members,departments,department_configurations; ALTER TABLE organization_member_lifecycle DROP COLUMN removed_department_grants; DELETE FROM aigw_schema_migrations WHERE version=20; DROP TABLE organization_member_lifecycle; DROP INDEX project_keys_creator_live; ALTER TABLE organization_members DROP CONSTRAINT organization_owner_enabled; ALTER TABLE organization_members DROP COLUMN lifecycle_revision,DROP COLUMN enabled; DELETE FROM aigw_schema_migrations WHERE version=19; DROP TABLE organization_ownership_transfers; DROP INDEX organization_single_owner; DELETE FROM aigw_schema_migrations WHERE version=18; DROP TABLE content_audit_checkpoint_parts,content_audit_checkpoints; DELETE FROM aigw_schema_migrations WHERE version=17; DROP TABLE budget_alert_policy_versions,budget_alerts,budget_alert_policies; DELETE FROM aigw_schema_migrations WHERE version=16; DROP TABLE local_security_events,local_auth_throttle,local_access_tokens,local_users; DELETE FROM aigw_schema_migrations WHERE version=15; DROP TABLE keyword_policy_versions,keyword_matches,keyword_policies,budget_period_changes,budget_cycles,budget_limit_changes; DELETE FROM aigw_schema_migrations WHERE version=14; DROP TABLE provider_credential_events,provider_credentials; DELETE FROM aigw_schema_migrations WHERE version=13; DROP TABLE provider_configuration_events,provider_configuration; DELETE FROM aigw_schema_migrations WHERE version=12; DROP TABLE content_audit_access_log,content_audit_chain,content_audit_heads,content_audit_payloads,content_audit_records,content_audit_deks,content_audit_auditors,content_audit_policies; DELETE FROM aigw_schema_migrations WHERE version=11`)
 	execSQL(t, pool, `DROP TABLE billing_records,billing_imports; DELETE FROM aigw_schema_migrations WHERE version=10`)
@@ -344,6 +346,7 @@ func TestMainlandCurrencyMigrationRollsBackAndPreservesMockLedger(t *testing.T) 
 	if _, err := ledger.Reserve(context.Background(), budget.Quote{Scope: scope, RequestID: "mock-before-currencies", PriceVersion: "mock-v1", Amount: 10}); err != nil {
 		t.Fatal(err)
 	}
+	testutil.RevertSystemManagementMigration(t, pool)
 	testutil.RevertDeepSeekMigration(t, pool)
 	execSQL(t, pool, `DROP TABLE device_request_bindings,device_proof_nonces,device_sessions,device_policy_events,project_device_policies,device_state_events,terminal_devices; ALTER TABLE organization_member_lifecycle DROP COLUMN revoked_devices; DELETE FROM aigw_schema_migrations WHERE version=23; DROP TABLE budget_approval_requests,budget_approval_policies,budget_approval_policy_versions; DELETE FROM aigw_schema_migrations WHERE version=22; DROP TABLE request_department_attributions; DELETE FROM aigw_schema_migrations WHERE version=21; DROP TABLE department_versions,department_projects,department_members,departments,department_configurations; ALTER TABLE organization_member_lifecycle DROP COLUMN removed_department_grants; DELETE FROM aigw_schema_migrations WHERE version=20; DROP TABLE organization_member_lifecycle; DROP INDEX project_keys_creator_live; ALTER TABLE organization_members DROP CONSTRAINT organization_owner_enabled; ALTER TABLE organization_members DROP COLUMN lifecycle_revision,DROP COLUMN enabled; DELETE FROM aigw_schema_migrations WHERE version=19; DROP TABLE organization_ownership_transfers; DROP INDEX organization_single_owner; DELETE FROM aigw_schema_migrations WHERE version=18; DROP TABLE content_audit_checkpoint_parts,content_audit_checkpoints; DELETE FROM aigw_schema_migrations WHERE version=17; DROP TABLE budget_alert_policy_versions,budget_alerts,budget_alert_policies; DELETE FROM aigw_schema_migrations WHERE version=16; DROP TABLE local_security_events,local_auth_throttle,local_access_tokens,local_users; DELETE FROM aigw_schema_migrations WHERE version=15; DROP TABLE keyword_policy_versions,keyword_matches,keyword_policies,budget_period_changes,budget_cycles,budget_limit_changes; DELETE FROM aigw_schema_migrations WHERE version=14; DROP TABLE provider_credential_events,provider_credentials; DELETE FROM aigw_schema_migrations WHERE version=13; DROP TABLE provider_configuration_events,provider_configuration; DELETE FROM aigw_schema_migrations WHERE version=12; DROP TABLE content_audit_access_log,content_audit_chain,content_audit_heads,content_audit_payloads,content_audit_records,content_audit_deks,content_audit_auditors,content_audit_policies; DELETE FROM aigw_schema_migrations WHERE version=11`)
 	execSQL(t, pool, `DROP TABLE billing_records,billing_imports; DELETE FROM aigw_schema_migrations WHERE version=10`)
@@ -378,6 +381,7 @@ func TestAttemptMigrationRollbackAndHistoricalRecords(t *testing.T) {
 	if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "before-attempts", PriceVersion: "mock-v1", Amount: 10}); err != nil {
 		t.Fatal(err)
 	}
+	testutil.RevertSystemManagementMigration(t, pool)
 	testutil.RevertDeepSeekMigration(t, pool)
 	execSQL(t, pool, `DROP TABLE device_request_bindings,device_proof_nonces,device_sessions,device_policy_events,project_device_policies,device_state_events,terminal_devices; ALTER TABLE organization_member_lifecycle DROP COLUMN revoked_devices; DELETE FROM aigw_schema_migrations WHERE version=23; DROP TABLE budget_approval_requests,budget_approval_policies,budget_approval_policy_versions; DELETE FROM aigw_schema_migrations WHERE version=22; DROP TABLE request_department_attributions; DELETE FROM aigw_schema_migrations WHERE version=21; DROP TABLE department_versions,department_projects,department_members,departments,department_configurations; ALTER TABLE organization_member_lifecycle DROP COLUMN removed_department_grants; DELETE FROM aigw_schema_migrations WHERE version=20; DROP TABLE organization_member_lifecycle; DROP INDEX project_keys_creator_live; ALTER TABLE organization_members DROP CONSTRAINT organization_owner_enabled; ALTER TABLE organization_members DROP COLUMN lifecycle_revision,DROP COLUMN enabled; DELETE FROM aigw_schema_migrations WHERE version=19; DROP TABLE organization_ownership_transfers; DROP INDEX organization_single_owner; DELETE FROM aigw_schema_migrations WHERE version=18; DROP TABLE content_audit_checkpoint_parts,content_audit_checkpoints; DELETE FROM aigw_schema_migrations WHERE version=17; DROP TABLE budget_alert_policy_versions,budget_alerts,budget_alert_policies; DELETE FROM aigw_schema_migrations WHERE version=16; DROP TABLE local_security_events,local_auth_throttle,local_access_tokens,local_users; DELETE FROM aigw_schema_migrations WHERE version=15; DROP TABLE keyword_policy_versions,keyword_matches,keyword_policies,budget_period_changes,budget_cycles,budget_limit_changes; DELETE FROM aigw_schema_migrations WHERE version=14; DROP TABLE provider_credential_events,provider_credentials; DELETE FROM aigw_schema_migrations WHERE version=13; DROP TABLE provider_configuration_events,provider_configuration; DELETE FROM aigw_schema_migrations WHERE version=12; DROP TABLE content_audit_access_log,content_audit_chain,content_audit_heads,content_audit_payloads,content_audit_records,content_audit_deks,content_audit_auditors,content_audit_policies; DELETE FROM aigw_schema_migrations WHERE version=11`)
 	execSQL(t, pool, `DROP TABLE billing_records,billing_imports; DELETE FROM aigw_schema_migrations WHERE version=10`)
@@ -418,6 +422,7 @@ func TestAdmissionMigrationRollsBackAndPreservesHeldBudget(t *testing.T) {
 	if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "before-admission", PriceVersion: "mock-v1", Amount: 10}); err != nil {
 		t.Fatal(err)
 	}
+	testutil.RevertSystemManagementMigration(t, pool)
 	testutil.RevertDeepSeekMigration(t, pool)
 	execSQL(t, pool, `DROP TABLE device_request_bindings,device_proof_nonces,device_sessions,device_policy_events,project_device_policies,device_state_events,terminal_devices; ALTER TABLE organization_member_lifecycle DROP COLUMN revoked_devices; DELETE FROM aigw_schema_migrations WHERE version=23; DROP TABLE budget_approval_requests,budget_approval_policies,budget_approval_policy_versions; DELETE FROM aigw_schema_migrations WHERE version=22; DROP TABLE request_department_attributions; DELETE FROM aigw_schema_migrations WHERE version=21; DROP TABLE department_versions,department_projects,department_members,departments,department_configurations; ALTER TABLE organization_member_lifecycle DROP COLUMN removed_department_grants; DELETE FROM aigw_schema_migrations WHERE version=20; DROP TABLE organization_member_lifecycle; DROP INDEX project_keys_creator_live; ALTER TABLE organization_members DROP CONSTRAINT organization_owner_enabled; ALTER TABLE organization_members DROP COLUMN lifecycle_revision,DROP COLUMN enabled; DELETE FROM aigw_schema_migrations WHERE version=19; DROP TABLE organization_ownership_transfers; DROP INDEX organization_single_owner; DELETE FROM aigw_schema_migrations WHERE version=18; DROP TABLE content_audit_checkpoint_parts,content_audit_checkpoints; DELETE FROM aigw_schema_migrations WHERE version=17; DROP TABLE budget_alert_policy_versions,budget_alerts,budget_alert_policies; DELETE FROM aigw_schema_migrations WHERE version=16; DROP TABLE local_security_events,local_auth_throttle,local_access_tokens,local_users; DELETE FROM aigw_schema_migrations WHERE version=15; DROP TABLE keyword_policy_versions,keyword_matches,keyword_policies,budget_period_changes,budget_cycles,budget_limit_changes; DELETE FROM aigw_schema_migrations WHERE version=14; DROP TABLE provider_credential_events,provider_credentials; DELETE FROM aigw_schema_migrations WHERE version=13; DROP TABLE provider_configuration_events,provider_configuration; DELETE FROM aigw_schema_migrations WHERE version=12; DROP TABLE content_audit_access_log,content_audit_chain,content_audit_heads,content_audit_payloads,content_audit_records,content_audit_deks,content_audit_auditors,content_audit_policies; DELETE FROM aigw_schema_migrations WHERE version=11`)
 	execSQL(t, pool, `DROP TABLE billing_records,billing_imports; DELETE FROM aigw_schema_migrations WHERE version=10`)
@@ -454,6 +459,7 @@ func TestCircuitMigrationRollbackAndExistingHoldPreservation(t *testing.T) {
 	if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "before-circuit", PriceVersion: "mock-v1", Amount: 10}); err != nil {
 		t.Fatal(err)
 	}
+	testutil.RevertSystemManagementMigration(t, pool)
 	testutil.RevertDeepSeekMigration(t, pool)
 	execSQL(t, pool, `DROP TABLE device_request_bindings,device_proof_nonces,device_sessions,device_policy_events,project_device_policies,device_state_events,terminal_devices; ALTER TABLE organization_member_lifecycle DROP COLUMN revoked_devices; DELETE FROM aigw_schema_migrations WHERE version=23; DROP TABLE budget_approval_requests,budget_approval_policies,budget_approval_policy_versions; DELETE FROM aigw_schema_migrations WHERE version=22; DROP TABLE request_department_attributions; DELETE FROM aigw_schema_migrations WHERE version=21; DROP TABLE department_versions,department_projects,department_members,departments,department_configurations; ALTER TABLE organization_member_lifecycle DROP COLUMN removed_department_grants; DELETE FROM aigw_schema_migrations WHERE version=20; DROP TABLE organization_member_lifecycle; DROP INDEX project_keys_creator_live; ALTER TABLE organization_members DROP CONSTRAINT organization_owner_enabled; ALTER TABLE organization_members DROP COLUMN lifecycle_revision,DROP COLUMN enabled; DELETE FROM aigw_schema_migrations WHERE version=19; DROP TABLE organization_ownership_transfers; DROP INDEX organization_single_owner; DELETE FROM aigw_schema_migrations WHERE version=18; DROP TABLE content_audit_checkpoint_parts,content_audit_checkpoints; DELETE FROM aigw_schema_migrations WHERE version=17; DROP TABLE budget_alert_policy_versions,budget_alerts,budget_alert_policies; DELETE FROM aigw_schema_migrations WHERE version=16; DROP TABLE local_security_events,local_auth_throttle,local_access_tokens,local_users; DELETE FROM aigw_schema_migrations WHERE version=15; DROP TABLE keyword_policy_versions,keyword_matches,keyword_policies,budget_period_changes,budget_cycles,budget_limit_changes; DELETE FROM aigw_schema_migrations WHERE version=14; DROP TABLE provider_credential_events,provider_credentials; DELETE FROM aigw_schema_migrations WHERE version=13; DROP TABLE provider_configuration_events,provider_configuration; DELETE FROM aigw_schema_migrations WHERE version=12; DROP TABLE content_audit_access_log,content_audit_chain,content_audit_heads,content_audit_payloads,content_audit_records,content_audit_deks,content_audit_auditors,content_audit_policies; DELETE FROM aigw_schema_migrations WHERE version=11`)
 	execSQL(t, pool, `DROP TABLE billing_records,billing_imports; DELETE FROM aigw_schema_migrations WHERE version=10`)
@@ -484,6 +490,7 @@ func TestBillingMigrationRollbackAndHoldPreservation(t *testing.T) {
 	if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "before-billing", PriceVersion: "mock-v1", Amount: 10}); err != nil {
 		t.Fatal(err)
 	}
+	testutil.RevertSystemManagementMigration(t, pool)
 	testutil.RevertDeepSeekMigration(t, pool)
 	execSQL(t, pool, `DROP TABLE device_request_bindings,device_proof_nonces,device_sessions,device_policy_events,project_device_policies,device_state_events,terminal_devices; ALTER TABLE organization_member_lifecycle DROP COLUMN revoked_devices; DELETE FROM aigw_schema_migrations WHERE version=23; DROP TABLE budget_approval_requests,budget_approval_policies,budget_approval_policy_versions; DELETE FROM aigw_schema_migrations WHERE version=22; DROP TABLE request_department_attributions; DELETE FROM aigw_schema_migrations WHERE version=21; DROP TABLE department_versions,department_projects,department_members,departments,department_configurations; ALTER TABLE organization_member_lifecycle DROP COLUMN removed_department_grants; DELETE FROM aigw_schema_migrations WHERE version=20; DROP TABLE organization_member_lifecycle; DROP INDEX project_keys_creator_live; ALTER TABLE organization_members DROP CONSTRAINT organization_owner_enabled; ALTER TABLE organization_members DROP COLUMN lifecycle_revision,DROP COLUMN enabled; DELETE FROM aigw_schema_migrations WHERE version=19; DROP TABLE organization_ownership_transfers; DROP INDEX organization_single_owner; DELETE FROM aigw_schema_migrations WHERE version=18; DROP TABLE content_audit_checkpoint_parts,content_audit_checkpoints; DELETE FROM aigw_schema_migrations WHERE version=17; DROP TABLE budget_alert_policy_versions,budget_alerts,budget_alert_policies; DELETE FROM aigw_schema_migrations WHERE version=16; DROP TABLE local_security_events,local_auth_throttle,local_access_tokens,local_users; DELETE FROM aigw_schema_migrations WHERE version=15; DROP TABLE keyword_policy_versions,keyword_matches,keyword_policies,budget_period_changes,budget_cycles,budget_limit_changes; DELETE FROM aigw_schema_migrations WHERE version=14; DROP TABLE provider_credential_events,provider_credentials; DELETE FROM aigw_schema_migrations WHERE version=13; DROP TABLE provider_configuration_events,provider_configuration; DELETE FROM aigw_schema_migrations WHERE version=12; DROP TABLE content_audit_access_log,content_audit_chain,content_audit_heads,content_audit_payloads,content_audit_records,content_audit_deks,content_audit_auditors,content_audit_policies; DELETE FROM aigw_schema_migrations WHERE version=11`)
 	execSQL(t, pool, `DROP TABLE billing_records,billing_imports; DELETE FROM aigw_schema_migrations WHERE version=10; ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v10 CHECK(version<>10)`)
@@ -513,6 +520,7 @@ func TestContentAuditMigrationRollbackPreservesBudget(t *testing.T) {
 	if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "before-content", PriceVersion: "mock-v1", Amount: 10}); err != nil {
 		t.Fatal(err)
 	}
+	testutil.RevertSystemManagementMigration(t, pool)
 	testutil.RevertDeepSeekMigration(t, pool)
 	execSQL(t, pool, `DROP TABLE device_request_bindings,device_proof_nonces,device_sessions,device_policy_events,project_device_policies,device_state_events,terminal_devices; ALTER TABLE organization_member_lifecycle DROP COLUMN revoked_devices; DELETE FROM aigw_schema_migrations WHERE version=23; DROP TABLE budget_approval_requests,budget_approval_policies,budget_approval_policy_versions; DELETE FROM aigw_schema_migrations WHERE version=22; DROP TABLE request_department_attributions; DELETE FROM aigw_schema_migrations WHERE version=21; DROP TABLE department_versions,department_projects,department_members,departments,department_configurations; ALTER TABLE organization_member_lifecycle DROP COLUMN removed_department_grants; DELETE FROM aigw_schema_migrations WHERE version=20; DROP TABLE organization_member_lifecycle; DROP INDEX project_keys_creator_live; ALTER TABLE organization_members DROP CONSTRAINT organization_owner_enabled; ALTER TABLE organization_members DROP COLUMN lifecycle_revision,DROP COLUMN enabled; DELETE FROM aigw_schema_migrations WHERE version=19; DROP TABLE organization_ownership_transfers; DROP INDEX organization_single_owner; DELETE FROM aigw_schema_migrations WHERE version=18; DROP TABLE content_audit_checkpoint_parts,content_audit_checkpoints; DELETE FROM aigw_schema_migrations WHERE version=17; DROP TABLE budget_alert_policy_versions,budget_alerts,budget_alert_policies; DELETE FROM aigw_schema_migrations WHERE version=16; DROP TABLE local_security_events,local_auth_throttle,local_access_tokens,local_users; DELETE FROM aigw_schema_migrations WHERE version=15; DROP TABLE keyword_policy_versions,keyword_matches,keyword_policies,budget_period_changes,budget_cycles,budget_limit_changes; DELETE FROM aigw_schema_migrations WHERE version=14; DROP TABLE provider_credential_events,provider_credentials; DELETE FROM aigw_schema_migrations WHERE version=13; DROP TABLE provider_configuration_events,provider_configuration; DELETE FROM aigw_schema_migrations WHERE version=12; DROP TABLE content_audit_access_log,content_audit_chain,content_audit_heads,content_audit_payloads,content_audit_records,content_audit_deks,content_audit_auditors,content_audit_policies; DELETE FROM aigw_schema_migrations WHERE version=11; ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v11 CHECK(version<>11)`)
 	if err := database.Migrate(ctx, pool); err == nil {
@@ -548,6 +556,7 @@ func TestProviderConfigurationMigrationPreservesPriorAudit(t *testing.T) {
 	if err := database.Migrate(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
+	testutil.RevertSystemManagementMigration(t, pool)
 	testutil.RevertDeepSeekMigration(t, pool)
 	execSQL(t, pool, `DROP TABLE device_request_bindings,device_proof_nonces,device_sessions,device_policy_events,project_device_policies,device_state_events,terminal_devices; ALTER TABLE organization_member_lifecycle DROP COLUMN revoked_devices; DELETE FROM aigw_schema_migrations WHERE version=23; DROP TABLE budget_approval_requests,budget_approval_policies,budget_approval_policy_versions; DELETE FROM aigw_schema_migrations WHERE version=22; DROP TABLE request_department_attributions; DELETE FROM aigw_schema_migrations WHERE version=21; DROP TABLE department_versions,department_projects,department_members,departments,department_configurations; ALTER TABLE organization_member_lifecycle DROP COLUMN removed_department_grants; DELETE FROM aigw_schema_migrations WHERE version=20; DROP TABLE organization_member_lifecycle; DROP INDEX project_keys_creator_live; ALTER TABLE organization_members DROP CONSTRAINT organization_owner_enabled; ALTER TABLE organization_members DROP COLUMN lifecycle_revision,DROP COLUMN enabled; DELETE FROM aigw_schema_migrations WHERE version=19; DROP TABLE organization_ownership_transfers; DROP INDEX organization_single_owner; DELETE FROM aigw_schema_migrations WHERE version=18; DROP TABLE content_audit_checkpoint_parts,content_audit_checkpoints; DELETE FROM aigw_schema_migrations WHERE version=17; DROP TABLE budget_alert_policy_versions,budget_alerts,budget_alert_policies; DELETE FROM aigw_schema_migrations WHERE version=16; DROP TABLE local_security_events,local_auth_throttle,local_access_tokens,local_users; DELETE FROM aigw_schema_migrations WHERE version=15; DROP TABLE keyword_policy_versions,keyword_matches,keyword_policies,budget_period_changes,budget_cycles,budget_limit_changes; DELETE FROM aigw_schema_migrations WHERE version=14; DROP TABLE provider_credential_events,provider_credentials; DELETE FROM aigw_schema_migrations WHERE version=13; DROP TABLE provider_configuration_events,provider_configuration; DELETE FROM aigw_schema_migrations WHERE version=12; ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v12 CHECK(version<>12)`)
 	if database.Migrate(ctx, pool) == nil {
@@ -572,6 +581,7 @@ func TestProviderCredentialMigrationRollback(t *testing.T) {
 	if err := database.Migrate(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
+	testutil.RevertSystemManagementMigration(t, pool)
 	testutil.RevertDeepSeekMigration(t, pool)
 	execSQL(t, pool, `DROP TABLE device_request_bindings,device_proof_nonces,device_sessions,device_policy_events,project_device_policies,device_state_events,terminal_devices; ALTER TABLE organization_member_lifecycle DROP COLUMN revoked_devices; DELETE FROM aigw_schema_migrations WHERE version=23; DROP TABLE budget_approval_requests,budget_approval_policies,budget_approval_policy_versions; DELETE FROM aigw_schema_migrations WHERE version=22; DROP TABLE request_department_attributions; DELETE FROM aigw_schema_migrations WHERE version=21; DROP TABLE department_versions,department_projects,department_members,departments,department_configurations; ALTER TABLE organization_member_lifecycle DROP COLUMN removed_department_grants; DELETE FROM aigw_schema_migrations WHERE version=20; DROP TABLE organization_member_lifecycle; DROP INDEX project_keys_creator_live; ALTER TABLE organization_members DROP CONSTRAINT organization_owner_enabled; ALTER TABLE organization_members DROP COLUMN lifecycle_revision,DROP COLUMN enabled; DELETE FROM aigw_schema_migrations WHERE version=19; DROP TABLE organization_ownership_transfers; DROP INDEX organization_single_owner; DELETE FROM aigw_schema_migrations WHERE version=18; DROP TABLE content_audit_checkpoint_parts,content_audit_checkpoints; DELETE FROM aigw_schema_migrations WHERE version=17; DROP TABLE budget_alert_policy_versions,budget_alerts,budget_alert_policies; DELETE FROM aigw_schema_migrations WHERE version=16; DROP TABLE local_security_events,local_auth_throttle,local_access_tokens,local_users; DELETE FROM aigw_schema_migrations WHERE version=15; DROP TABLE keyword_policy_versions,keyword_matches,keyword_policies,budget_period_changes,budget_cycles,budget_limit_changes; DELETE FROM aigw_schema_migrations WHERE version=14; DROP TABLE provider_credential_events,provider_credentials; DELETE FROM aigw_schema_migrations WHERE version=13; ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v13 CHECK(version<>13)`)
 	if database.Migrate(ctx, pool) == nil {
@@ -595,6 +605,7 @@ func TestBudgetKeywordMigrationRollback(t *testing.T) {
 	if err := database.Migrate(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
+	testutil.RevertSystemManagementMigration(t, pool)
 	testutil.RevertDeepSeekMigration(t, pool)
 	execSQL(t, pool, `DROP TABLE device_request_bindings,device_proof_nonces,device_sessions,device_policy_events,project_device_policies,device_state_events,terminal_devices; ALTER TABLE organization_member_lifecycle DROP COLUMN revoked_devices; DELETE FROM aigw_schema_migrations WHERE version=23; DROP TABLE budget_approval_requests,budget_approval_policies,budget_approval_policy_versions; DELETE FROM aigw_schema_migrations WHERE version=22; DROP TABLE request_department_attributions; DELETE FROM aigw_schema_migrations WHERE version=21; DROP TABLE department_versions,department_projects,department_members,departments,department_configurations; ALTER TABLE organization_member_lifecycle DROP COLUMN removed_department_grants; DELETE FROM aigw_schema_migrations WHERE version=20; DROP TABLE organization_member_lifecycle; DROP INDEX project_keys_creator_live; ALTER TABLE organization_members DROP CONSTRAINT organization_owner_enabled; ALTER TABLE organization_members DROP COLUMN lifecycle_revision,DROP COLUMN enabled; DELETE FROM aigw_schema_migrations WHERE version=19; DROP TABLE organization_ownership_transfers; DROP INDEX organization_single_owner; DELETE FROM aigw_schema_migrations WHERE version=18; DROP TABLE content_audit_checkpoint_parts,content_audit_checkpoints; DELETE FROM aigw_schema_migrations WHERE version=17; DROP TABLE budget_alert_policy_versions,budget_alerts,budget_alert_policies; DELETE FROM aigw_schema_migrations WHERE version=16; DROP TABLE local_security_events,local_auth_throttle,local_access_tokens,local_users; DELETE FROM aigw_schema_migrations WHERE version=15; DROP TABLE keyword_policy_versions,keyword_matches,keyword_policies,budget_period_changes,budget_cycles,budget_limit_changes; DELETE FROM aigw_schema_migrations WHERE version=14; ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v14 CHECK(version<>14)`)
 	if database.Migrate(ctx, pool) == nil {
@@ -618,6 +629,7 @@ func TestLocalIdentityMigrationRollback(t *testing.T) {
 	if err := database.Migrate(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
+	testutil.RevertSystemManagementMigration(t, pool)
 	testutil.RevertDeepSeekMigration(t, pool)
 	execSQL(t, pool, `DROP TABLE device_request_bindings,device_proof_nonces,device_sessions,device_policy_events,project_device_policies,device_state_events,terminal_devices; ALTER TABLE organization_member_lifecycle DROP COLUMN revoked_devices; DELETE FROM aigw_schema_migrations WHERE version=23; DROP TABLE budget_approval_requests,budget_approval_policies,budget_approval_policy_versions; DELETE FROM aigw_schema_migrations WHERE version=22; DROP TABLE request_department_attributions; DELETE FROM aigw_schema_migrations WHERE version=21; DROP TABLE department_versions,department_projects,department_members,departments,department_configurations; ALTER TABLE organization_member_lifecycle DROP COLUMN removed_department_grants; DELETE FROM aigw_schema_migrations WHERE version=20; DROP TABLE organization_member_lifecycle; DROP INDEX project_keys_creator_live; ALTER TABLE organization_members DROP CONSTRAINT organization_owner_enabled; ALTER TABLE organization_members DROP COLUMN lifecycle_revision,DROP COLUMN enabled; DELETE FROM aigw_schema_migrations WHERE version=19; DROP TABLE organization_ownership_transfers; DROP INDEX organization_single_owner; DELETE FROM aigw_schema_migrations WHERE version=18; DROP TABLE content_audit_checkpoint_parts,content_audit_checkpoints; DELETE FROM aigw_schema_migrations WHERE version=17; DROP TABLE budget_alert_policy_versions,budget_alerts,budget_alert_policies; DELETE FROM aigw_schema_migrations WHERE version=16; DROP TABLE local_security_events,local_auth_throttle,local_access_tokens,local_users; DELETE FROM aigw_schema_migrations WHERE version=15; ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v15 CHECK(version<>15)`)
 	if database.Migrate(ctx, pool) == nil {
@@ -642,6 +654,7 @@ func TestBudgetAlertMigrationRollbackAndHeldBudgetPreservation(t *testing.T) {
 	if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "before-alerts", PriceVersion: "synthetic", Amount: 10}); err != nil {
 		t.Fatal(err)
 	}
+	testutil.RevertSystemManagementMigration(t, pool)
 	testutil.RevertDeepSeekMigration(t, pool)
 	execSQL(t, pool, `DROP TABLE device_request_bindings,device_proof_nonces,device_sessions,device_policy_events,project_device_policies,device_state_events,terminal_devices; ALTER TABLE organization_member_lifecycle DROP COLUMN revoked_devices; DELETE FROM aigw_schema_migrations WHERE version=23; DROP TABLE budget_approval_requests,budget_approval_policies,budget_approval_policy_versions; DELETE FROM aigw_schema_migrations WHERE version=22; DROP TABLE request_department_attributions; DELETE FROM aigw_schema_migrations WHERE version=21; DROP TABLE department_versions,department_projects,department_members,departments,department_configurations; ALTER TABLE organization_member_lifecycle DROP COLUMN removed_department_grants; DELETE FROM aigw_schema_migrations WHERE version=20; DROP TABLE organization_member_lifecycle; DROP INDEX project_keys_creator_live; ALTER TABLE organization_members DROP CONSTRAINT organization_owner_enabled; ALTER TABLE organization_members DROP COLUMN lifecycle_revision,DROP COLUMN enabled; DELETE FROM aigw_schema_migrations WHERE version=19; DROP TABLE organization_ownership_transfers; DROP INDEX organization_single_owner; DELETE FROM aigw_schema_migrations WHERE version=18; DROP TABLE content_audit_checkpoint_parts,content_audit_checkpoints; DELETE FROM aigw_schema_migrations WHERE version=17; DROP TABLE budget_alert_policy_versions,budget_alerts,budget_alert_policies; DELETE FROM aigw_schema_migrations WHERE version=16; ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v16 CHECK(version<>16)`)
 	if database.Migrate(ctx, pool) == nil {
@@ -670,6 +683,7 @@ func TestAuditCheckpointMigrationRollbackPreservesHolds(t *testing.T) {
 	if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "before-checkpoint", PriceVersion: "synthetic", Amount: 10}); err != nil {
 		t.Fatal(err)
 	}
+	testutil.RevertSystemManagementMigration(t, pool)
 	testutil.RevertDeepSeekMigration(t, pool)
 	execSQL(t, pool, `DROP TABLE device_request_bindings,device_proof_nonces,device_sessions,device_policy_events,project_device_policies,device_state_events,terminal_devices; ALTER TABLE organization_member_lifecycle DROP COLUMN revoked_devices; DELETE FROM aigw_schema_migrations WHERE version=23; DROP TABLE budget_approval_requests,budget_approval_policies,budget_approval_policy_versions; DELETE FROM aigw_schema_migrations WHERE version=22; DROP TABLE request_department_attributions; DELETE FROM aigw_schema_migrations WHERE version=21; DROP TABLE department_versions,department_projects,department_members,departments,department_configurations; ALTER TABLE organization_member_lifecycle DROP COLUMN removed_department_grants; DELETE FROM aigw_schema_migrations WHERE version=20; DROP TABLE organization_member_lifecycle; DROP INDEX project_keys_creator_live; ALTER TABLE organization_members DROP CONSTRAINT organization_owner_enabled; ALTER TABLE organization_members DROP COLUMN lifecycle_revision,DROP COLUMN enabled; DELETE FROM aigw_schema_migrations WHERE version=19; DROP TABLE organization_ownership_transfers; DROP INDEX organization_single_owner; DELETE FROM aigw_schema_migrations WHERE version=18; DROP TABLE content_audit_checkpoint_parts,content_audit_checkpoints; DELETE FROM aigw_schema_migrations WHERE version=17; ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v17 CHECK(version<>17)`)
 	if database.Migrate(ctx, pool) == nil {
@@ -698,6 +712,7 @@ func TestOwnershipMigrationRollbackPreservesSingleOwnerAndData(t *testing.T) {
 	if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "before-ownership", PriceVersion: "synthetic", Amount: 10}); err != nil {
 		t.Fatal(err)
 	}
+	testutil.RevertSystemManagementMigration(t, pool)
 	testutil.RevertDeepSeekMigration(t, pool)
 	execSQL(t, pool, `DROP TABLE device_request_bindings,device_proof_nonces,device_sessions,device_policy_events,project_device_policies,device_state_events,terminal_devices; ALTER TABLE organization_member_lifecycle DROP COLUMN revoked_devices; DELETE FROM aigw_schema_migrations WHERE version=23; DROP TABLE budget_approval_requests,budget_approval_policies,budget_approval_policy_versions; DELETE FROM aigw_schema_migrations WHERE version=22; DROP TABLE request_department_attributions; DELETE FROM aigw_schema_migrations WHERE version=21; DROP TABLE department_versions,department_projects,department_members,departments,department_configurations; ALTER TABLE organization_member_lifecycle DROP COLUMN removed_department_grants; DELETE FROM aigw_schema_migrations WHERE version=20; DROP TABLE organization_member_lifecycle; DROP INDEX project_keys_creator_live; ALTER TABLE organization_members DROP CONSTRAINT organization_owner_enabled; ALTER TABLE organization_members DROP COLUMN lifecycle_revision,DROP COLUMN enabled; DELETE FROM aigw_schema_migrations WHERE version=19; DROP TABLE organization_ownership_transfers; DROP INDEX organization_single_owner; DELETE FROM aigw_schema_migrations WHERE version=18; ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v18 CHECK(version<>18)`)
 	if database.Migrate(ctx, pool) == nil {
@@ -728,6 +743,7 @@ func TestOwnershipUpgradeRejectsAmbiguousLegacyOwners(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	testutil.RevertSystemManagementMigration(t, pool)
 	testutil.RevertDeepSeekMigration(t, pool)
 	execSQL(t, pool, `DROP TABLE device_request_bindings,device_proof_nonces,device_sessions,device_policy_events,project_device_policies,device_state_events,terminal_devices; ALTER TABLE organization_member_lifecycle DROP COLUMN revoked_devices; DELETE FROM aigw_schema_migrations WHERE version=23; DROP TABLE budget_approval_requests,budget_approval_policies,budget_approval_policy_versions; DELETE FROM aigw_schema_migrations WHERE version=22; DROP TABLE request_department_attributions; DELETE FROM aigw_schema_migrations WHERE version=21; DROP TABLE department_versions,department_projects,department_members,departments,department_configurations; ALTER TABLE organization_member_lifecycle DROP COLUMN removed_department_grants; DELETE FROM aigw_schema_migrations WHERE version=20; DROP TABLE organization_member_lifecycle; DROP INDEX project_keys_creator_live; ALTER TABLE organization_members DROP CONSTRAINT organization_owner_enabled; ALTER TABLE organization_members DROP COLUMN lifecycle_revision,DROP COLUMN enabled; DELETE FROM aigw_schema_migrations WHERE version=19; DROP TABLE organization_ownership_transfers; DROP INDEX organization_single_owner; DELETE FROM aigw_schema_migrations WHERE version=18`)
 	execSQL(t, pool, `INSERT INTO organization_members(organization_id,issuer,subject,role) VALUES($1,$2,'second-owner','owner')`, org.ID, actor.Issuer)
@@ -750,6 +766,7 @@ func TestMemberLifecycleMigrationRollbackPreservesStateAndBudget(t *testing.T) {
 	if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "before-lifecycle", PriceVersion: "synthetic", Amount: 10}); err != nil {
 		t.Fatal(err)
 	}
+	testutil.RevertSystemManagementMigration(t, pool)
 	testutil.RevertDeepSeekMigration(t, pool)
 	execSQL(t, pool, `DROP TABLE device_request_bindings,device_proof_nonces,device_sessions,device_policy_events,project_device_policies,device_state_events,terminal_devices; ALTER TABLE organization_member_lifecycle DROP COLUMN revoked_devices; DELETE FROM aigw_schema_migrations WHERE version=23; DROP TABLE budget_approval_requests,budget_approval_policies,budget_approval_policy_versions; DELETE FROM aigw_schema_migrations WHERE version=22; DROP TABLE request_department_attributions; DELETE FROM aigw_schema_migrations WHERE version=21; DROP TABLE department_versions,department_projects,department_members,departments,department_configurations; ALTER TABLE organization_member_lifecycle DROP COLUMN removed_department_grants; DELETE FROM aigw_schema_migrations WHERE version=20; DROP TABLE organization_member_lifecycle; DROP INDEX project_keys_creator_live; ALTER TABLE organization_members DROP CONSTRAINT organization_owner_enabled; ALTER TABLE organization_members DROP COLUMN lifecycle_revision,DROP COLUMN enabled; DELETE FROM aigw_schema_migrations WHERE version=19; ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v19 CHECK(version<>19)`)
 	if database.Migrate(ctx, pool) == nil {
@@ -778,6 +795,7 @@ func TestDepartmentMigrationRollbackPreservesHeldBudget(t *testing.T) {
 	if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "before-departments", PriceVersion: "synthetic", Amount: 10}); err != nil {
 		t.Fatal(err)
 	}
+	testutil.RevertSystemManagementMigration(t, pool)
 	testutil.RevertDeepSeekMigration(t, pool)
 	execSQL(t, pool, `DROP TABLE device_request_bindings,device_proof_nonces,device_sessions,device_policy_events,project_device_policies,device_state_events,terminal_devices; ALTER TABLE organization_member_lifecycle DROP COLUMN revoked_devices; DELETE FROM aigw_schema_migrations WHERE version=23; DROP TABLE budget_approval_requests,budget_approval_policies,budget_approval_policy_versions; DELETE FROM aigw_schema_migrations WHERE version=22; DROP TABLE request_department_attributions; DELETE FROM aigw_schema_migrations WHERE version=21; DROP TABLE department_versions,department_projects,department_members,departments,department_configurations; ALTER TABLE organization_member_lifecycle DROP COLUMN removed_department_grants; DELETE FROM aigw_schema_migrations WHERE version=20; ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v20 CHECK(version<>20)`)
 	if database.Migrate(ctx, pool) == nil {
@@ -806,6 +824,7 @@ func TestDepartmentAttributionMigrationPreservesHistoricalUnknownAndHeldBudget(t
 	if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "before-department-cost", PriceVersion: "synthetic", Amount: 10}); err != nil {
 		t.Fatal(err)
 	}
+	testutil.RevertSystemManagementMigration(t, pool)
 	testutil.RevertDeepSeekMigration(t, pool)
 	execSQL(t, pool, `DROP TABLE device_request_bindings,device_proof_nonces,device_sessions,device_policy_events,project_device_policies,device_state_events,terminal_devices; ALTER TABLE organization_member_lifecycle DROP COLUMN revoked_devices; DELETE FROM aigw_schema_migrations WHERE version=23; DROP TABLE budget_approval_requests,budget_approval_policies,budget_approval_policy_versions; DELETE FROM aigw_schema_migrations WHERE version=22; DROP TABLE request_department_attributions; DELETE FROM aigw_schema_migrations WHERE version=21; ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v21 CHECK(version<>21)`)
 	if database.Migrate(ctx, pool) == nil {
@@ -838,6 +857,7 @@ func TestBudgetApprovalMigrationRollbackPreservesBalance(t *testing.T) {
 	if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "before-approval", PriceVersion: "synthetic", Amount: 10}); err != nil {
 		t.Fatal(err)
 	}
+	testutil.RevertSystemManagementMigration(t, pool)
 	testutil.RevertDeepSeekMigration(t, pool)
 	execSQL(t, pool, `DROP TABLE device_request_bindings,device_proof_nonces,device_sessions,device_policy_events,project_device_policies,device_state_events,terminal_devices; ALTER TABLE organization_member_lifecycle DROP COLUMN revoked_devices; DELETE FROM aigw_schema_migrations WHERE version=23; DROP TABLE budget_approval_requests,budget_approval_policies,budget_approval_policy_versions; DELETE FROM aigw_schema_migrations WHERE version=22; ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v22 CHECK(version<>22)`)
 	if database.Migrate(ctx, pool) == nil {
@@ -866,6 +886,7 @@ func TestDeviceAdmissionMigrationRollbackPreservesLedger(t *testing.T) {
 	if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "before-device", PriceVersion: "synthetic", Amount: 10}); err != nil {
 		t.Fatal(err)
 	}
+	testutil.RevertSystemManagementMigration(t, pool)
 	testutil.RevertDeepSeekMigration(t, pool)
 	execSQL(t, pool, `DROP TABLE device_request_bindings,device_proof_nonces,device_sessions,device_policy_events,project_device_policies,device_state_events,terminal_devices; ALTER TABLE organization_member_lifecycle DROP COLUMN revoked_devices; DELETE FROM aigw_schema_migrations WHERE version=23; ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v23 CHECK(version<>23)`)
 	if database.Migrate(ctx, pool) == nil {
@@ -894,6 +915,7 @@ func TestDeepSeekMigrationRollbackAndUpgradePreserveLedger(t *testing.T) {
 	if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "before-deepseek", PriceVersion: "synthetic", Amount: 10}); err != nil {
 		t.Fatal(err)
 	}
+	testutil.RevertSystemManagementMigration(t, pool)
 	testutil.RevertDeepSeekMigration(t, pool)
 	if !errors.Is(database.Check(ctx, pool), database.ErrPending) {
 		t.Fatal("v23 must require upgrade")
@@ -919,5 +941,33 @@ func TestDeepSeekMigrationRollbackAndUpgradePreserveLedger(t *testing.T) {
 	r, err := ledger.Get(ctx, "before-deepseek")
 	if err != nil || r.State != "reserved" || r.Amount != 10 {
 		t.Fatal("upgrade changed existing budget")
+	}
+}
+
+func TestSystemManagementMigrationUpgradeAndRollback(t *testing.T) {
+	pool := testutil.EmptyDatabase(t)
+	ctx := context.Background()
+	if err := database.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	testutil.RevertSystemManagementMigration(t, pool)
+	execSQL(t, pool, `ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v25 CHECK(version<>25)`)
+	if err := database.Migrate(ctx, pool); err == nil {
+		t.Fatal("failed migration accepted")
+	}
+	var exists bool
+	if err := pool.QueryRow(ctx, `SELECT to_regclass('system_management_events') IS NOT NULL`).Scan(&exists); err != nil || exists {
+		t.Fatal("DDL did not roll back")
+	}
+	execSQL(t, pool, `ALTER TABLE aigw_schema_migrations DROP CONSTRAINT reject_v25`)
+	if err := database.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Check(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	execSQL(t, pool, `ALTER TABLE system_management_events DROP COLUMN reason`)
+	if err := database.Check(ctx, pool); err == nil {
+		t.Fatal("system event schema drift accepted")
 	}
 }

@@ -1357,3 +1357,75 @@ fieldset.model-selection {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.system-panel {
+  padding: 24px;
+}
+.system-panel > h2 {
+  font-size: 20px;
+  margin-bottom: 12px;
+}
+.system-panel > h3 {
+  margin: 28px 0 14px;
+  font-size: 16px;
+}
+.system-panel p {
+  margin: 10px 0;
+  line-height: 1.7;
+  font-size: 13px;
+  color: #52656a;
+  overflow-wrap: anywhere;
+}
+.system-panel .metric-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 20px 0;
+}
+.system-panel .metric-card h3 {
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 12px;
+  color: #52656a;
+}
+.system-panel .metric-card strong {
+  display: block;
+  font-size: 21px;
+}
+.system-panel form {
+  display: grid;
+  gap: 16px;
+  max-width: 720px;
+  padding: 20px 0;
+}
+.system-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0;
+  font-size: 13px;
+}
+.system-panel select {
+  min-height: 42px;
+  padding: 10px;
+  border: 1px solid #d3ddda;
+  border-radius: 5px;
+  background: white;
+}
+.system-panel .system-checkbox {
+  flex-direction: row;
+  align-items: center;
+}
+.system-panel input[type='checkbox'] {
+  width: auto;
+  min-height: auto;
+}
+.system-panel form > .t-button {
+  justify-self: start;
+}
+@media (max-width: 760px) {
+  .system-panel {
+    padding: 16px;
+  }
+  .system-panel .metric-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

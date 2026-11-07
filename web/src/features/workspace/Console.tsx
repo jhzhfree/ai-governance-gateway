@@ -35,6 +35,7 @@ import { OwnershipPanel } from '../members/OwnershipPanel';
 import { DevicePanel } from '../devices/DevicePanel';
 import { DepartmentPanel } from '../departments/DepartmentPanel';
 import { MemberPanel } from '../members/MemberPanel';
+import { SystemPanel } from '../system/SystemPanel';
 import { AuditPanel } from '../audit/AuditPanel';
 
 export function Console({ session }: { session: Session }) {
@@ -80,6 +81,7 @@ export function Console({ session }: { session: Session }) {
   const view =
     (
       [
+        'system',
         'local',
         'overview',
         'keys',
@@ -99,6 +101,7 @@ export function Console({ session }: { session: Session }) {
       ] as const
     ).find((value) => value === params.get('view')) ?? 'overview';
   const viewLabel = {
+    system: '系统管理',
     local: '本地账号',
     overview: '项目概览',
     keys: '访问密钥',
@@ -268,6 +271,7 @@ export function Console({ session }: { session: Session }) {
             ['devices', '▣', '终端准入'],
             ['content', '▤', '内容审计'],
             ['providers', '⇄', '供应商配置'],
+            ['system', '⚙', '系统管理'],
             ['local', '♙', '本地账号'],
             ['budget', '▥', '预算管理'],
             ['keywords', '⌕', '关键字匹配'],
@@ -324,7 +328,7 @@ export function Console({ session }: { session: Session }) {
           </div>
         </header>
         <main id="main" className="main-content">
-          {catalog.error && (
+          {view !== 'system' && catalog.error && (
             <ErrorBox
               error={catalog.error}
               retry={() => {
@@ -340,100 +344,106 @@ export function Console({ session }: { session: Session }) {
                 <span className="heading-dot">.</span>
               </h1>
               <p>
-                {view === 'audit'
-                  ? '追踪组织配置与访问凭证的每一次变更。'
-                  : '从访问权限到预算用量，掌握项目的模型调用边界。'}
+                {view === 'system'
+                  ? '查看当前节点资源，受控管理网络配置并核查变更记录。'
+                  : view === 'audit'
+                    ? '追踪组织配置与访问凭证的每一次变更。'
+                    : '从访问权限到预算用量，掌握项目的模型调用边界。'}
               </p>
             </div>
-            <Button
-              theme="primary"
-              variant="outline"
-              disabled={!catalog.isSuccess || currencies.length === 0}
-              onClick={() => open('organization')}
-            >
-              ＋ 新建组织
-            </Button>
+            {view !== 'system' && (
+              <Button
+                theme="primary"
+                variant="outline"
+                disabled={!catalog.isSuccess || currencies.length === 0}
+                onClick={() => open('organization')}
+              >
+                ＋ 新建组织
+              </Button>
+            )}
           </div>
-          <section className="context-bar" aria-label="当前工作空间">
-            <label>
-              组织
-              <select
-                aria-label="组织"
-                value={orgID}
-                onChange={(e) => choose({ org: e.target.value })}
-              >
-                <option value="" disabled>
-                  选择组织
-                </option>
-                {orgID && !organization && <option value={orgID}>正在读取所选组织</option>}
-                {orgs.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.name}
+          {view !== 'system' && (
+            <section className="context-bar" aria-label="当前工作空间">
+              <label>
+                组织
+                <select
+                  aria-label="组织"
+                  value={orgID}
+                  onChange={(e) => choose({ org: e.target.value })}
+                >
+                  <option value="" disabled>
+                    选择组织
                   </option>
-                ))}
-              </select>
-            </label>
-            <span className="context-divider" />
-            <label>
-              项目
-              <select
-                aria-label="项目"
-                value={projectID}
-                disabled={!orgID}
-                onChange={(e) => choose({ org: orgID, project: e.target.value })}
-              >
-                <option value="" disabled>
-                  选择项目
-                </option>
-                {projectID && !projectList.some((p) => p.id === projectID) && (
-                  <option value={projectID}>正在读取所选项目</option>
+                  {orgID && !organization && <option value={orgID}>正在读取所选组织</option>}
+                  {orgs.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <span className="context-divider" />
+              <label>
+                项目
+                <select
+                  aria-label="项目"
+                  value={projectID}
+                  disabled={!orgID}
+                  onChange={(e) => choose({ org: orgID, project: e.target.value })}
+                >
+                  <option value="" disabled>
+                    选择项目
+                  </option>
+                  {projectID && !projectList.some((p) => p.id === projectID) && (
+                    <option value={projectID}>正在读取所选项目</option>
+                  )}
+                  {projectList.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {organization && <Tag variant="light">{roleNames[organization.role]}</Tag>}
+              <div className="context-actions">
+                <Button size="small" variant="text" onClick={refresh}>
+                  刷新
+                </Button>
+                {organizations.hasNextPage && (
+                  <Button
+                    size="small"
+                    variant="text"
+                    onClick={() => {
+                      void organizations.fetchNextPage();
+                    }}
+                  >
+                    更多组织
+                  </Button>
                 )}
-                {projectList.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {organization && <Tag variant="light">{roleNames[organization.role]}</Tag>}
-            <div className="context-actions">
-              <Button size="small" variant="text" onClick={refresh}>
-                刷新
-              </Button>
-              {organizations.hasNextPage && (
-                <Button
-                  size="small"
-                  variant="text"
-                  onClick={() => {
-                    void organizations.fetchNextPage();
-                  }}
-                >
-                  更多组织
+                {projects.hasNextPage && (
+                  <Button
+                    size="small"
+                    variant="text"
+                    onClick={() => {
+                      void projects.fetchNextPage();
+                    }}
+                  >
+                    更多项目
+                  </Button>
+                )}
+                <Button disabled={!canManage} variant="text" onClick={() => open('project')}>
+                  ＋ 新建项目
                 </Button>
-              )}
-              {projects.hasNextPage && (
-                <Button
-                  size="small"
-                  variant="text"
-                  onClick={() => {
-                    void projects.fetchNextPage();
-                  }}
-                >
-                  更多项目
-                </Button>
-              )}
-              <Button disabled={!canManage} variant="text" onClick={() => open('project')}>
-                ＋ 新建项目
-              </Button>
-            </div>
-          </section>
+              </div>
+            </section>
+          )}
           {notice && (
             <div className="notice" role="status">
               ✓ {notice}
             </div>
           )}
           {Boolean(formError) && !modal && !revoke && <ErrorBox error={formError} />}
-          {organizations.error && (
+          {view !== 'system' && organizations.error && (
             <ErrorBox
               error={organizations.error}
               retry={() => {
@@ -441,7 +451,9 @@ export function Console({ session }: { session: Session }) {
               }}
             />
           )}
-          {view === 'local' && session.auth_mode === 'local' ? (
+          {view === 'system' ? (
+            <SystemPanel identity={identity} csrf={session.csrf_token} />
+          ) : view === 'local' && session.auth_mode === 'local' ? (
             <LocalAccountsPanel session={session} />
           ) : view === 'providers' ? (
             <ProviderPanel identity={identity} csrf={session.csrf_token} />

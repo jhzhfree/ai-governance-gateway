@@ -1,0 +1,36 @@
+[Unit]
+Description=AI Governance Gateway local host agent
+After=NetworkManager.service
+Requires=NetworkManager.service
+
+[Service]
+Type=simple
+User=root
+Group=aigw
+RuntimeDirectory=aigw-host
+RuntimeDirectoryMode=0750
+UMask=0007
+# /etc/aigw/host-agent.env: AIGW_GATEWAY_UID, AIGW_NODE, AIGW_INTERFACES
+# Use the UID of the dedicated non-root gateway service account, not a login user.
+EnvironmentFile=/etc/aigw/host-agent.env
+ExecStart=/usr/local/libexec/aigw-host-agent --socket=/run/aigw-host/agent.sock --gateway-uid=${AIGW_GATEWAY_UID} --node=${AIGW_NODE} --interfaces=${AIGW_INTERFACES} --enable-network-changes
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictNamespaces=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_INET AF_INET6
+RestrictSUIDSGID=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+LockPersonality=yes
+# No PrivateNetwork: monitor and NetworkManager must refer to the host namespace.
+# No shell or network CLI is invoked; privileged work uses typed D-Bus methods.
+
+[Install]
+WantedBy=multi-user.target

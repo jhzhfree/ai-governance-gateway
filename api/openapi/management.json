@@ -11318,6 +11318,417 @@
           }
         }
       }
+    },
+    "/api/v1/system": {
+      "get": {
+        "operationId": "getSystemHost",
+        "description": "Explicit system administrator only. Node-bound Linux NetworkManager operations; durable intent precedes agent dispatch. Unconfirmed changes have a NetworkManager-owned rollback timer. Network fields apply to allowlisted active plain Ethernet IPv4 only.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostSnapshot"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Configuration revision conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "summary": "getSystemHost"
+      }
+    },
+    "/api/v1/system/events": {
+      "get": {
+        "operationId": "getSystemEvents",
+        "description": "Explicit system administrator only. Node-bound Linux NetworkManager operations; durable intent precedes agent dispatch. Unconfirmed changes have a NetworkManager-owned rollback timer. Network fields apply to allowlisted active plain Ethernet IPv4 only.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": []
+          },
+          {
+            "browserSessionDev": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemEvents"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Configuration revision conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "summary": "getSystemEvents"
+      }
+    },
+    "/api/v1/system/network": {
+      "post": {
+        "operationId": "applySystemNetwork",
+        "description": "Explicit system administrator only. Node-bound Linux NetworkManager operations; durable intent precedes agent dispatch. Unconfirmed changes have a NetworkManager-owned rollback timer. Network fields apply to allowlisted active plain Ethernet IPv4 only.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          },
+          {
+            "browserSessionDev": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostChangeResult"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Configuration revision conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SystemApply"
+              }
+            }
+          }
+        },
+        "parameters": [],
+        "summary": "applySystemNetwork"
+      }
+    },
+    "/api/v1/system/network/{id}/{action}": {
+      "post": {
+        "operationId": "finishSystemNetwork",
+        "description": "Explicit system administrator only. Node-bound Linux NetworkManager operations; durable intent precedes agent dispatch. Unconfirmed changes have a NetworkManager-owned rollback timer. Network fields apply to allowlisted active plain Ethernet IPv4 only.",
+        "security": [
+          {
+            "management": []
+          },
+          {
+            "browserSession": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          },
+          {
+            "browserSessionDev": [],
+            "csrfToken": [],
+            "browserOrigin": []
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostChangeResult"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Configuration revision conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SystemFinish"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "confirm",
+                "rollback"
+              ]
+            }
+          }
+        ],
+        "summary": "finishSystemNetwork"
+      }
     }
   },
   "components": {
@@ -15868,6 +16279,373 @@
           }
         },
         "additionalProperties": false
+      },
+      "HostLink": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "up": {
+            "type": "boolean"
+          },
+          "mtu": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "addresses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rx_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "tx_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "name",
+          "up",
+          "mtu",
+          "addresses",
+          "rx_bytes",
+          "tx_bytes"
+        ]
+      },
+      "HostMetrics": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "scope": {
+            "type": "string"
+          },
+          "sampled_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cpu_percent": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "cpu_count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "load1": {
+            "type": "number",
+            "format": "double"
+          },
+          "memory_total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "memory_available": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "cgroup_memory_limit": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "nullable": true
+          },
+          "cgroup_memory_current": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "nullable": true
+          },
+          "cgroup_cpu_quota": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "interfaces": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HostLink"
+            }
+          },
+          "dns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "scope",
+          "sampled_at",
+          "cpu_percent",
+          "cpu_count",
+          "load1",
+          "memory_total",
+          "memory_available",
+          "cgroup_memory_limit",
+          "cgroup_memory_current",
+          "cgroup_cpu_quota",
+          "interfaces",
+          "dns"
+        ]
+      },
+      "HostIPv4": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "manual"
+            ]
+          },
+          "addresses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "gateway": {
+            "type": "string"
+          },
+          "dns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "automatic_dns": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "method",
+          "addresses",
+          "gateway",
+          "dns",
+          "automatic_dns"
+        ]
+      },
+      "HostNetwork": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "interface": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "ipv4": {
+            "$ref": "#/components/schemas/HostIPv4"
+          }
+        },
+        "required": [
+          "interface",
+          "revision",
+          "ipv4"
+        ]
+      },
+      "HostChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "interface": {
+            "type": "string"
+          },
+          "expected_revision": {
+            "type": "string"
+          },
+          "ipv4": {
+            "$ref": "#/components/schemas/HostIPv4"
+          }
+        },
+        "required": [
+          "interface",
+          "expected_revision",
+          "ipv4"
+        ]
+      },
+      "HostChangeResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "deadline": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "interface": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "deadline",
+          "interface"
+        ]
+      },
+      "HostSnapshot": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "node": {
+            "type": "string"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/HostMetrics"
+          },
+          "network_enabled": {
+            "type": "boolean"
+          },
+          "networks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HostNetwork"
+            }
+          },
+          "pending": {
+            "type": "object",
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HostChangeResult"
+              }
+            ]
+          }
+        },
+        "required": [
+          "node",
+          "metrics",
+          "network_enabled",
+          "networks",
+          "pending"
+        ]
+      },
+      "SystemEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "operation_id": {
+            "type": "string"
+          },
+          "node": {
+            "type": "string"
+          },
+          "actor": {
+            "$ref": "#/components/schemas/Principal"
+          },
+          "action": {
+            "type": "string"
+          },
+          "phase": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "operation_id",
+          "node",
+          "actor",
+          "action",
+          "phase",
+          "reason",
+          "payload",
+          "created_at"
+        ]
+      },
+      "SystemEvents": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SystemEvent"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "next_cursor"
+        ]
+      },
+      "SystemApply": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "node": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "change": {
+            "$ref": "#/components/schemas/HostChange"
+          }
+        },
+        "required": [
+          "node",
+          "reason",
+          "change"
+        ]
+      },
+      "SystemFinish": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "node": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "node",
+          "reason"
+        ]
       }
     }
   }

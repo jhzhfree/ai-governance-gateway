@@ -44,6 +44,7 @@ type migration struct {
 const legacyBaselineVersion = 3
 
 var managedTables = map[int][]string{
+	25: {"system_management_events"},
 	23: {"terminal_devices", "device_state_events", "project_device_policies", "device_policy_events", "device_sessions", "device_proof_nonces", "device_request_bindings"},
 	22: {"budget_approval_policies", "budget_approval_requests", "budget_approval_policy_versions"},
 	21: {"request_department_attributions"},

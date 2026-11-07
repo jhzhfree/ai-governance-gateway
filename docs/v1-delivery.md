@@ -124,3 +124,11 @@
 基线 ed44d09 的远程 run 42309539136 已确认 success。本阶段新增两个真实 OS 进程共享 PostgreSQL 的崩溃回归：SIGKILL 后租约及未知费用占额保持，测试推进租约后验证账本/审计恢复，存活进程服务其他项目且无重放；恢复函数由父测试调用，不宣称完整应用维护任务自动接管。新增约 12 秒持续 SSE 回归，验证 24 帧、关联 ID 与最终一次用量确认。新增可重复基准脚本，对照原生/受管执行器、内容审计开关、1/4 工作者，全部检查结算余额及审计链。覆盖和测量数据见 [可靠性说明](engine-reliability.md)。不改变生产实现、Web 或数据库 schema，保留启动自动迁移。
 
 完整根 `AIGW_VERIFY_WEB=0 GOMAXPROCS=4 bash scripts/verify.sh` 退出码 0：主模块 219 个顶层测试、执行模块 49 个测试（32 适配器＋16 桥接＋1 入口）通过，含真实隔离 PostgreSQL、race/vet、API 契约、模块校验及独立入口链接构建，无失败或跳过；httpapi 180.845 秒。随后双进程回归连续 5 轮 race 通过（19.769 秒），包含存活子进程正常退出断言。独立基准脚本 8 组、每组 50 次全部成功（12.121 秒），50 样本尾延迟只用于回归观察，不能当作生产容量。首轮基准末尾与完整测试并行，未采用该轮数值；记录的是门禁结束后的独立重测。日志在 `/workspace/.onboarding/logs/reliability-verify.log`、`cluster-repeat-final.log`、`governance-benchmark-final.log`。Web 未修改，本轮未重复本地浏览器；上一阶段已有浏览器及远端 CI 通过证据。本阶段新提交的远端 CI 需独立核验。无真实模型调用、生产数据库操作或 V1.0 发布。
+
+## Linux 系统管理阶段
+
+基线 86a46fe 的远端运行 42311493795 已确认 success。本轮按 Linux 虚拟机／物理机、NetworkManager 部署方向增加系统管理：CPU、内存、接口收发和 DNS 观测；独立 Unix socket 主机代理、UID 校验与网卡白名单；普通活动以太网 IPv4/DNS 临时应用、确认持久化和检查点回退。平台管理员按 issuer/subject 单独授权，变更意图先落审计，再执行并记录结果；未知结果不自动重放。追加 0025 系统审计迁移，保留启动自动升级、失败事务回滚及漂移检查。控制台提供预览、倒计时、确认/回退和操作记录。部署步骤与边界见 [系统管理](system-management.md)。
+
+最终后端脚本 `AIGW_VERIFY_WEB=0 GOMAXPROCS=4 bash scripts/verify.sh` 日志包含全部 232 个主模块顶层测试通过，执行模块各包通过（49 个测试），无失败或跳过；包含真实隔离 PostgreSQL、race/vet、契约及模块检查，httpapi 206.137 秒。最后补强的只读过期观测断言另连续 5 轮 race 通过。冻结依赖安装、前端契约/类型/Lint/构建通过，17 个 OIDC 和 1 个本地登录浏览器场景通过；随后新增确认后复读 DNS 断言，17 个 OIDC 场景再次通过（81.638 秒）。私有 D-Bus 的真实线协议序列化、Unix socket 身份检查及代理构建均通过。日志保存在 `/workspace/.onboarding/logs/system-backend-final.log`、`system-readonly-expiry.log`、`system-web-final.log`、`system-browser-confirm-final.log`、`system-dbus-wire.log`。
+
+初次验证发现并修复嵌套模块依赖校验缺失、未来迁移版本测试固定编号与新版本冲突，以及浏览器表格滚动区域不可键盘聚焦；未将失败轮计入通过。NetworkManager 测试使用合成服务；当前环境没有真实 NetworkManager，未安装特权服务或修改开发机网卡/DNS。真实 Linux 虚拟机的 DHCP/静态地址、失联后回退、进程退出与系统重启边界仍须验收；此阶段不构成 V1.0 生产发布。新提交远端 CI 需独立核验。

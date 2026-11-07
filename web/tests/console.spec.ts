@@ -1371,3 +1371,34 @@ test('device enrollment, required policy, DPoP inference and revocation use real
     ).status(),
   ).toBe(401);
 });
+
+test('system host monitoring and audited network confirmation', async ({ page, baseURL }) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: /使用组织账号登录/ }).click();
+  await page.getByRole('button', { name: '系统管理', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'CPU 使用率', exact: true })).toBeVisible();
+  await expect(page.getByText(/节点：browser-fixture/)).toBeVisible();
+  const denied = await page.request.post('/api/v1/system/network', {
+    headers: { Origin: baseURL! },
+    data: { node: 'browser-fixture', reason: 'missing CSRF', change: {} },
+  });
+  expect(denied.status()).toBe(403);
+  await page.getByLabel('IPv4 DNS（逗号分隔）', { exact: true }).fill('192.0.2.53');
+  await page.getByLabel('变更原因', { exact: true }).fill('合成网络变更验收');
+  await page.getByRole('button', { name: '预览网络变更', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '拟应用配置', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '临时应用，等待连通确认', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '网络变更待处理' })).toBeVisible();
+  await page.getByLabel('确认或回退原因', { exact: true }).fill('合成连通性核验');
+  await page.getByRole('button', { name: '确认连通并保存', exact: true }).click();
+  await expect(page.getByText('网络配置已确认保存。', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('IPv4 DNS（逗号分隔）', { exact: true })).toHaveValue('192.0.2.53');
+  await expect(page.getByRole('cell', { name: 'confirm', exact: true }).first()).toBeVisible();
+  await page.screenshot({ path: '/tmp/aigw-system-management.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const a11y = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(a11y.violations.map((v) => ({ id: v.id, nodes: v.nodes.map((n) => n.target) }))).toEqual(
+    [],
+  );
+});

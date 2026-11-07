@@ -33,6 +33,7 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/localauth"
 	"github.com/jhzhfree/ai-governance-gateway/internal/observe"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
+	"github.com/jhzhfree/ai-governance-gateway/internal/systemhost"
 )
 
 // RuntimeEngine must supply routing and physical execution as one owned object.
@@ -191,6 +192,25 @@ func run(ctx context.Context, c config, factory EngineFactory, listener net.List
 	if localIdentity != nil {
 		store.WithLocalIdentity(localIdentity)
 	}
+
+	systemAdmin := identity.Principal{Issuer: os.Getenv("AIGW_SYSTEM_ADMIN_ISSUER"), Subject: os.Getenv("AIGW_SYSTEM_ADMIN_SUBJECT")}
+	if systemAdmin.Issuer != "" || systemAdmin.Subject != "" {
+		node := os.Getenv("AIGW_SYSTEM_NODE")
+		if systemAdmin.Issuer == "" || systemAdmin.Subject == "" || node == "" || len(node) > 128 {
+			return errors.New("complete system administrator identity and node name required")
+		}
+		var host systemhost.Agent = &systemhost.ReadOnly{Monitor: systemhost.NewMonitor(), Node: node}
+		if socket := os.Getenv("AIGW_HOST_AGENT_SOCKET"); socket != "" {
+			agent, e := systemhost.NewClient(socket)
+			if e != nil {
+				return e
+			}
+			defer agent.Close()
+			host = agent
+		}
+		store.WithSystem(host, systemAdmin, node)
+	}
+
 	monitor := observe.New()
 	metrics, err := monitor.MetricsHandler(os.Getenv("AIGW_METRICS_TOKEN"))
 	if err != nil {

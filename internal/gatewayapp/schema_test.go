@@ -58,6 +58,7 @@ func TestStartupUpgradePreservesExistingData(t *testing.T) {
 	pool, ledger, scope := testutil.Database(t)
 	ctx := context.Background()
 	testutil.Accounts(t, ledger, scope, 100, 80)
+	testutil.RevertSystemManagementMigration(t, pool)
 	testutil.RevertDeepSeekMigration(t, pool)
 	_, err := pool.Exec(ctx, `DROP TABLE device_request_bindings,device_proof_nonces,device_sessions,device_policy_events,project_device_policies,device_state_events,terminal_devices; ALTER TABLE organization_member_lifecycle DROP COLUMN revoked_devices; DELETE FROM aigw_schema_migrations WHERE version=23`)
 	if err != nil {
@@ -80,7 +81,7 @@ func TestStartupRejectsNewerOrTamperedDatabase(t *testing.T) {
 		name, sql string
 		want      error
 	}{
-		{"newer", `INSERT INTO aigw_schema_migrations(version,name,checksum,schema_hash,adopted) VALUES(25,'0025_future.sql',repeat('0',64),repeat('0',64),false)`, database.ErrNewer},
+		{"newer", `INSERT INTO aigw_schema_migrations(version,name,checksum,schema_hash,adopted) SELECT max(version)+1,'future.sql',repeat('0',64),repeat('0',64),false FROM aigw_schema_migrations`, database.ErrNewer},
 		{"checksum", `UPDATE aigw_schema_migrations SET checksum=repeat('0',64) WHERE version=1`, database.ErrChecksum},
 		{"drift", `DROP INDEX budget_recovery_idx`, database.ErrSchemaDrift},
 	} {

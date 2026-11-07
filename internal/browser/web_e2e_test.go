@@ -40,6 +40,7 @@ func TestConsoleBrowser(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := control.NewWithCatalog(pool, combinedFixtureCatalog{catalog}).WithProviderManager(catalog)
+	store.WithSystem(browserHostClient(t), identity.Principal{Issuer: issuer.URL, Subject: "alice"}, "browser-fixture")
 	content := testutil.ContentAudit(t, pool)
 	store.WithContentAudit(content)
 	api, err := identity.NewOIDC(context.Background(), issuer.URL, "aigw-management")

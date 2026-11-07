@@ -161,6 +161,12 @@ const (
 	ExecutionAttemptRegionLocal      ExecutionAttemptRegion = "local"
 )
 
+// Defines values for HostIPv4Method.
+const (
+	Auto   HostIPv4Method = "auto"
+	Manual HostIPv4Method = "manual"
+)
+
 // Defines values for InferenceModelObject.
 const (
 	Model InferenceModelObject = "model"
@@ -455,6 +461,12 @@ const (
 	Empty      ListRequestsParamsOutcome = ""
 	Failed     ListRequestsParamsOutcome = "failed"
 	Unfinished ListRequestsParamsOutcome = "unfinished"
+)
+
+// Defines values for FinishSystemNetworkParamsAction.
+const (
+	Confirm  FinishSystemNetworkParamsAction = "confirm"
+	Rollback FinishSystemNetworkParamsAction = "rollback"
 )
 
 // AccountCheck defines model for AccountCheck.
@@ -1062,6 +1074,76 @@ type HTTPCounters struct {
 	Rejected     int64   `json:"rejected"`
 	Requests     int64   `json:"requests"`
 	ServerErrors int64   `json:"server_errors"`
+}
+
+// HostChange defines model for HostChange.
+type HostChange struct {
+	ExpectedRevision string   `json:"expected_revision"`
+	Id               *string  `json:"id,omitempty"`
+	Interface        string   `json:"interface"`
+	Ipv4             HostIPv4 `json:"ipv4"`
+}
+
+// HostChangeResult defines model for HostChangeResult.
+type HostChangeResult struct {
+	Deadline  time.Time `json:"deadline"`
+	Id        string    `json:"id"`
+	Interface string    `json:"interface"`
+	State     string    `json:"state"`
+}
+
+// HostIPv4 defines model for HostIPv4.
+type HostIPv4 struct {
+	Addresses    []string       `json:"addresses"`
+	AutomaticDns bool           `json:"automatic_dns"`
+	Dns          []string       `json:"dns"`
+	Gateway      string         `json:"gateway"`
+	Method       HostIPv4Method `json:"method"`
+}
+
+// HostIPv4Method defines model for HostIPv4.Method.
+type HostIPv4Method string
+
+// HostLink defines model for HostLink.
+type HostLink struct {
+	Addresses []string `json:"addresses"`
+	Mtu       int64    `json:"mtu"`
+	Name      string   `json:"name"`
+	RxBytes   int64    `json:"rx_bytes"`
+	TxBytes   int64    `json:"tx_bytes"`
+	Up        bool     `json:"up"`
+}
+
+// HostMetrics defines model for HostMetrics.
+type HostMetrics struct {
+	CgroupCpuQuota      *float64   `json:"cgroup_cpu_quota"`
+	CgroupMemoryCurrent *int64     `json:"cgroup_memory_current"`
+	CgroupMemoryLimit   *int64     `json:"cgroup_memory_limit"`
+	CpuCount            int64      `json:"cpu_count"`
+	CpuPercent          *float64   `json:"cpu_percent"`
+	Dns                 []string   `json:"dns"`
+	Interfaces          []HostLink `json:"interfaces"`
+	Load1               float64    `json:"load1"`
+	MemoryAvailable     int64      `json:"memory_available"`
+	MemoryTotal         int64      `json:"memory_total"`
+	SampledAt           time.Time  `json:"sampled_at"`
+	Scope               string     `json:"scope"`
+}
+
+// HostNetwork defines model for HostNetwork.
+type HostNetwork struct {
+	Interface string   `json:"interface"`
+	Ipv4      HostIPv4 `json:"ipv4"`
+	Revision  string   `json:"revision"`
+}
+
+// HostSnapshot defines model for HostSnapshot.
+type HostSnapshot struct {
+	Metrics        HostMetrics       `json:"metrics"`
+	NetworkEnabled bool              `json:"network_enabled"`
+	Networks       []HostNetwork     `json:"networks"`
+	Node           string            `json:"node"`
+	Pending        *HostChangeResult `json:"pending"`
 }
 
 // ImportReceipt defines model for ImportReceipt.
@@ -1754,6 +1836,38 @@ type SupplierStatus struct {
 	Region               string `json:"region"`
 }
 
+// SystemApply defines model for SystemApply.
+type SystemApply struct {
+	Change HostChange `json:"change"`
+	Node   string     `json:"node"`
+	Reason string     `json:"reason"`
+}
+
+// SystemEvent defines model for SystemEvent.
+type SystemEvent struct {
+	Action      string                 `json:"action"`
+	Actor       Principal              `json:"actor"`
+	CreatedAt   time.Time              `json:"created_at"`
+	Id          int64                  `json:"id"`
+	Node        string                 `json:"node"`
+	OperationId string                 `json:"operation_id"`
+	Payload     map[string]interface{} `json:"payload"`
+	Phase       string                 `json:"phase"`
+	Reason      string                 `json:"reason"`
+}
+
+// SystemEvents defines model for SystemEvents.
+type SystemEvents struct {
+	Data       []SystemEvent `json:"data"`
+	NextCursor string        `json:"next_cursor"`
+}
+
+// SystemFinish defines model for SystemFinish.
+type SystemFinish struct {
+	Node   string `json:"node"`
+	Reason string `json:"reason"`
+}
+
 // UpdateBudget defines model for UpdateBudget.
 type UpdateBudget struct {
 	ExpectedRevision int64  `json:"expected_revision"`
@@ -2038,6 +2152,9 @@ type ListRequestsParamsState string
 // ListRequestsParamsOutcome defines parameters for ListRequests.
 type ListRequestsParamsOutcome string
 
+// FinishSystemNetworkParamsAction defines parameters for FinishSystemNetwork.
+type FinishSystemNetworkParamsAction string
+
 // CompleteBrowserLoginParams defines parameters for CompleteBrowserLogin.
 type CompleteBrowserLoginParams struct {
 	State string `form:"state" json:"state"`
@@ -2169,6 +2286,12 @@ type PublishProviderConfigurationJSONRequestBody = PublishProviderConfiguration
 
 // SetProviderCredentialJSONRequestBody defines body for SetProviderCredential for application/json ContentType.
 type SetProviderCredentialJSONRequestBody = SetProviderCredential
+
+// ApplySystemNetworkJSONRequestBody defines body for ApplySystemNetwork for application/json ContentType.
+type ApplySystemNetworkJSONRequestBody = SystemApply
+
+// FinishSystemNetworkJSONRequestBody defines body for FinishSystemNetwork for application/json ContentType.
+type FinishSystemNetworkJSONRequestBody = SystemFinish
 
 // LocalBrowserLoginJSONRequestBody defines body for LocalBrowserLogin for application/json ContentType.
 type LocalBrowserLoginJSONRequestBody = LocalLogin

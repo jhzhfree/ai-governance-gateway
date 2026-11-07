@@ -17,6 +17,7 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
 	"github.com/jhzhfree/ai-governance-gateway/internal/localauth"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
+	"github.com/jhzhfree/ai-governance-gateway/internal/systemhost"
 )
 
 var (
@@ -29,6 +30,9 @@ var (
 const MaxAPIAmount int64 = 9007199254740991
 
 type Store struct {
+	host          systemhost.Agent
+	hostAdmin     identity.Principal
+	hostNode      string
 	deviceOrigin  string
 	localIdentity *localauth.Service
 	providers     *provider.Manager

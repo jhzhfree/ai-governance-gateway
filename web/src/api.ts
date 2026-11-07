@@ -101,3 +101,9 @@ export type DevicePolicy = components['schemas']['DevicePolicy'];
 export type DeviceSession = components['schemas']['DeviceSession'];
 export type DeviceEvent = components['schemas']['DeviceEvent'];
 export type DeviceRequest = components['schemas']['DeviceRequest'];
+
+export type HostSnapshot = components['schemas']['HostSnapshot'];
+export type HostNetwork = components['schemas']['HostNetwork'];
+export type HostIPv4 = components['schemas']['HostIPv4'];
+export type HostChangeResult = components['schemas']['HostChangeResult'];
+export type SystemEvent = components['schemas']['SystemEvent'];
