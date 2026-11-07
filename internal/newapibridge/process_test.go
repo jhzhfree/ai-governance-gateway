@@ -111,12 +111,31 @@ func TestNewAPITwoProcessEmbeddings(t *testing.T) {
 }
 func TestNewAPITwoProcessCacheTariffs(t *testing.T) {
 	for _, protocol := range []string{"openai", "deepseek", "anthropic"} {
-		t.Run(protocol, func(t *testing.T) { testNewAPITwoProcessRecovery(t, protocol, false, false, true) })
+		t.Run(protocol, func(t *testing.T) {
+			testNewAPITwoProcessRecovery(t, protocol, false, false, processOptions{cacheTariff: true})
+		})
 	}
-	t.Run("openai-tools", func(t *testing.T) { testNewAPITwoProcessRecovery(t, "openai", true, false, true) })
+	t.Run("openai-tools", func(t *testing.T) {
+		testNewAPITwoProcessRecovery(t, "openai", true, false, processOptions{cacheTariff: true})
+	})
 }
-func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images bool, cacheFlags ...bool) {
-	cache := len(cacheFlags) > 0 && cacheFlags[0]
+
+type processOptions struct{ cacheTariff, replicated bool }
+
+func TestNewAPIReplicatedControlRecovery(t *testing.T) {
+	for _, protocol := range []string{"anthropic", "embedding"} {
+		t.Run(protocol, func(t *testing.T) {
+			testNewAPITwoProcessRecovery(t, protocol, false, false, processOptions{cacheTariff: protocol == "anthropic", replicated: true})
+		})
+	}
+}
+
+func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images bool, options ...processOptions) {
+	var option processOptions
+	if len(options) > 0 {
+		option = options[0]
+	}
+	cache := option.cacheTariff
 	embedding := protocol == "embedding"
 	expectedHeld := int64(288)
 	if tools || images {
@@ -407,6 +426,13 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 		return start(command, ready)
 	}
 	controlURL, stopControl := child()
+	replicaURL := ""
+	if option.replicated {
+		var stopReplica func()
+		replicaURL, stopReplica = child()
+		defer stopReplica()
+	}
+
 	call := func(origin string, stream bool) (int, []byte) {
 		if embedding {
 			stream = false
@@ -475,7 +501,11 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 		return res.StatusCode, body
 	}
 	for _, stream := range []bool{false, true} {
-		status, body := call(controlURL, stream)
+		origin := controlURL
+		if option.replicated && stream {
+			origin = replicaURL
+		}
+		status, body := call(origin, stream)
 		if status != 200 {
 			t.Fatalf("real process integration rejected request: %d %s physical=%d", status, body, calls.Load())
 		}
@@ -497,6 +527,29 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	<-requestDone
 	if calls.Load() != 3 {
 		t.Fatal("unexpected physical attempt count before recovery")
+	}
+	if option.replicated {
+		// No replacement process is started until the surviving worker proves
+		// automatic settlement of the killed owner's durable completion.
+		deadline := time.Now().Add(12 * time.Second)
+		recovered := false
+		for time.Now().Before(deadline) {
+			var settled, receipts int
+			if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM budget_reservations WHERE state='settled'`).Scan(&settled); err != nil {
+				t.Fatal(err)
+			}
+			if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM newapi_execution_receipts`).Scan(&receipts); err != nil {
+				t.Fatal(err)
+			}
+			if settled == 3 && receipts == 3 {
+				recovered = true
+				break
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		if !recovered || calls.Load() != 3 {
+			t.Fatal("surviving replica did not recover exactly once without replacement startup")
+		}
 	}
 	restartedURL, stopRestarted := child()
 	defer stopRestarted()
