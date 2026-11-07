@@ -234,9 +234,9 @@ const (
 
 // Defines values for InferenceResponseChoicesFinishReason.
 const (
-	ContentFilter InferenceResponseChoicesFinishReason = "content_filter"
-	Length        InferenceResponseChoicesFinishReason = "length"
-	Stop          InferenceResponseChoicesFinishReason = "stop"
+	InferenceResponseChoicesFinishReasonContentFilter InferenceResponseChoicesFinishReason = "content_filter"
+	InferenceResponseChoicesFinishReasonLength        InferenceResponseChoicesFinishReason = "length"
+	InferenceResponseChoicesFinishReasonStop          InferenceResponseChoicesFinishReason = "stop"
 )
 
 // Defines values for InferenceResponseChoicesIndex.
@@ -419,6 +419,69 @@ const (
 	RequestRecordStateReserved       RequestRecordState = "reserved"
 	RequestRecordStateSettled        RequestRecordState = "settled"
 	RequestRecordStateUncertain      RequestRecordState = "uncertain"
+)
+
+// Defines values for ResponsesCreateRequestBackground.
+const (
+	ResponsesCreateRequestBackgroundFalse ResponsesCreateRequestBackground = false
+)
+
+// Defines values for ResponsesCreateRequestStore.
+const (
+	ResponsesCreateRequestStoreFalse ResponsesCreateRequestStore = false
+)
+
+// Defines values for ResponsesCreateRequestStream.
+const (
+	ResponsesCreateRequestStreamFalse ResponsesCreateRequestStream = false
+)
+
+// Defines values for ResponsesOutputMessageRole.
+const (
+	Assistant ResponsesOutputMessageRole = "assistant"
+)
+
+// Defines values for ResponsesOutputMessageStatus.
+const (
+	ResponsesOutputMessageStatusCompleted  ResponsesOutputMessageStatus = "completed"
+	ResponsesOutputMessageStatusIncomplete ResponsesOutputMessageStatus = "incomplete"
+)
+
+// Defines values for ResponsesOutputMessageType.
+const (
+	Message ResponsesOutputMessageType = "message"
+)
+
+// Defines values for ResponsesOutputTextType.
+const (
+	OutputText ResponsesOutputTextType = "output_text"
+)
+
+// Defines values for ResponsesResultBackground.
+const (
+	ResponsesResultBackgroundFalse ResponsesResultBackground = false
+)
+
+// Defines values for ResponsesResultIncompleteDetailsReason.
+const (
+	ResponsesResultIncompleteDetailsReasonContentFilter   ResponsesResultIncompleteDetailsReason = "content_filter"
+	ResponsesResultIncompleteDetailsReasonMaxOutputTokens ResponsesResultIncompleteDetailsReason = "max_output_tokens"
+)
+
+// Defines values for ResponsesResultObject.
+const (
+	Response ResponsesResultObject = "response"
+)
+
+// Defines values for ResponsesResultStatus.
+const (
+	ResponsesResultStatusCompleted  ResponsesResultStatus = "completed"
+	ResponsesResultStatusIncomplete ResponsesResultStatus = "incomplete"
+)
+
+// Defines values for ResponsesResultStore.
+const (
+	False ResponsesResultStore = false
 )
 
 // Defines values for RouteStatusState.
@@ -1898,6 +1961,100 @@ type ResetLocalPassword struct {
 	Password         *string `json:"password,omitempty"`
 }
 
+// ResponsesCreateRequest defines model for ResponsesCreateRequest.
+type ResponsesCreateRequest struct {
+	Background      *ResponsesCreateRequestBackground `json:"background"`
+	Input           string                            `json:"input"`
+	Instructions    *string                           `json:"instructions"`
+	MaxOutputTokens int                               `json:"max_output_tokens"`
+	Model           string                            `json:"model"`
+	Store           ResponsesCreateRequestStore       `json:"store"`
+	Stream          *ResponsesCreateRequestStream     `json:"stream"`
+}
+
+// ResponsesCreateRequestBackground defines model for ResponsesCreateRequest.Background.
+type ResponsesCreateRequestBackground bool
+
+// ResponsesCreateRequestStore defines model for ResponsesCreateRequest.Store.
+type ResponsesCreateRequestStore bool
+
+// ResponsesCreateRequestStream defines model for ResponsesCreateRequest.Stream.
+type ResponsesCreateRequestStream bool
+
+// ResponsesOutputMessage defines model for ResponsesOutputMessage.
+type ResponsesOutputMessage struct {
+	Content []ResponsesOutputText        `json:"content"`
+	Id      string                       `json:"id"`
+	Role    ResponsesOutputMessageRole   `json:"role"`
+	Status  ResponsesOutputMessageStatus `json:"status"`
+	Type    ResponsesOutputMessageType   `json:"type"`
+}
+
+// ResponsesOutputMessageRole defines model for ResponsesOutputMessage.Role.
+type ResponsesOutputMessageRole string
+
+// ResponsesOutputMessageStatus defines model for ResponsesOutputMessage.Status.
+type ResponsesOutputMessageStatus string
+
+// ResponsesOutputMessageType defines model for ResponsesOutputMessage.Type.
+type ResponsesOutputMessageType string
+
+// ResponsesOutputText defines model for ResponsesOutputText.
+type ResponsesOutputText struct {
+	Annotations []map[string]interface{} `json:"annotations"`
+	Text        string                   `json:"text"`
+	Type        ResponsesOutputTextType  `json:"type"`
+}
+
+// ResponsesOutputTextType defines model for ResponsesOutputText.Type.
+type ResponsesOutputTextType string
+
+// ResponsesResult defines model for ResponsesResult.
+type ResponsesResult struct {
+	Background        ResponsesResultBackground `json:"background"`
+	CreatedAt         int64                     `json:"created_at"`
+	Error             *map[string]interface{}   `json:"error"`
+	Id                string                    `json:"id"`
+	IncompleteDetails *struct {
+		Reason ResponsesResultIncompleteDetailsReason `json:"reason"`
+	} `json:"incomplete_details"`
+	MaxOutputTokens int                      `json:"max_output_tokens"`
+	Model           string                   `json:"model"`
+	Object          ResponsesResultObject    `json:"object"`
+	Output          []ResponsesOutputMessage `json:"output"`
+	Status          ResponsesResultStatus    `json:"status"`
+	Store           ResponsesResultStore     `json:"store"`
+	Usage           ResponsesUsage           `json:"usage"`
+}
+
+// ResponsesResultBackground defines model for ResponsesResult.Background.
+type ResponsesResultBackground bool
+
+// ResponsesResultIncompleteDetailsReason defines model for ResponsesResult.IncompleteDetails.Reason.
+type ResponsesResultIncompleteDetailsReason string
+
+// ResponsesResultObject defines model for ResponsesResult.Object.
+type ResponsesResultObject string
+
+// ResponsesResultStatus defines model for ResponsesResult.Status.
+type ResponsesResultStatus string
+
+// ResponsesResultStore defines model for ResponsesResult.Store.
+type ResponsesResultStore bool
+
+// ResponsesUsage defines model for ResponsesUsage.
+type ResponsesUsage struct {
+	InputTokens int64 `json:"input_tokens"`
+
+	// InputTokensDetails Only present when original evidence contains cache counts; unknown details are not estimated.
+	InputTokensDetails *struct {
+		CacheWriteTokens *int64 `json:"cache_write_tokens,omitempty"`
+		CachedTokens     int64  `json:"cached_tokens"`
+	} `json:"input_tokens_details,omitempty"`
+	OutputTokens int64 `json:"output_tokens"`
+	TotalTokens  int64 `json:"total_tokens"`
+}
+
 // RotateBudgetPeriod defines model for RotateBudgetPeriod.
 type RotateBudgetPeriod struct {
 	ExpectedPeriod string `json:"expected_period"`
@@ -2489,6 +2646,9 @@ type StreamMockChatJSONRequestBody = InferenceRequest
 
 // CreateEmbeddingsJSONRequestBody defines body for CreateEmbeddings for application/json ContentType.
 type CreateEmbeddingsJSONRequestBody = EmbeddingRequest
+
+// CreateStatelessTextResponseJSONRequestBody defines body for CreateStatelessTextResponse for application/json ContentType.
+type CreateStatelessTextResponseJSONRequestBody = ResponsesCreateRequest
 
 // AsChatContentPart0 returns the union data inside the ChatContentPart as a ChatContentPart0
 func (t ChatContentPart) AsChatContentPart0() (ChatContentPart0, error) {

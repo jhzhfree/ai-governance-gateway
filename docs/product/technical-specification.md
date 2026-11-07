@@ -134,3 +134,6 @@ new-api 显式执行模式提供独立数据面、经审核的模型/渠道绑�
 受控客户端工具新增目录级 `allowed_tools` 名称白名单，默认关闭；策略进入不可变路由版本，未审核工具在预留与派发前拒绝。不替代实际工具执行方的参数校验或用户/业务权限。
 
 受控 `POST /v1/embeddings` 支持文本批量和浮点向量，目录 `api=embeddings` 使用 input-only 费用快照、协议隔离、原始用量与同一审计/恢复链。v28 启动追加迁移支持输出价/上限成对为 0；完整边界见 [Embeddings 说明](../new-api-integration.md#受控文本-embeddings)。
+
+
+Responses 公共入口当前提供显式 `store:false` 的无状态非流式文本子集，以审核 Chat 契约执行；不开放会话、历史检索、后台任务、工具或媒体。输出使用 Responses 形状与原始 token 事实，未知细分不估算；同一权限、设备证明、预算、关键词和内容审计链仍生效。具体请求约束与后续兼容边界见 [集成说明](../new-api-integration.md#无状态文本-responses-公共协议)。

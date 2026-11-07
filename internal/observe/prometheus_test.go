@@ -61,6 +61,7 @@ func TestPrometheusBoundedLabelsHistogramAndConcurrentScrapes(t *testing.T) {
 			defer wg.Done()
 			r.RecordIngress("/v1/chat/completions", 403, 500*time.Millisecond)
 			r.RecordIngress("/v1/embeddings", 200, time.Millisecond)
+			r.RecordIngress("/v1/responses", 200, time.Millisecond)
 			r.RecordIngress(fmt.Sprintf("/v1/private-user-%d", i), 503, 121*time.Second)
 			r.Record("secret-org", "secret-project", 200, time.Second)
 			req := httptest.NewRequest("GET", "/metrics?secret=query", nil)
@@ -81,6 +82,7 @@ func TestPrometheusBoundedLabelsHistogramAndConcurrentScrapes(t *testing.T) {
 	for _, expected := range []string{
 		`aigw_gateway_requests_total{route="chat",status_class="4xx"} 100`,
 		`aigw_gateway_requests_total{route="embeddings",status_class="2xx"} 100`,
+		`aigw_gateway_requests_total{route="responses",status_class="2xx"} 100`,
 		`aigw_gateway_request_duration_seconds_bucket{route="chat",status_class="4xx",le="0.5"} 100`,
 		`aigw_gateway_request_duration_seconds_bucket{route="chat",status_class="4xx",le="0.1"} 0`,
 		`aigw_gateway_request_duration_seconds_sum{route="chat",status_class="4xx"} 50`,
@@ -96,7 +98,7 @@ func TestPrometheusBoundedLabelsHistogramAndConcurrentScrapes(t *testing.T) {
 			t.Fatal("sensitive label exposed")
 		}
 	}
-	if len(r.ingress) != 3 || out.Header().Get("Cache-Control") != "no-store" || !strings.Contains(out.Header().Get("Content-Type"), "version=0.0.4") {
+	if len(r.ingress) != 4 || out.Header().Get("Cache-Control") != "no-store" || !strings.Contains(out.Header().Get("Content-Type"), "version=0.0.4") {
 		t.Fatal("invalid exposition")
 	}
 }

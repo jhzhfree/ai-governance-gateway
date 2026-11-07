@@ -52,6 +52,8 @@ func TestDeviceProxyReviewedProtocolsAndProofBinding(t *testing.T) {
 		size, want int
 	}{
 		{"/v1/embeddings", 64 << 10, 200},
+		{"/v1/responses", 64 << 10, 200},
+		{"/v1/responses", (64 << 10) + 1, 413},
 		{"/v1/embeddings", (64 << 10) + 1, 413},
 		{"/v1/chat/completions", 1 << 20, 200},
 		{"/v1/chat/completions", (1 << 20) + 1, 413},

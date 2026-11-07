@@ -168,7 +168,7 @@ func (p *deviceProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "local_authentication_required", 401)
 		return
 	}
-	if r.URL.RawQuery != "" || !((r.Method == "POST" && (r.URL.Path == "/v1/chat/completions" || r.URL.Path == "/v1/embeddings")) || (r.Method == "GET" && r.URL.Path == "/v1/models")) {
+	if r.URL.RawQuery != "" || !((r.Method == "POST" && (r.URL.Path == "/v1/chat/completions" || r.URL.Path == "/v1/embeddings" || r.URL.Path == "/v1/responses")) || (r.Method == "GET" && r.URL.Path == "/v1/models")) {
 		http.NotFound(w, r)
 		return
 	}

@@ -460,3 +460,30 @@ readiness 每轮恢复检查后核对当前审核值，漂移会停止新推理�
 Prometheus 为 Embeddings 增加独立、固定的 `route="embeddings"` 标签，同时导出次数和延迟直方图；不引入模型、用户、输入或任意路径标签。专项覆盖真实签名的路径绑定、超限请求不出网、内部头不转发、现有真实 PostgreSQL 设备代理链与并发指标输出。完整门禁结果按本阶段提交记录。
 
 终端阶段完整门禁：固定 `d7ae87e36` 数据面运行 `AIGW_VERIFY_RESTORE=1 bash scripts/verify.sh`，退出码 0；HTTP API 247.699 秒、bridge 336.245 秒、终端 45.121 秒、当前/旧版恢复 4.904 秒。指标专项首次发现新增分类未进入固定导出列表，修复后专项和全量均通过；未将首次失败记为通过。没有公共 API schema/Web 变更，未进行真实企业终端验收。
+
+### 无状态文本 Responses 公共协议
+
+增加 `POST /v1/responses` 的明确受控子集：它把文本请求规范化到现有审核 Chat 执行契约，再将经过用量验证、费用结算、关键字策略和元数据完成门禁的输出转换为 Responses 对象。只适用于显式 newapi 审核渠道，不开放原生/Bifrost 直连或原生 Responses 透传。接口参考 [OpenAI Responses 创建契约](https://developers.openai.com/api/reference/python/resources/responses/methods/create)，不宣称全量兼容。
+
+```json
+{
+  "model": "your-reviewed-chat-alias",
+  "input": "synthetic text input",
+  "instructions": "synthetic system instructions",
+  "max_output_tokens": 128,
+  "store": false
+}
+```
+
+必须显式 `store:false`；input 仅为一个非空字符串，可选 instructions，二者各不超过 16 KiB，总正文不超过 64 KiB。max_output_tokens 至少 16，仍受目录审核上限约束。允许省略或设为 false 的 stream/background；true 拒绝。工具、媒体、数组输入、previous_response_id、conversation、检索/删除历史、服务端工具、推理配置、采样参数等未实现字段均拒绝。当前是非流式文本子集，不以缓冲完整响应模拟实时流。
+
+公开响应使用独立 resp_/msg_ 请求标识、一个 output_text 消息、真实输入/输出/总用量；stop 映射 completed，length/content_filter 映射 incomplete 并保留相应原因。input_tokens 包含缓存输入；有原始缓存事实时映射 cached_tokens/cache_write_tokens，不估算未知缓存或 reasoning_tokens。返回模型仍是授权目录别名。终端代理使用同一路径绑定设备证明，指标增加固定 route=responses，不含用户或模型高基数标签。
+
+`store:false` 仅关闭本接口的历史存储/检索能力，不是关闭企业审计或承诺零留存。项目内容审计开启时记录 protocol=responses、规范化请求及实际公开响应，权限、加密、保留和截断规则不变。关键词输入阻断发生在供应商派发前；输出脱敏/阻断不抹除已经发生的真实费用。缓存费率、预算预留、原始完成证明和恢复幂等使用现有同一账本，不增加重试。
+
+专项已覆盖生成契约的请求/响应验证、身份拒绝、存储/状态/未知字段拒绝、费用精确结算、协议审计、输出脱敏、输入阻断与预算不足不出网。三类合成供应商的真实独立进程故障测试 53.950 秒通过，组合缓存费率、轮询多 Key 与双控制面接管，覆盖原始完成恢复、已派发不确定占额、未派发孤儿取消。没有新数据库迁移，schema 保持 v29；真实供应商仍需外部验收；本地 SDK 验证见下文。
+
+
+SDK 门禁：隔离 Python 3.12.14 / OpenAI SDK 3.46.0 调用真实控制面 HTTP 与 PostgreSQL fixture、合成 new-api 对端，验证 `responses.create(..., store=False, max_output_tokens=16)`、`output_text`、状态和原始用量，物理请求恰好一次。客户端明确 `max_retries=0`；本公共入口不提供跨 HTTP 重试的业务幂等键，不应在未知结果时自动重发。`scripts/responses-sdk-requirements.txt` 固定测试依赖，不属于产品运行依赖。可用隔离 venv 安装该文件，设置 `AIGW_SDK_PYTHON` 与专用 `TEST_DATABASE_URL` 后运行 `go test -race -tags sdk_e2e ./internal/httpapi -run '^TestResponses' -count=1 -timeout=120s`。本轮该门禁 7.702 秒通过；不代表其他 SDK 版本、流式/工具子集或真实供应商已验收。
+
+Responses 完整门禁：固定 `d7ae87e36` 数据面，`AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 bash scripts/verify.sh` 退出码 0；HTTP API 259.555 秒、bridge 391.319 秒，17 项 OIDC 与 1 项本地身份浏览器共 75.515 秒，当前/旧版恢复 4.516 秒。后端 race/vet、生成契约、冻结 Web 依赖、类型/Lint/构建均通过。SDK tagged gate 随后独立通过，脚本新增 `AIGW_VERIFY_SDK=1` 和固定测试 Python 环境接线，远端 CI 将运行此组合；本地不把独立 SDK 测试误写为已经运行过整段组合脚本。公共接口无状态/非流式边界保持，未发布 V1.0 或切换生产入口。

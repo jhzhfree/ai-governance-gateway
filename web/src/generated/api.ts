@@ -1849,6 +1849,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/responses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Reviewed newapi stateless, non-stream text Responses subset, executed through the governed Chat contract. Explicit store=false required; input is one nonempty string, optional instructions, max_output_tokens >=16 within reviewed route bound. 16 KiB per text and 64 KiB body. No tools, media, background, streaming, previous-response/conversation state or retrieval. Normal authorization/device/budget/keywords and consented encrypted content audit still apply; store=false disables API response history, not enterprise audit. Usage comes from original supplier evidence; unknown cache/reasoning details are not fabricated. No retry. */
+        post: operations["createStatelessTextResponse"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3173,6 +3190,71 @@ export interface components {
             read_tokens: number | null;
             /** Format: int64 */
             write_tokens: number | null;
+        };
+        ResponsesCreateRequest: {
+            model: string;
+            input: string;
+            instructions?: string | null;
+            max_output_tokens: number;
+            /** @enum {boolean} */
+            store: false;
+            /** @enum {boolean|null} */
+            stream?: false | null;
+            /** @enum {boolean|null} */
+            background?: false | null;
+        };
+        ResponsesUsage: {
+            /** Format: int64 */
+            input_tokens: number;
+            /** Format: int64 */
+            output_tokens: number;
+            /** Format: int64 */
+            total_tokens: number;
+            /** @description Only present when original evidence contains cache counts; unknown details are not estimated. */
+            input_tokens_details?: {
+                /** Format: int64 */
+                cached_tokens: number;
+                /** Format: int64 */
+                cache_write_tokens?: number;
+            };
+        };
+        ResponsesOutputText: {
+            /** @enum {string} */
+            type: "output_text";
+            text: string;
+            annotations: Record<string, never>[];
+        };
+        ResponsesOutputMessage: {
+            id: string;
+            /** @enum {string} */
+            type: "message";
+            /** @enum {string} */
+            status: "completed" | "incomplete";
+            /** @enum {string} */
+            role: "assistant";
+            content: components["schemas"]["ResponsesOutputText"][];
+        };
+        ResponsesResult: {
+            id: string;
+            /** @enum {string} */
+            object: "response";
+            /** Format: int64 */
+            created_at: number;
+            /** @enum {string} */
+            status: "completed" | "incomplete";
+            error: Record<string, never> | null;
+            incomplete_details: {
+                /** @enum {string} */
+                reason: "max_output_tokens" | "content_filter";
+            } | null;
+            model: string;
+            /** @enum {boolean} */
+            store: false;
+            /** @enum {boolean} */
+            background: false;
+            max_output_tokens: number;
+            output: components["schemas"]["ResponsesOutputMessage"][];
+            usage: components["schemas"]["ResponsesUsage"];
         };
     };
     responses: never;
@@ -11437,6 +11519,97 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EmbeddingResponse"];
+                };
+            };
+            /** @description Invalid input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Missing or invalid credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient permission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or inaccessible resource */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Budget or project admission limit exceeded. Admission rejections include a positive Retry-After in seconds and occur before budget reservation. */
+            429: {
+                headers: {
+                    /** @description Conservative retry delay for admission denials. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Upstream failure before streaming starts */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    /** @description Present when supplier circuit blocks dispatch; positive seconds, no capacity guarantee. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    createStatelessTextResponse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResponsesCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Settled and audited response, or explicit incomplete status for length/content filter */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResponsesResult"];
                 };
             };
             /** @description Invalid input */

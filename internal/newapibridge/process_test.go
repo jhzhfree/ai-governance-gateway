@@ -56,6 +56,9 @@ func TestNewAPIControlHelper(t *testing.T) {
 		cfg.Models[i].NewAPIChannelID = 1
 		cfg.Models[i].NewAPIChannelRevision = os.Getenv("AIGW_INTEGRATION_REVISION")
 		cfg.Models[i].AllowedTools = []string{"lookup"}
+		if os.Getenv("AIGW_INTEGRATION_RESPONSES") == "1" {
+			cfg.Models[i].MaxOutputTokens = 32
+		}
 		if os.Getenv("AIGW_INTEGRATION_CACHE") == "1" {
 			cfg.Models[i].CachePricing = &provider.CachePricing{ReadPerMillion: 500000, WritePerMillion: 3000000}
 		}
@@ -121,8 +124,8 @@ func TestNewAPITwoProcessCacheTariffs(t *testing.T) {
 }
 
 type processOptions struct {
-	cacheTariff, replicated bool
-	multiKey                string
+	cacheTariff, replicated, responses bool
+	multiKey                           string
 }
 
 func TestNewAPIReplicatedControlRecovery(t *testing.T) {
@@ -141,6 +144,14 @@ func TestNewAPIMultiKeyRecovery(t *testing.T) {
 		}
 		t.Run(protocol+"/"+mode, func(t *testing.T) {
 			testNewAPITwoProcessRecovery(t, protocol, false, false, processOptions{cacheTariff: protocol != "embedding", replicated: true, multiKey: mode})
+		})
+	}
+}
+
+func TestNewAPIResponsesRecovery(t *testing.T) {
+	for _, protocol := range []string{"openai", "deepseek", "anthropic"} {
+		t.Run(protocol, func(t *testing.T) {
+			testNewAPITwoProcessRecovery(t, protocol, false, false, processOptions{cacheTariff: true, replicated: true, responses: true, multiKey: "polling"})
 		})
 	}
 }
@@ -173,6 +184,9 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 		if protocol == "anthropic" {
 			expectedSpent = 99
 		}
+	}
+	if option.responses {
+		expectedHeld += 32
 	}
 	binary := os.Getenv("TEST_NEWAPI_SERVER_BINARY")
 	if binary == "" {
@@ -261,7 +275,11 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 			w.WriteHeader(400)
 			return
 		}
-		if req.MaxTokens != 8 {
+		wantOutput := uint(8)
+		if option.responses {
+			wantOutput = 16
+		}
+		if req.MaxTokens != wantOutput {
 			t.Error("converted request exceeded or lost output bound")
 			w.WriteHeader(400)
 			return
@@ -448,7 +466,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	child := func() (string, func()) {
 		ready := filepath.Join(t.TempDir(), "ready")
 		command := exec.Command(os.Args[0], "-test.run=^TestNewAPIControlHelper$")
-		command.Env = append(os.Environ(), "AIGW_INTEGRATION_CHILD=1", "AIGW_INTEGRATION_CACHE="+map[bool]string{true: "1", false: "0"}[cache], "AIGW_INTEGRATION_REVISION="+manifest.Revision, "AIGW_INTEGRATION_PROTOCOL="+protocol, "AIGW_INTEGRATION_IMAGES="+map[bool]string{true: "1", false: "0"}[images], "AIGW_INTEGRATION_RICH="+map[bool]string{true: "1", false: "0"}[tools || images], "AIGW_INTEGRATION_DSN="+isolatedDSN.String(), "AIGW_INTEGRATION_ORIGIN="+faultProxy.URL, "AIGW_INTEGRATION_READY="+ready)
+		command.Env = append(os.Environ(), "AIGW_INTEGRATION_CHILD=1", "AIGW_INTEGRATION_RESPONSES="+map[bool]string{true: "1", false: "0"}[option.responses], "AIGW_INTEGRATION_CACHE="+map[bool]string{true: "1", false: "0"}[cache], "AIGW_INTEGRATION_REVISION="+manifest.Revision, "AIGW_INTEGRATION_PROTOCOL="+protocol, "AIGW_INTEGRATION_IMAGES="+map[bool]string{true: "1", false: "0"}[images], "AIGW_INTEGRATION_RICH="+map[bool]string{true: "1", false: "0"}[tools || images], "AIGW_INTEGRATION_DSN="+isolatedDSN.String(), "AIGW_INTEGRATION_ORIGIN="+faultProxy.URL, "AIGW_INTEGRATION_READY="+ready)
 		return start(command, ready)
 	}
 	controlURL, stopControl := child()
@@ -460,7 +478,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	}
 
 	call := func(origin string, stream bool) (int, []byte) {
-		if embedding {
+		if embedding || option.responses {
 			stream = false
 		}
 		req := request()
@@ -481,6 +499,10 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 		if embedding {
 			path = "/v1/embeddings"
 			data, _ = json.Marshal(map[string]any{"model": req.Model, "input": []string{"synthetic one", "synthetic two"}, "dimensions": 2, "encoding_format": "float"})
+		}
+		if option.responses {
+			path = "/v1/responses"
+			data, _ = json.Marshal(map[string]any{"model": req.Model, "input": "synthetic responses input", "max_output_tokens": 16, "store": false})
 		}
 		r, _ := http.NewRequest("POST", origin+path, bytes.NewReader(data))
 		r.Header.Set("Authorization", "Bearer synthetic-project-key")
@@ -524,6 +546,9 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 			return res.StatusCode, append([]byte(first), tail...)
 		}
 		body, _ := io.ReadAll(res.Body)
+		if option.responses && res.StatusCode == 200 && (!bytes.Contains(body, []byte(`"object":"response"`)) || !bytes.Contains(body, []byte(`"cache_write_tokens"`))) {
+			t.Error("responses contract or cache facts lost")
+		}
 		return res.StatusCode, body
 	}
 	for _, stream := range []bool{false, true} {

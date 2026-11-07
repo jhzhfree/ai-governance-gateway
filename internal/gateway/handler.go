@@ -92,7 +92,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.models(w, r, id)
 		return
 	}
-	if r.URL.Path != "/v1/chat/completions" && r.URL.Path != "/v1/embeddings" {
+	if r.URL.Path != "/v1/chat/completions" && r.URL.Path != "/v1/embeddings" && r.URL.Path != "/v1/responses" {
 		problem(w, 404, "not_found", id)
 		return
 	}
@@ -123,7 +123,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	limit := int64(1 << 20)
-	if r.URL.Path == "/v1/embeddings" {
+	if r.URL.Path == "/v1/embeddings" || r.URL.Path == "/v1/responses" {
 		limit = 64 << 10
 	}
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, limit))
@@ -138,6 +138,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		req, err = payload.Request()
 		if err != nil {
 			problem(w, 400, "invalid_request", id)
+			return
+		}
+	} else if r.URL.Path == "/v1/responses" {
+		var payload provider.ResponsesRequest
+		if dec.Decode(&payload) != nil {
+			problem(w, 400, "invalid_request", id)
+			return
+		}
+		req, err = payload.Request()
+		if err != nil {
+			problem(w, 400, "unsupported_responses_request", id)
 			return
 		}
 	} else if err := dec.Decode(&req); err != nil {
