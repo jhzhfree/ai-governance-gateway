@@ -143,7 +143,13 @@ func (h *Handler) capture(w http.ResponseWriter, r *http.Request, id, token stri
 		if err != nil || wrapped.failed {
 			h.report(id, "content_audit_seal_failed")
 			if wrapped.started {
-				if r.URL.Path == "/v1/responses" {
+				if r.URL.Path == "/v1/messages" {
+					if len(wrapped.failureFrame) > 0 {
+						_, _ = w.Write(wrapped.failureFrame)
+					} else {
+						_, _ = w.Write([]byte("event: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"api_error\",\"message\":\"content_audit_unavailable\"}}\n\n"))
+					}
+				} else if r.URL.Path == "/v1/responses" {
 					if len(wrapped.failureFrame) > 0 {
 						_, _ = w.Write(wrapped.failureFrame)
 					}

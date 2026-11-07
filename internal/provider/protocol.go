@@ -16,6 +16,7 @@ type Message struct {
 	ToolCallID string        `json:"tool_call_id,omitempty"`
 }
 type Request struct {
+	MessagesStream bool      `json:"-"`
 	API            string    `json:"-"`
 	Input          []string  `json:"input,omitempty"`
 	EncodingFormat string    `json:"encoding_format,omitempty"`
@@ -61,6 +62,9 @@ type Response struct {
 }
 
 func ValidateRequest(req Request) bool {
+	if req.MessagesStream && (!req.Stream || req.HasTools() || req.HasParts() || req.IsEmbedding()) {
+		return false
+	}
 	if req.IsEmbedding() {
 		return validEmbeddingRequest(req)
 	}
@@ -81,7 +85,7 @@ func ValidateRequest(req Request) bool {
 	return true
 }
 func (r *Route) Open(ctx context.Context, req Request) (*http.Response, error) {
-	if req.IsEmbedding() || !r.Ready() || r.key == "" || req.HasTools() || req.HasParts() {
+	if req.MessagesStream || req.IsEmbedding() || !r.Ready() || r.key == "" || req.HasTools() || req.HasParts() {
 		return nil, errors.New("mainland residency review expired")
 	}
 	payload := map[string]any{"model": r.model.UpstreamModel, "max_tokens": req.MaxTokens, "stream": req.Stream, "messages": req.Messages}

@@ -21,6 +21,8 @@ import (
 )
 
 type responsesFixtureOptions struct {
+	messagesStream              bool
+	initialMode                 string
 	cacheEvidence, missingCache bool
 	release                     <-chan struct{}
 	omitProof                   bool
@@ -53,6 +55,29 @@ func responsesFixture(t *testing.T, options ...responsesFixtureOptions) (fixture
 			w.Header().Set(key, value)
 		}
 		if payload.Stream {
+			if option.cacheEvidence {
+				w.Header().Set("X-Aigw-Tariff-Version", "1")
+			}
+			if option.messagesStream {
+				if r.Header.Get("X-Aigw-Input-Evidence-Version") != "1" {
+					t.Error("initial usage not negotiated")
+				}
+				w.Header().Set("X-Aigw-Input-Evidence-Version", "1")
+				initial := `{"input_tokens":2,"output_tokens":1,"cache_read_input_tokens":4,"cache_creation_input_tokens":5}`
+				switch option.initialMode {
+				case "missing":
+					initial = ""
+				case "conflict":
+					initial = `{"input_tokens":3,"output_tokens":1,"cache_read_input_tokens":4,"cache_creation_input_tokens":5}`
+				case "negative":
+					initial = `{"input_tokens":-1,"output_tokens":1,"cache_read_input_tokens":4,"cache_creation_input_tokens":5}`
+				case "incomplete":
+					initial = `{"input_tokens":2,"output_tokens":1}`
+				}
+				if initial != "" {
+					w.Header().Set("X-Aigw-Initial-Usage", initial)
+				}
+			}
 			w.Header().Set("Content-Type", "text/event-stream")
 			w.Header().Set("X-Aigw-Evidence-Version", "2")
 			w.Header().Set("Trailer", "X-Aigw-Completion")
@@ -73,7 +98,11 @@ func responsesFixture(t *testing.T, options ...responsesFixtureOptions) (fixture
 				finish = option.finishReason
 			}
 			finishFrame, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{"index": 0, "delta": map[string]any{}, "finish_reason": finish}}})
-			io.WriteString(w, "data: "+string(finishFrame)+"\n\ndata: {\"choices\":[],\"usage\":{\"prompt_tokens\":2,\"completion_tokens\":3,\"total_tokens\":5}}\n\ndata: [DONE]\n\n")
+			usage := `{"choices":[],"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5}}`
+			if option.cacheEvidence {
+				usage = `{"choices":[],"usage":{"prompt_tokens":11,"completion_tokens":3,"total_tokens":14,"prompt_tokens_details":{"cached_tokens":4,"cached_creation_tokens":5}}}`
+			}
+			io.WriteString(w, "data: "+string(finishFrame)+"\n\ndata: "+usage+"\n\ndata: [DONE]\n\n")
 			if !option.omitProof {
 				w.Header().Set("X-Aigw-Completion", "completed")
 			}
@@ -99,6 +128,7 @@ func responsesFixture(t *testing.T, options ...responsesFixtureOptions) (fixture
 	t.Cleanup(func() { executor.Close() })
 	cfg := testutil.MainlandConfig()
 	for i := range cfg.Models {
+		cfg.Models[i].AllowMessagesStream = option.messagesStream
 		cfg.Models[i].NewAPIChannelID = 1
 		cfg.Models[i].NewAPIChannelRevision = strings.Repeat("a", 64)
 		cfg.Models[i].UpstreamModel = "backend-model"

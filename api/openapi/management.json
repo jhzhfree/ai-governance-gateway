@@ -11982,7 +11982,7 @@
     "/v1/messages": {
       "post": {
         "operationId": "createGovernedTextMessage",
-        "description": "Reviewed Messages 2023-06-01 text JSON subset over newapi Chat. Body <=64 KiB; text fields <=16 KiB; last role user. No stream, tools, content blocks, media, beta, sampling, thinking or server state. Missing version defaults to reviewed 2023-06-01; other versions rejected. Exactly one Authorization or x-api-key; device-bound Authorization retains normal DPoP verification. Requires reviewed cache_pricing even for uniform prices so raw input/cache counts are available; input_tokens excludes cache read/write. No automatic retry. Standard enterprise budget, authorization, keywords, original receipts and consented content audit apply.",
+        "description": "Reviewed Messages 2023-06-01 text JSON and optional real-time SSE. Streaming requires an explicitly approved allow_messages_stream model and Anthropic original initial counters. No tools, media, beta, sampling, thinking or server state. Completion requires durable final evidence, settlement and audit sealing. Same enterprise authentication, device proof, budgets and keywords apply; no retry.",
         "security": [
           {
             "projectKey": []
@@ -12020,6 +12020,12 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MessagesResult"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Named Messages events. Initial counters are provisional original evidence; message_stop is withheld until completion proof, settlement and audit sealing."
                 }
               }
             }
@@ -13072,6 +13078,10 @@
           },
           "cache_pricing": {
             "$ref": "#/components/schemas/CachePricing"
+          },
+          "allow_messages_stream": {
+            "type": "boolean",
+            "description": "Explicitly reviewed text Messages streaming over an Anthropic channel with original initial usage evidence."
           }
         }
       },
@@ -17773,9 +17783,8 @@
           },
           "stream": {
             "type": "boolean",
-            "enum": [
-              false
-            ]
+            "default": false,
+            "description": "Requires reviewed model streaming capability; unsupported models reject before dispatch."
           }
         },
         "required": [

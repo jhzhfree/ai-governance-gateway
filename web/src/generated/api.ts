@@ -1875,7 +1875,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Reviewed Messages 2023-06-01 text JSON subset over newapi Chat. Body <=64 KiB; text fields <=16 KiB; last role user. No stream, tools, content blocks, media, beta, sampling, thinking or server state. Missing version defaults to reviewed 2023-06-01; other versions rejected. Exactly one Authorization or x-api-key; device-bound Authorization retains normal DPoP verification. Requires reviewed cache_pricing even for uniform prices so raw input/cache counts are available; input_tokens excludes cache read/write. No automatic retry. Standard enterprise budget, authorization, keywords, original receipts and consented content audit apply. */
+        /** @description Reviewed Messages 2023-06-01 text JSON and optional real-time SSE. Streaming requires an explicitly approved allow_messages_stream model and Anthropic original initial counters. No tools, media, beta, sampling, thinking or server state. Completion requires durable final evidence, settlement and audit sealing. Same enterprise authentication, device proof, budgets and keywords apply; no retry. */
         post: operations["createGovernedTextMessage"];
         delete?: never;
         options?: never;
@@ -2125,6 +2125,8 @@ export interface components {
              */
             api?: "embeddings";
             cache_pricing?: components["schemas"]["CachePricing"];
+            /** @description Explicitly reviewed text Messages streaming over an Anthropic channel with original initial usage evidence. */
+            allow_messages_stream?: boolean;
         };
         ModelPage: {
             data: components["schemas"]["ModelInfo"][];
@@ -3291,8 +3293,11 @@ export interface components {
             messages: components["schemas"]["MessagesInput"][];
             system?: string;
             max_tokens: number;
-            /** @enum {boolean} */
-            stream?: false;
+            /**
+             * @description Requires reviewed model streaming capability; unsupported models reject before dispatch.
+             * @default false
+             */
+            stream: boolean;
         };
         MessagesUsage: {
             /** Format: int64 */
@@ -11790,6 +11795,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MessagesResult"];
+                    "text/event-stream": string;
                 };
             };
             /** @description Unreviewed request, version or missing configured cache evidence */

@@ -53,6 +53,7 @@ func TestNewAPIControlHelper(t *testing.T) {
 			cfg.Models[i].ID = "reviewed-compatible/fixture"
 			cfg.Models[i].Provider = "reviewed-compatible"
 		}
+		cfg.Models[i].AllowMessagesStream = os.Getenv("AIGW_INTEGRATION_MESSAGES_STREAM") == "1"
 		cfg.Models[i].NewAPIChannelID = 1
 		cfg.Models[i].NewAPIChannelRevision = os.Getenv("AIGW_INTEGRATION_REVISION")
 		cfg.Models[i].AllowedTools = []string{"lookup"}
@@ -135,8 +136,8 @@ func TestNewAPITwoProcessCacheTariffs(t *testing.T) {
 }
 
 type processOptions struct {
-	cacheTTL, cacheTariff, replicated, responses, messages bool
-	multiKey                                               string
+	messagesStream, cacheTTL, cacheTariff, replicated, responses, messages bool
+	multiKey                                                               string
 }
 
 func TestNewAPIReplicatedControlRecovery(t *testing.T) {
@@ -494,7 +495,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	child := func() (string, func()) {
 		ready := filepath.Join(t.TempDir(), "ready")
 		command := exec.Command(os.Args[0], "-test.run=^TestNewAPIControlHelper$")
-		command.Env = append(os.Environ(), "AIGW_INTEGRATION_CHILD=1", "AIGW_INTEGRATION_TTL="+map[bool]string{true: "1", false: "0"}[option.cacheTTL], "AIGW_INTEGRATION_RESPONSES="+map[bool]string{true: "1", false: "0"}[option.responses], "AIGW_INTEGRATION_CACHE="+map[bool]string{true: "1", false: "0"}[cache], "AIGW_INTEGRATION_REVISION="+manifest.Revision, "AIGW_INTEGRATION_PROTOCOL="+protocol, "AIGW_INTEGRATION_IMAGES="+map[bool]string{true: "1", false: "0"}[images], "AIGW_INTEGRATION_RICH="+map[bool]string{true: "1", false: "0"}[tools || images], "AIGW_INTEGRATION_DSN="+isolatedDSN.String(), "AIGW_INTEGRATION_ORIGIN="+faultProxy.URL, "AIGW_INTEGRATION_READY="+ready)
+		command.Env = append(os.Environ(), "AIGW_INTEGRATION_CHILD=1", "AIGW_INTEGRATION_MESSAGES_STREAM="+map[bool]string{true: "1", false: "0"}[option.messagesStream], "AIGW_INTEGRATION_TTL="+map[bool]string{true: "1", false: "0"}[option.cacheTTL], "AIGW_INTEGRATION_RESPONSES="+map[bool]string{true: "1", false: "0"}[option.responses], "AIGW_INTEGRATION_CACHE="+map[bool]string{true: "1", false: "0"}[cache], "AIGW_INTEGRATION_REVISION="+manifest.Revision, "AIGW_INTEGRATION_PROTOCOL="+protocol, "AIGW_INTEGRATION_IMAGES="+map[bool]string{true: "1", false: "0"}[images], "AIGW_INTEGRATION_RICH="+map[bool]string{true: "1", false: "0"}[tools || images], "AIGW_INTEGRATION_DSN="+isolatedDSN.String(), "AIGW_INTEGRATION_ORIGIN="+faultProxy.URL, "AIGW_INTEGRATION_READY="+ready)
 		return start(command, ready)
 	}
 	controlURL, stopControl := child()
@@ -506,7 +507,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	}
 
 	call := func(origin string, stream bool) (int, []byte) {
-		if embedding || option.messages {
+		if embedding || (option.messages && !option.messagesStream) {
 			stream = false
 		}
 		req := request()
@@ -534,7 +535,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 		}
 		if option.messages {
 			path = "/v1/messages"
-			data, _ = json.Marshal(map[string]any{"model": req.Model, "max_tokens": 8, "messages": []map[string]string{{"role": "user", "content": "synthetic messages input"}}})
+			data, _ = json.Marshal(map[string]any{"model": req.Model, "max_tokens": 8, "stream": stream, "messages": []map[string]string{{"role": "user", "content": "synthetic messages input"}}})
 		}
 		r, _ := http.NewRequest("POST", origin+path, bytes.NewReader(data))
 		r.Header.Set("Authorization", "Bearer synthetic-project-key")
@@ -578,6 +579,9 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 			releaseStream()
 			tail, readErr := io.ReadAll(reader)
 			terminalMarker := "[DONE]"
+			if option.messages {
+				terminalMarker = `"type":"message_stop"`
+			}
 			if option.responses {
 				terminalMarker = `"type":"response.completed"`
 			}
@@ -613,7 +617,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	}
 	pause.Store(true)
 	requestDone := make(chan struct{})
-	go func() { call(controlURL, false); close(requestDone) }()
+	go func() { call(controlURL, option.messagesStream); close(requestDone) }()
 	select {
 	case <-captured:
 	case <-time.After(20 * time.Second):
@@ -704,6 +708,7 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 	// atomically; the resulting durable tombstone is the only refund authority.
 	cfg := testutil.MainlandConfig()
 	for i := range cfg.Models {
+		cfg.Models[i].AllowMessagesStream = os.Getenv("AIGW_INTEGRATION_MESSAGES_STREAM") == "1"
 		cfg.Models[i].NewAPIChannelID = 1
 		cfg.Models[i].NewAPIChannelRevision = manifest.Revision
 		cfg.Models[i].UpstreamModel = "governance-model"
@@ -759,4 +764,8 @@ func testNewAPITwoProcessRecovery(t *testing.T, protocol string, tools, images b
 		t.Fatal("cancellation released an uncertain physical dispatch")
 	}
 
+}
+
+func TestNewAPIMessagesStreamRecovery(t *testing.T) {
+	testNewAPITwoProcessRecovery(t, "anthropic", false, false, processOptions{messages: true, messagesStream: true, cacheTTL: true, replicated: true, multiKey: "polling"})
 }

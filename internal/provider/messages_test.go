@@ -23,11 +23,31 @@ func TestMessagesRequestBoundaries(t *testing.T) {
 	if err != nil || len(req.Messages) != 4 || req.Messages[0].Role != "system" {
 		t.Fatal("conversation mapping failed", err)
 	}
-	for _, change := range []func(*MessagesRequest){func(r *MessagesRequest) { r.Stream = true }, func(r *MessagesRequest) { r.MaxTokens = 0 }, func(r *MessagesRequest) { r.Messages = nil }, func(r *MessagesRequest) { r.Messages = []MessagesInput{{Role: "system", Content: "bypass"}} }, func(r *MessagesRequest) { r.Messages = []MessagesInput{{Role: "assistant", Content: "prefill"}} }} {
+	valid.Stream = true
+	streamed, err := valid.Request()
+	if err != nil || !streamed.Stream || !streamed.MessagesStream {
+		t.Fatal("reviewed streaming marker lost")
+	}
+	for _, change := range []func(*MessagesRequest){func(r *MessagesRequest) { r.MaxTokens = 0 }, func(r *MessagesRequest) { r.Messages = nil }, func(r *MessagesRequest) { r.Messages = []MessagesInput{{Role: "system", Content: "bypass"}} }, func(r *MessagesRequest) { r.Messages = []MessagesInput{{Role: "assistant", Content: "prefill"}} }} {
 		r := valid
 		change(&r)
 		if _, err := r.Request(); err == nil {
 			t.Fatal("unsupported request accepted")
 		}
+	}
+}
+
+func TestMessagesInitialUsageCannotGuessOrOverflow(t *testing.T) {
+	for _, raw := range []string{"", `{}`, `{"input_tokens":2,"output_tokens":0}`, `{"input_tokens":-1,"output_tokens":0,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}`, `{"input_tokens":2,"output_tokens":9,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}`, `{"input_tokens":9223372036854775807,"output_tokens":0,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}`, `{"input_tokens":2,"output_tokens":0,"cache_read_input_tokens":127,"cache_creation_input_tokens":0}`, `{"input_tokens":2,"output_tokens":0,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"unknown":1}`} {
+		if _, err := DecodeMessagesInitialUsage(raw, 128, 8); err == nil {
+			t.Fatal("invalid initial counters accepted")
+		}
+	}
+	initial, err := DecodeMessagesInitialUsage(`{"input_tokens":2,"output_tokens":0,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}`, 128, 8)
+	if err != nil || initial.InputTokens != 2 || initial.OutputTokens != 0 {
+		t.Fatal("explicit original zero lost")
+	}
+	if initial.MatchesFinal(nil) {
+		t.Fatal("initial counters became final proof")
 	}
 }

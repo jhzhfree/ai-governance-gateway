@@ -148,6 +148,7 @@ export function ModelAccessPanel({
                       微人民币 · 按配置费率计价
                     </small>
                   )}
+                  {model.allow_messages_stream && <small>已审核 Messages 文本实时流</small>}
                   {model.cache_pricing && (
                     <small>
                       缓存读 {model.cache_pricing.read_per_million} / 写{' '}

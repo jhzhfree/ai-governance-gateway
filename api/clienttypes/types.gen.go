@@ -328,11 +328,6 @@ const (
 	MemberRecordRoleViewer    MemberRecordRole = "viewer"
 )
 
-// Defines values for MessagesCreateRequestStream.
-const (
-	MessagesCreateRequestStreamFalse MessagesCreateRequestStream = false
-)
-
 // Defines values for MessagesErrorType.
 const (
 	MessagesErrorTypeError MessagesErrorType = "error"
@@ -516,7 +511,7 @@ const (
 
 // Defines values for ResponsesResultStore.
 const (
-	False ResponsesResultStore = false
+	ResponsesResultStoreFalse ResponsesResultStore = false
 )
 
 // Defines values for RouteStatusState.
@@ -1763,15 +1758,14 @@ type MemberRecordRole string
 
 // MessagesCreateRequest defines model for MessagesCreateRequest.
 type MessagesCreateRequest struct {
-	MaxTokens int                          `json:"max_tokens"`
-	Messages  []MessagesInput              `json:"messages"`
-	Model     string                       `json:"model"`
-	Stream    *MessagesCreateRequestStream `json:"stream,omitempty"`
-	System    *string                      `json:"system,omitempty"`
-}
+	MaxTokens int             `json:"max_tokens"`
+	Messages  []MessagesInput `json:"messages"`
+	Model     string          `json:"model"`
 
-// MessagesCreateRequestStream defines model for MessagesCreateRequest.Stream.
-type MessagesCreateRequestStream bool
+	// Stream Requires reviewed model streaming capability; unsupported models reject before dispatch.
+	Stream *bool   `json:"stream,omitempty"`
+	System *string `json:"system,omitempty"`
+}
 
 // MessagesError defines model for MessagesError.
 type MessagesError struct {
@@ -1837,6 +1831,9 @@ type MessagesUsage struct {
 type ModelInfo struct {
 	// AllowImages Reviewed inline image input capability in newapi mode; not a guarantee of image-content moderation.
 	AllowImages *bool `json:"allow_images,omitempty"`
+
+	// AllowMessagesStream Explicitly reviewed text Messages streaming over an Anthropic channel with original initial usage evidence.
+	AllowMessagesStream *bool `json:"allow_messages_stream,omitempty"`
 
 	// Api When present, this reviewed model is input-only Embeddings. Omitted means Chat.
 	Api *ModelInfoApi `json:"api,omitempty"`

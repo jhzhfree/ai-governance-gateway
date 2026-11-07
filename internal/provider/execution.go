@@ -28,7 +28,7 @@ func (r *Route) ExecutionIdentity() [32]byte {
 // PriceSnapshot is immutable non-secret accounting input for durable execution.
 func (r *Route) PriceSnapshot() ModelInfo {
 	m := r.model
-	return ModelInfo{CachePricing: m.CachePricing.clone(), API: m.API, ID: m.ID, Provider: m.Provider, Currency: Currency, Region: r.profile.Region, PriceVersion: r.fingerprint, InputPerMillion: m.InputPerMillion, OutputPerMillion: m.OutputPerMillion, MaxInputTokens: m.MaxInputTokens, MaxOutputTokens: m.MaxOutputTokens}
+	return ModelInfo{AllowMessagesStream: m.AllowMessagesStream, CachePricing: m.CachePricing.clone(), API: m.API, ID: m.ID, Provider: m.Provider, Currency: Currency, Region: r.profile.Region, PriceVersion: r.fingerprint, InputPerMillion: m.InputPerMillion, OutputPerMillion: m.OutputPerMillion, MaxInputTokens: m.MaxInputTokens, MaxOutputTokens: m.MaxOutputTokens}
 }
 
 // GovernanceChannelID identifies the reviewed new-api channel for this route.
@@ -48,3 +48,5 @@ func (r *Route) TariffVersion() int {
 	}
 	return 1
 }
+
+func (r *Route) AllowsMessagesStream() bool { return r.model.AllowMessagesStream }

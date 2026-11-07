@@ -1,11 +1,14 @@
 package provider
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"io"
 	"strings"
 )
 
-// MessagesRequest is the explicitly reviewed text-only, non-streaming subset.
+// MessagesRequest is the explicitly reviewed text-only subset.
 // Separate DTOs prevent tools or media from silently entering the Chat bridge.
 type MessagesRequest struct {
 	Model     string          `json:"model"`
@@ -20,10 +23,10 @@ type MessagesInput struct {
 }
 
 func (r MessagesRequest) Request() (Request, error) {
-	if r.Stream || r.MaxTokens < 1 || len(r.Messages) == 0 || len(r.Messages) > 63 || len(r.System) > 16<<10 || r.Messages[len(r.Messages)-1].Role != "user" {
+	if r.MaxTokens < 1 || len(r.Messages) == 0 || len(r.Messages) > 63 || len(r.System) > 16<<10 || r.Messages[len(r.Messages)-1].Role != "user" {
 		return Request{}, errors.New("unsupported messages request")
 	}
-	req := Request{Model: r.Model, MaxTokens: r.MaxTokens}
+	req := Request{Model: r.Model, MaxTokens: r.MaxTokens, Stream: r.Stream, MessagesStream: r.Stream}
 	if r.System != "" {
 		req.Messages = append(req.Messages, Message{Role: "system", Content: r.System})
 	}
@@ -80,4 +83,34 @@ func PublicMessages(v Response) (MessagesResult, error) {
 		return MessagesResult{}, errors.New("unsupported messages termination")
 	}
 	return MessagesResult{ID: "msg_" + strings.TrimPrefix(v.ID, "chatcmpl-"), Type: "message", Role: "assistant", Model: v.Model, Content: []MessagesText{{Type: "text", Text: *v.Choices[0].Message.Content}}, StopReason: reason, Usage: MessagesUsage{InputTokens: input - read - write, OutputTokens: output, CacheReadInputTokens: read, CacheCreationInputTokens: write}}, nil
+}
+
+// DecodeMessagesInitialUsage accepts explicit original counters only. They are
+// provisional for display and must agree with final evidence before settlement.
+func DecodeMessagesInitialUsage(raw string, maxInput, maxOutput int64) (*MessagesUsage, error) {
+	if maxInput < 1 || maxInput > 1<<31-1 || maxOutput < 1 || maxOutput > 1<<31-1 || len(raw) == 0 || len(raw) > 512 {
+		return nil, errors.New("missing original initial usage")
+	}
+	var v struct {
+		Input  *int64 `json:"input_tokens"`
+		Output *int64 `json:"output_tokens"`
+		Read   *int64 `json:"cache_read_input_tokens"`
+		Write  *int64 `json:"cache_creation_input_tokens"`
+	}
+	d := json.NewDecoder(bytes.NewBufferString(raw))
+	d.DisallowUnknownFields()
+	if d.Decode(&v) != nil || d.Decode(&struct{}{}) != io.EOF || v.Input == nil || v.Output == nil || v.Read == nil || v.Write == nil {
+		return nil, errors.New("incomplete initial usage")
+	}
+	if *v.Input < 0 || *v.Input > maxInput || *v.Read < 0 || *v.Read > maxInput || *v.Write < 0 || *v.Write > maxInput || *v.Output < 0 || *v.Output > maxOutput {
+		return nil, errors.New("invalid initial usage")
+	}
+	total := *v.Input + *v.Read + *v.Write
+	if total < 1 || total > maxInput {
+		return nil, errors.New("initial input exceeds reviewed bound")
+	}
+	return &MessagesUsage{InputTokens: *v.Input, OutputTokens: *v.Output, CacheReadInputTokens: *v.Read, CacheCreationInputTokens: *v.Write}, nil
+}
+func (u *MessagesUsage) MatchesFinal(v *Usage) bool {
+	return u != nil && v != nil && v.PromptTokens != nil && v.CompletionTokens != nil && v.PromptTokensDetails != nil && v.PromptTokensDetails.CachedTokens != nil && v.PromptTokensDetails.CachedCreationTokens != nil && *v.PromptTokens == u.InputTokens+u.CacheReadInputTokens+u.CacheCreationInputTokens && *v.CompletionTokens >= u.OutputTokens && *v.PromptTokensDetails.CachedTokens == u.CacheReadInputTokens && *v.PromptTokensDetails.CachedCreationTokens == u.CacheCreationInputTokens
 }

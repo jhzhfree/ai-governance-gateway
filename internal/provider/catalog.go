@@ -52,6 +52,7 @@ func (r Residency) valid(now time.Time) bool {
 }
 
 type Model struct {
+	AllowMessagesStream   bool          `json:"allow_messages_stream,omitempty"`
 	CachePricing          *CachePricing `json:"cache_pricing,omitempty"`
 	NewAPIChannelRevision string        `json:"newapi_channel_revision,omitempty"`
 	API                   string        `json:"api,omitempty"`
@@ -74,18 +75,19 @@ type Config struct {
 	Models              []Model   `json:"models"`
 }
 type ModelInfo struct {
-	CachePricing     *CachePricing `json:"cache_pricing,omitempty"`
-	API              string        `json:"api,omitempty"`
-	AllowImages      bool          `json:"allow_images,omitempty"`
-	ID               string        `json:"id"`
-	Provider         string        `json:"provider"`
-	Currency         string        `json:"currency"`
-	Region           string        `json:"region"`
-	PriceVersion     string        `json:"price_version"`
-	InputPerMillion  int64         `json:"input_per_million"`
-	OutputPerMillion int64         `json:"output_per_million"`
-	MaxInputTokens   int64         `json:"max_input_tokens"`
-	MaxOutputTokens  int64         `json:"max_output_tokens"`
+	AllowMessagesStream bool          `json:"allow_messages_stream,omitempty"`
+	CachePricing        *CachePricing `json:"cache_pricing,omitempty"`
+	API                 string        `json:"api,omitempty"`
+	AllowImages         bool          `json:"allow_images,omitempty"`
+	ID                  string        `json:"id"`
+	Provider            string        `json:"provider"`
+	Currency            string        `json:"currency"`
+	Region              string        `json:"region"`
+	PriceVersion        string        `json:"price_version"`
+	InputPerMillion     int64         `json:"input_per_million"`
+	OutputPerMillion    int64         `json:"output_per_million"`
+	MaxInputTokens      int64         `json:"max_input_tokens"`
+	MaxOutputTokens     int64         `json:"max_output_tokens"`
 }
 
 func MockInfo() ModelInfo {
@@ -158,8 +160,11 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	catalog := &Catalog{routes: map[string]*Route{}}
 	for _, m := range cfg.Models {
-		if (!requireCredential && (m.NewAPIChannelID <= 0 || !channelRevisionPattern.MatchString(m.NewAPIChannelRevision))) || (requireCredential && (m.NewAPIChannelID != 0 || m.NewAPIChannelRevision != "" || m.AllowImages || len(m.AllowedTools) != 0 || m.API != "")) {
+		if (!requireCredential && (m.NewAPIChannelID <= 0 || !channelRevisionPattern.MatchString(m.NewAPIChannelRevision))) || (requireCredential && (m.NewAPIChannelID != 0 || m.NewAPIChannelRevision != "" || m.AllowImages || m.AllowMessagesStream || len(m.AllowedTools) != 0 || m.API != "")) {
 			return nil, errors.New("newapi directory requires an explicit approved channel; native directories cannot specify one")
+		}
+		if m.AllowMessagesStream && (m.CachePricing == nil || m.API != "") {
+			return nil, errors.New("Messages streaming requires reviewed cache evidence")
 		}
 		if m.CachePricing != nil {
 			if requireCredential || m.API != "" || !m.CachePricing.valid() {
@@ -178,7 +183,7 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 			}
 		}
 		embedding := m.API == "embeddings"
-		if (m.API != "" && !embedding) || (embedding && (m.AllowImages || len(m.AllowedTools) > 0 || m.MaxOutputTokens != 0 || m.OutputPerMillion != 0)) {
+		if (m.API != "" && !embedding) || (embedding && (m.AllowImages || m.AllowMessagesStream || len(m.AllowedTools) > 0 || m.MaxOutputTokens != 0 || m.OutputPerMillion != 0)) {
 			return nil, errors.New("invalid model API capability")
 		}
 		p, ok := profiles[m.Provider]
@@ -219,6 +224,9 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 				canonical = append(canonical, []byte("\napproved-client-tools-v1:")...)
 				canonical = append(canonical, tools...)
 			}
+			if m.AllowMessagesStream {
+				canonical = append(canonical, []byte("\nmessages-stream-v1")...)
+			}
 			if m.AllowImages {
 				canonical = append(canonical, []byte("\ninline-images-v1")...)
 			}
@@ -249,7 +257,7 @@ func (c *Catalog) Models() []ModelInfo {
 	for _, r := range c.routes {
 		if r.Ready() {
 			m := r.model
-			result = append(result, ModelInfo{CachePricing: m.CachePricing.clone(), API: m.API, AllowImages: m.AllowImages, ID: m.ID, Provider: m.Provider, Currency: Currency, Region: r.profile.Region, PriceVersion: r.fingerprint, InputPerMillion: m.InputPerMillion, OutputPerMillion: m.OutputPerMillion, MaxInputTokens: m.MaxInputTokens, MaxOutputTokens: m.MaxOutputTokens})
+			result = append(result, ModelInfo{AllowMessagesStream: m.AllowMessagesStream, CachePricing: m.CachePricing.clone(), API: m.API, AllowImages: m.AllowImages, ID: m.ID, Provider: m.Provider, Currency: Currency, Region: r.profile.Region, PriceVersion: r.fingerprint, InputPerMillion: m.InputPerMillion, OutputPerMillion: m.OutputPerMillion, MaxInputTokens: m.MaxInputTokens, MaxOutputTokens: m.MaxOutputTokens})
 		}
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })

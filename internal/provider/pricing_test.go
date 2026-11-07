@@ -130,3 +130,32 @@ func TestCacheTTLPricesEvidenceBoundsAndSnapshots(t *testing.T) {
 		}
 	}
 }
+
+func TestMessagesStreamingRequiresImmutableReview(t *testing.T) {
+	cfg := testutil.MainlandConfig()
+	for i := range cfg.Models {
+		cfg.Models[i].NewAPIChannelID = 1
+		cfg.Models[i].NewAPIChannelRevision = strings.Repeat("a", 64)
+		cfg.Models[i].AllowMessagesStream = true
+		cfg.Models[i].CachePricing = &provider.CachePricing{}
+	}
+	catalog, err := provider.NewGoverned(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	route, _ := catalog.Find("zhipu/fixture")
+	cfg.Models[2].AllowMessagesStream = false
+	changed, err := provider.NewGoverned(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, _ := changed.Find("zhipu/fixture")
+	if !route.AllowsMessagesStream() || !route.PriceSnapshot().AllowMessagesStream || other.AllowsMessagesStream() || route.PriceVersion() == other.PriceVersion() {
+		t.Fatal("streaming approval not immutable or absent from identity")
+	}
+	cfg.Models[2].AllowMessagesStream = true
+	cfg.Models[2].CachePricing = nil
+	if _, err := provider.NewGoverned(cfg); err == nil {
+		t.Fatal("streaming approval without cache evidence accepted")
+	}
+}

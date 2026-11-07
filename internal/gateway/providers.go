@@ -261,10 +261,20 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 	if r.URL.Path == "/v1/responses" {
 		w = &responsesStreamWriter{ResponseWriter: w, request: req, id: id}
 	}
-	outcome = streamProvider(w, response.Body, req, id, route, settle, h.report, trace, ctx, guard)
+	var initial *provider.MessagesUsage
+	if req.MessagesStream {
+		var err error
+		initial, err = provider.DecodeMessagesInitialUsage(response.Header.Get("X-Aigw-Initial-Usage"), route.PriceSnapshot().MaxInputTokens, int64(req.MaxTokens))
+		if err != nil {
+			reply(502, "upstream_usage_invalid")
+			return
+		}
+		w = &messagesStreamWriter{ResponseWriter: w, request: req, id: id, initial: initial}
+	}
+	outcome = streamProvider(w, response.Body, req, id, route, settle, h.report, trace, ctx, guard, initial)
 }
 
-func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id string, route *provider.Route, settle func(int64) error, report func(string, string), trace *attemptTrace, ctx context.Context, guard *keyword.Session) circuit.Outcome {
+func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id string, route *provider.Route, settle func(int64) error, report func(string, string), trace *attemptTrace, ctx context.Context, guard *keyword.Session, initial *provider.MessagesUsage) circuit.Outcome {
 	started, finished := false, false
 	tools := provider.NewToolResponseState(req)
 	var pendingToolFrames [][]byte
@@ -364,6 +374,10 @@ func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id strin
 			}
 		}
 		if value.Usage != nil {
+			if initial != nil && !initial.MatchesFinal(value.Usage) {
+				fail("upstream_usage_invalid")
+				return circuit.Failure
+			}
 			cost, err := route.ValidateUsage(value.Usage, req.MaxTokens)
 			if err != nil || actual != nil || !finished {
 				fail("upstream_usage_invalid")

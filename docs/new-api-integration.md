@@ -550,3 +550,21 @@ Anthropic 从原始 usage.cache_creation 读取 ephemeral_5m_input_tokens 与 ep
 本阶段定向验证：三类合成供应商的双控制面/多 Key/独立进程 SIGKILL 恢复 54.935 秒通过；正常 JSON/SSE、控制面死亡后的完成事件接管、数据面死亡保留占额、孤儿取消均核验精确余额和物理调用数。管理 API 分价与旧价、缺失证据和跨租户隔离测试 5.963 秒通过。完整门禁结果另记。这里没有开放 `cache_control` 请求参数，也不代表真实供应商已创建缓存；真实账单、缓存期限行为与价格审核仍须外部验收。
 
 本阶段完整门禁最终退出码 0：固定 600c8a707 数据面运行 `AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 AIGW_VERIFY_SDK=1 bash scripts/verify.sh`（两个固定 SDK Python 环境），后端 race/vet、契约、全部数据库与独立进程回归、冻结前端安装/类型/Lint/构建、17 个 OIDC 页面＋1 个本地账号页面、逻辑恢复与 SDK 均通过。HTTP API 282.813 秒，bridge 505.388 秒；旧回执升级及禁止能力降级补充测试 19.112 秒通过。父进程中的 TestNewAPIControlHelper 仅为子进程守卫，不计为集成跳过。日志在开发环境 `ttl-cp-full-gates.log` 与 `ttl-recovery-upgrade-final.log`，不随产品分发。上一阶段控制面 eb4fd71 的远端 CI 42361713263（含 Linux 安装包）及数据面 600c8a707 的 CI 42361634961 均已 success；本阶段提交的远端结果需单独确认。
+
+### Messages 文本实时 SSE 与早期原始用量
+
+数据面 `fb0c2251b5489568d1a3e766ce303c7a94e2816c` 增加单独的早期证据契约。仅限审核后的 Anthropic（type 14）文本流；配置目录为模型显式设置 `allow_messages_stream:true`，并提供已审核的 `cache_pricing`。该开关进入不可变路由/价格指纹，模型授权页展示已审核能力；默认不开启。客户端仍使用 `/v1/messages` 与 `anthropic-version:2023-06-01`，增加 `stream:true`，不接受工具、图片、thinking、beta、状态或其他未审核字段。旧 JSON 模式和其他渠道的现有功能保持。
+
+控制面请求内部 `X-Aigw-Input-Evidence-Version:1`，版本标志进入持久尝试指纹。数据面在派发前拒绝非 Anthropic 渠道、非实时流、未启用缓存证据或带工具/图片的组合。原始 `message_start` 的输入、初始输出和缓存读写计数在供应商转换之前独立快照；有界 JSON 通过内部 `X-Aigw-Initial-Usage` 返回。起始证据不进入最终结算状态，不代表供应商已完成。控制面要求字段完整、非负、在审核上限内；未取得原始计数不能填零。此内部头不会直接暴露给客户端。
+
+公开顺序为 `message_start`、`content_block_start`、实时 `content_block_delta`、`content_block_stop`、最终 `message_delta` 和 `message_stop`。首两个元数据事件合并一次有界审计检查点，文本增量各自持久检查点完成后才可见；不累计整段文本作最终重放，只跟踪有界文本总量（1 MiB）。输入与缓存计数必须和最终原始用量相同，最终输出不得小于初始输出。供应商结束、原始回执落库、可信完成 trailer、预算结算与执行元数据完成后，才能生成最终事件；`message_stop` 还须等内容审计封存成功。错误采用 Messages 的 `event:error` 形状，绝不把 Chat 的 `[DONE]` 交给客户端。
+
+缺少早期计数、计数冲突、断流、缺少完成证明与客户端取消都不会猜测最终费用或自动退款；已派发请求保留 uncertain 占额，只有持久完成回执或已确认未派发取消证明可恢复结算。已知费用结算后审计封存失败，不撤销真实费用，但不发送正常停止事件。沿用现有实时关键词限制：输入策略照常执行；输出仅允许字面量告警，配置输出脱敏/阻断或正则时在派发前拒绝，不能把这条实时通道宣称为完整内容护栏。
+
+验证证据：数据面原生身份/路由/SSE 及早期原始证据 race 专项 controller 7.530 秒通过；最初新增原生流测试因旧夹具 StreamingTimeout=0 触发 ticker panic，补齐独立初始化和清理后通过，未修改生产默认超时。治理回归 controller 30.766 秒，SQLite/MySQL/PostgreSQL 的新库与官方 rc48 升级六项 22.20 秒通过，vet 与测试二进制构建通过，无数据库结构修改。数据面 CI 42364706827 已 success。
+
+控制面专项覆盖真正早于供应商完成到达的文本、起始/最终冲突、缺少完成证明、审计检查点拒绝/封存拒绝、输出长度终止和实际审计内容与客户端字节完全一致（HTTP 36.891 秒）；客户端取消/原始计数边界补充测试 3.113 秒通过。Anthropic Python SDK 2.6.0 原始事件迭代、`messages.stream().text_stream`、`get_final_message()` 和丢失证明错误路径 11.161 秒通过，禁止自动重试。独立进程 18.870 秒通过：组合两控制面、多 Key 轮询、5 分钟/1 小时混合价格，含流式供应商完成后杀死请求所属控制面、由存活实例精确接管结算；数据面已派发后退出仍保留未知占额，未派发孤儿可取消。均为本地合成供应商，完整门禁另记。
+
+先部署上述数据面，再部署控制面，最后审核并开启模型能力；控制面 readiness 要求新数据面声明早期证据版本。OpenAI/DeepSeek 当前不提供本契约需要的原始起始输入量，不能通过启用开关获得支持。真实供应商缓存、流式计数及终端 SDK/网络仍需外部验收。协议依据：[Messages 流式事件顺序与用量说明](https://platform.claude.com/docs/en/build-with-claude/streaming)。
+
+Messages 实时流完整门禁退出码 0：固定 fb0c2251b 竞态数据面 fixture，执行 `AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 AIGW_VERIFY_SDK=1 bash scripts/verify.sh`。后端 race/vet、契约、自动升级和双进程回归通过，HTTP API 315.576 秒、bridge 531.422 秒；Web 冻结依赖/类型/Lint/构建和 17 项 OIDC＋1 项本地账号浏览器 77.112 秒通过；当前/旧版逻辑恢复 4.701 秒、最终两套 SDK 与协议专项 61.597 秒通过。主进程 TestNewAPIControlHelper 是专用子进程守卫，相关进程故障场景已实际执行。日志 `messages-live-full-gates.log` 保留于开发环境。上一控制面 bd4f414 的 CI 42364178883 和新数据面 fb0c2251b 的 CI 42364706827 均为 success；当前控制面提交的 CI 单独跟踪。没有真实供应商调用、生产迁移或发布。
