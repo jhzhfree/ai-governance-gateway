@@ -33,17 +33,18 @@ type CacheBilling struct {
 }
 
 type RequestRecord struct {
-	CacheBilling *CacheBilling      `json:"cache_billing,omitempty"`
-	Attempt      *execution.Attempt `json:"attempt"`
-	RequestID    string             `json:"request_id"`
-	Period       string             `json:"period"`
-	Currency     string             `json:"currency"`
-	PriceVersion string             `json:"price_version"`
-	State        string             `json:"state"`
-	Reserved     int64              `json:"reserved"`
-	Actual       *int64             `json:"actual"`
-	CreatedAt    time.Time          `json:"created_at"`
-	UpdatedAt    time.Time          `json:"updated_at"`
+	EmbeddedCompletion *EmbeddedCompletion `json:"embedded_completion,omitempty"`
+	CacheBilling       *CacheBilling       `json:"cache_billing,omitempty"`
+	Attempt            *execution.Attempt  `json:"attempt"`
+	RequestID          string              `json:"request_id"`
+	Period             string              `json:"period"`
+	Currency           string              `json:"currency"`
+	PriceVersion       string              `json:"price_version"`
+	State              string              `json:"state"`
+	Reserved           int64               `json:"reserved"`
+	Actual             *int64              `json:"actual"`
+	CreatedAt          time.Time           `json:"created_at"`
+	UpdatedAt          time.Time           `json:"updated_at"`
 }
 
 func ValidRequestState(state string) bool {
@@ -85,18 +86,31 @@ const recordColumns = `r.request_id,r.period_id,r.currency,r.price_version,r.sta
  'one_hour_tokens',CASE WHEN e.cache_details_version=2 THEN e.cache_write_1h_tokens ELSE NULL END,
  'details_version',COALESCE(e.cache_details_version,0),'input_tokens',e.input_tokens,'output_tokens',e.output_tokens,
  'read_tokens',CASE WHEN e.cache_details_version>=1 THEN e.cache_read_tokens ELSE NULL END,
- 'write_tokens',CASE WHEN e.cache_details_version>=1 THEN e.cache_write_tokens ELSE NULL END) END`
-const recordFrom = ` FROM budget_reservations r LEFT JOIN inference_attempts a ON a.request_id=r.request_id LEFT JOIN newapi_execution_bindings b ON b.attempt_id=a.attempt_id LEFT JOIN newapi_execution_receipts e ON e.attempt_id=b.attempt_id `
+ 'write_tokens',CASE WHEN e.cache_details_version>=1 THEN e.cache_write_tokens ELSE NULL END) END,
+ CASE WHEN eb.attempt_id IS NULL THEN NULL ELSE jsonb_build_object(
+ 'engine',eb.engine,'protocol',eb.protocol,
+ 'state',CASE WHEN er.attempt_id IS NOT NULL THEN 'receipted' WHEN ee.attempt_id IS NOT NULL THEN 'recorded' ELSE 'awaiting_usage' END,
+ 'input_per_million',eb.input_price,'output_per_million',eb.output_price,
+ 'input_tokens',ee.input_tokens,'output_tokens',ee.output_tokens,'actual',er.actual,
+ 'recorded_at',ee.created_at,'received_at',er.received_at) END`
+const recordFrom = ` FROM budget_reservations r LEFT JOIN inference_attempts a ON a.request_id=r.request_id LEFT JOIN newapi_execution_bindings b ON b.attempt_id=a.attempt_id LEFT JOIN newapi_execution_receipts e ON e.attempt_id=b.attempt_id
+ LEFT JOIN engine_execution_bindings eb ON eb.attempt_id=a.attempt_id LEFT JOIN engine_completion_events ee ON ee.attempt_id=eb.attempt_id
+ LEFT JOIN engine_completion_receipts er ON er.attempt_id=ee.attempt_id AND er.usage_sha256=ee.usage_sha256 AND ee.reconciled `
 
 func scanRecord(row interface{ Scan(...any) error }, item *RequestRecord, extras ...any) error {
-	var metadata, cache []byte
-	args := []any{&item.RequestID, &item.Period, &item.Currency, &item.PriceVersion, &item.State, &item.Reserved, &item.Actual, &item.CreatedAt, &item.UpdatedAt, &metadata, &cache}
+	var metadata, cache, embedded []byte
+	args := []any{&item.RequestID, &item.Period, &item.Currency, &item.PriceVersion, &item.State, &item.Reserved, &item.Actual, &item.CreatedAt, &item.UpdatedAt, &metadata, &cache, &embedded}
 	args = append(args, extras...)
 	if err := row.Scan(args...); err != nil {
 		return err
 	}
 	if cache != nil {
 		if err := json.Unmarshal(cache, &item.CacheBilling); err != nil {
+			return err
+		}
+	}
+	if embedded != nil {
+		if err := json.Unmarshal(embedded, &item.EmbeddedCompletion); err != nil {
 			return err
 		}
 	}

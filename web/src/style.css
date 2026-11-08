@@ -1044,6 +1044,41 @@ input:invalid:not(:placeholder-shown) {
 .request-detail dt {
   color: #526259;
 }
+.completion-evidence {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  border: 1px solid #cdded6;
+  border-radius: 12px;
+  background: #f4f9f6;
+}
+.completion-evidence h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+.request-panel .t-tag--warning.t-tag--light {
+  color: #854108;
+  background-color: #fff1e9;
+}
+.completion-evidence .panel-heading {
+  padding: 0;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.completion-evidence .request-note {
+  margin: 0.875rem 0;
+}
+@media (max-width: 640px) {
+  .completion-evidence {
+    padding: 1rem;
+  }
+  .completion-evidence dl {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 0.4rem;
+  }
+  .completion-evidence dd {
+    margin-bottom: 0.7rem;
+  }
+}
 .request-detail dd {
   margin: 0;
   overflow-wrap: anywhere;

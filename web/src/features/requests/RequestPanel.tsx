@@ -6,6 +6,7 @@ import { api, type RequestRecord } from '../../api';
 import { ErrorBox, Empty } from '../../shared/Feedback';
 import { date, number } from '../../shared/format';
 import { usePage } from '../../shared/useResourcePage';
+import { CompletionEvidence } from './CompletionEvidence';
 
 const states: Record<RequestRecord['state'], string> = {
   reserved: '已预留',
@@ -144,111 +145,119 @@ export function RequestPanel({
             <p role="status">正在读取详情…</p>
           ) : (
             detail.data && (
-              <dl>
-                <dt>请求编号</dt>
-                <dd>
-                  <code>{detail.data.request_id}</code>
-                </dd>
-                {detail.data.attempt ? (
-                  <>
-                    <dt>Attempt ID</dt>
-                    <dd>
-                      <code>{detail.data.attempt.attempt_id}</code>
-                    </dd>
-                    <dt>模型 / 供应商</dt>
-                    <dd>
-                      {detail.data.attempt.model} / {detail.data.attempt.provider}
-                    </dd>
-                    <dt>配置区域 / 响应方式</dt>
-                    <dd>
-                      {detail.data.attempt.region} / {detail.data.attempt.stream ? 'SSE' : 'JSON'}
-                    </dd>
-                    <dt>执行结果</dt>
-                    <dd>{outcomes[detail.data.attempt.outcome]}</dd>
-                    <dt>错误码</dt>
-                    <dd>
-                      <code>{detail.data.attempt.error_code || '无'}</code>
-                    </dd>
-                    <dt>上游 HTTP 状态</dt>
-                    <dd>{detail.data.attempt.upstream_status ?? '未取得'}</dd>
-                    <dt>输入 / 输出 token</dt>
-                    <dd>
-                      {detail.data.attempt.input_tokens ?? '未采集'} /{' '}
-                      {detail.data.attempt.output_tokens ?? '未采集'}
-                    </dd>
-                    <dt>执行开始时间</dt>
-                    <dd>{new Date(detail.data.attempt.started_at).toLocaleString('zh-CN')}</dd>
-                    <dt>执行结束时间</dt>
-                    <dd>
-                      {detail.data.attempt.finished_at
-                        ? new Date(detail.data.attempt.finished_at).toLocaleString('zh-CN')
-                        : '未结束'}
-                    </dd>
-                    <dt>网关执行耗时</dt>
-                    <dd>{duration(detail.data.attempt.duration_ms)}</dd>
-                  </>
-                ) : (
-                  <>
-                    <dt>执行元数据</dt>
-                    <dd>未记录；不推测历史结果</dd>
-                  </>
+              <>
+                <dl>
+                  <dt>请求编号</dt>
+                  <dd>
+                    <code>{detail.data.request_id}</code>
+                  </dd>
+                  {detail.data.attempt ? (
+                    <>
+                      <dt>Attempt ID</dt>
+                      <dd>
+                        <code>{detail.data.attempt.attempt_id}</code>
+                      </dd>
+                      <dt>模型 / 供应商</dt>
+                      <dd>
+                        {detail.data.attempt.model} / {detail.data.attempt.provider}
+                      </dd>
+                      <dt>配置区域 / 响应方式</dt>
+                      <dd>
+                        {detail.data.attempt.region} / {detail.data.attempt.stream ? 'SSE' : 'JSON'}
+                      </dd>
+                      <dt>执行结果</dt>
+                      <dd>{outcomes[detail.data.attempt.outcome]}</dd>
+                      <dt>错误码</dt>
+                      <dd>
+                        <code>{detail.data.attempt.error_code || '无'}</code>
+                      </dd>
+                      <dt>上游 HTTP 状态</dt>
+                      <dd>{detail.data.attempt.upstream_status ?? '未取得'}</dd>
+                      <dt>输入 / 输出 token</dt>
+                      <dd>
+                        {detail.data.attempt.input_tokens ?? '未采集'} /{' '}
+                        {detail.data.attempt.output_tokens ?? '未采集'}
+                      </dd>
+                      <dt>执行开始时间</dt>
+                      <dd>{new Date(detail.data.attempt.started_at).toLocaleString('zh-CN')}</dd>
+                      <dt>执行结束时间</dt>
+                      <dd>
+                        {detail.data.attempt.finished_at
+                          ? new Date(detail.data.attempt.finished_at).toLocaleString('zh-CN')
+                          : '未结束'}
+                      </dd>
+                      <dt>网关执行耗时</dt>
+                      <dd>{duration(detail.data.attempt.duration_ms)}</dd>
+                    </>
+                  ) : (
+                    <>
+                      <dt>执行元数据</dt>
+                      <dd>未记录；不推测历史结果</dd>
+                    </>
+                  )}
+                  {detail.data.cache_billing && (
+                    <>
+                      <dt>冻结输入 / 输出费率（微人民币/百万 token）</dt>
+                      <dd>
+                        {detail.data.cache_billing.input_per_million} /{' '}
+                        {detail.data.cache_billing.output_per_million}
+                      </dd>
+                      <dt>审核缓存费率（微人民币/百万 token）</dt>
+                      <dd>
+                        读 {detail.data.cache_billing.read_per_million} / 写{' '}
+                        {detail.data.cache_billing.five_minute_per_million != null
+                          ? `5 分钟 ${detail.data.cache_billing.five_minute_per_million} / 1 小时 ${detail.data.cache_billing.one_hour_per_million}`
+                          : detail.data.cache_billing.write_per_million}
+                      </dd>
+                      <dt>回执输入总量 / 输出 token</dt>
+                      <dd>
+                        {detail.data.cache_billing.input_tokens ?? '未取得'} /{' '}
+                        {detail.data.cache_billing.output_tokens ?? '未取得'}
+                      </dd>
+                      <dt>原始缓存写入时长（5 分钟 / 1 小时 token）</dt>
+                      <dd>
+                        {detail.data.cache_billing.five_minute_tokens ?? '未知'} /{' '}
+                        {detail.data.cache_billing.one_hour_tokens ?? '未知'}
+                      </dd>
+                      <dt>原始缓存读 / 写 token</dt>
+                      <dd>
+                        {detail.data.cache_billing.read_tokens ?? '未取得'} /{' '}
+                        {detail.data.cache_billing.write_tokens ?? '未取得'}
+                      </dd>
+                    </>
+                  )}
+                  <dt>账本状态</dt>
+                  <dd>{states[detail.data.state]}</dd>
+                  <dt>预算周期 / 单位</dt>
+                  <dd>
+                    {detail.data.period} / {detail.data.currency}
+                  </dd>
+                  <dt>价格版本</dt>
+                  <dd>{detail.data.price_version}</dd>
+                  <dt>预留 / 实际</dt>
+                  <dd>
+                    {number(detail.data.reserved)} / {actual(detail.data)}
+                  </dd>
+                  <dt>创建时间</dt>
+                  <dd>
+                    <time dateTime={detail.data.created_at}>
+                      {new Date(detail.data.created_at).toLocaleString('zh-CN')}
+                    </time>
+                  </dd>
+                  <dt>更新时间</dt>
+                  <dd>
+                    <time dateTime={detail.data.updated_at}>
+                      {new Date(detail.data.updated_at).toLocaleString('zh-CN')}
+                    </time>
+                  </dd>
+                </dl>
+                {detail.data.embedded_completion && (
+                  <CompletionEvidence
+                    evidence={detail.data.embedded_completion}
+                    currency={detail.data.currency}
+                  />
                 )}
-                {detail.data.cache_billing && (
-                  <>
-                    <dt>冻结输入 / 输出费率（微人民币/百万 token）</dt>
-                    <dd>
-                      {detail.data.cache_billing.input_per_million} /{' '}
-                      {detail.data.cache_billing.output_per_million}
-                    </dd>
-                    <dt>审核缓存费率（微人民币/百万 token）</dt>
-                    <dd>
-                      读 {detail.data.cache_billing.read_per_million} / 写{' '}
-                      {detail.data.cache_billing.five_minute_per_million != null
-                        ? `5 分钟 ${detail.data.cache_billing.five_minute_per_million} / 1 小时 ${detail.data.cache_billing.one_hour_per_million}`
-                        : detail.data.cache_billing.write_per_million}
-                    </dd>
-                    <dt>回执输入总量 / 输出 token</dt>
-                    <dd>
-                      {detail.data.cache_billing.input_tokens ?? '未取得'} /{' '}
-                      {detail.data.cache_billing.output_tokens ?? '未取得'}
-                    </dd>
-                    <dt>原始缓存写入时长（5 分钟 / 1 小时 token）</dt>
-                    <dd>
-                      {detail.data.cache_billing.five_minute_tokens ?? '未知'} /{' '}
-                      {detail.data.cache_billing.one_hour_tokens ?? '未知'}
-                    </dd>
-                    <dt>原始缓存读 / 写 token</dt>
-                    <dd>
-                      {detail.data.cache_billing.read_tokens ?? '未取得'} /{' '}
-                      {detail.data.cache_billing.write_tokens ?? '未取得'}
-                    </dd>
-                  </>
-                )}
-                <dt>账本状态</dt>
-                <dd>{states[detail.data.state]}</dd>
-                <dt>预算周期 / 单位</dt>
-                <dd>
-                  {detail.data.period} / {detail.data.currency}
-                </dd>
-                <dt>价格版本</dt>
-                <dd>{detail.data.price_version}</dd>
-                <dt>预留 / 实际</dt>
-                <dd>
-                  {number(detail.data.reserved)} / {actual(detail.data)}
-                </dd>
-                <dt>创建时间</dt>
-                <dd>
-                  <time dateTime={detail.data.created_at}>
-                    {new Date(detail.data.created_at).toLocaleString('zh-CN')}
-                  </time>
-                </dd>
-                <dt>更新时间</dt>
-                <dd>
-                  <time dateTime={detail.data.updated_at}>
-                    {new Date(detail.data.updated_at).toLocaleString('zh-CN')}
-                  </time>
-                </dd>
-              </dl>
+              </>
             )
           )}
         </section>

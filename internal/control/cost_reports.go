@@ -72,10 +72,10 @@ func (s *Store) CostReportByDepartment(ctx context.Context, p identity.Principal
  count(*),COALESCE(sum(r.actual) FILTER(WHERE r.state='settled'),0)::text,
  COALESCE(sum(r.actual) FILTER(WHERE r.state='estimated_final'),0)::text,
  COALESCE(sum(r.reserved) FILTER(WHERE r.state IN ('reserved','dispatched','uncertain')),0)::text,
- count(*) FILTER(WHERE r.state='released'),count(*) FILTER(WHERE a.input_tokens IS NOT NULL AND a.output_tokens IS NOT NULL),
- COALESCE(sum(a.input_tokens) FILTER(WHERE a.input_tokens IS NOT NULL AND a.output_tokens IS NOT NULL),0)::text,
- COALESCE(sum(a.output_tokens) FILTER(WHERE a.input_tokens IS NOT NULL AND a.output_tokens IS NOT NULL),0)::text
- FROM budget_reservations r LEFT JOIN inference_attempts a USING(request_id) LEFT JOIN request_department_attributions d USING(request_id)
+ count(*) FILTER(WHERE r.state='released'),count(*) FILTER(WHERE `+accountedInput+` IS NOT NULL AND `+accountedOutput+` IS NOT NULL),
+ COALESCE(sum(`+accountedInput+`) FILTER(WHERE `+accountedInput+` IS NOT NULL AND `+accountedOutput+` IS NOT NULL),0)::text,
+ COALESCE(sum(`+accountedOutput+`) FILTER(WHERE `+accountedInput+` IS NOT NULL AND `+accountedOutput+` IS NOT NULL),0)::text
+ FROM budget_reservations r LEFT JOIN inference_attempts a USING(request_id) LEFT JOIN request_department_attributions d USING(request_id) `+settledCompletionJoins+`
  WHERE r.organization_id=$1 AND ($2='' OR r.project_id=$2) AND r.created_at >= $3 AND r.created_at < $4
  AND ($5='' OR d.department_path @> jsonb_build_array(jsonb_build_object('id',$5::text)))
  AND ($6='' OR CASE WHEN d.request_id IS NULL THEN 'historical' WHEN jsonb_array_length(d.department_path)=0 THEN 'unassigned' ELSE 'assigned' END=$6)

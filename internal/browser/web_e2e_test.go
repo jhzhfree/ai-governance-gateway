@@ -17,6 +17,7 @@ import (
 
 	"github.com/jhzhfree/ai-governance-gateway/internal/admission"
 	"github.com/jhzhfree/ai-governance-gateway/internal/browser"
+	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
 	"github.com/jhzhfree/ai-governance-gateway/internal/circuit"
 	"github.com/jhzhfree/ai-governance-gateway/internal/console"
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
@@ -43,6 +44,22 @@ func testConsoleBrowser(t *testing.T, governed bool) {
 		t.Fatal(err)
 	}
 	store := control.NewWithCatalog(pool, combinedFixtureCatalog{catalog}).WithProviderManager(catalog)
+	var evidenceOrg, evidenceProject string
+	if !governed {
+		actor := identity.Principal{Issuer: issuer.URL, Subject: "alice"}
+		org, err := store.CreateOrganizationWithCurrency(context.Background(), actor, "恢复费用证据", "2026-11", provider.Currency, 10000)
+		if err != nil {
+			t.Fatal(err)
+		}
+		project, err := store.CreateProject(context.Background(), actor, org.ID, "完成事件与费用回执", 5000)
+		if err != nil {
+			t.Fatal(err)
+		}
+		evidenceOrg, evidenceProject = org.ID, project.ID
+		for _, state := range []string{"awaiting_usage", "recorded", "receipted"} {
+			testutil.SeedEmbeddedCompletion(t, pool, budget.Scope{Organization: org.ID, Project: project.ID, Period: org.Period, Currency: org.Currency}, "browser-evidence-"+state, state)
+		}
+	}
 	var engine *newapibridge.ManagedRuntime
 	var nativeUpstream string
 	if governed {
@@ -133,6 +150,9 @@ func testConsoleBrowser(t *testing.T, governed bool) {
 	cmd := exec.CommandContext(ctx, "npm", "run", "test:e2e")
 	cmd.Dir = webDir
 	cmd.Env = append(os.Environ(), "AIGW_E2E_BASE_URL="+origin)
+	if !governed {
+		cmd.Env = append(cmd.Env, "AIGW_EVIDENCE_ORG="+evidenceOrg, "AIGW_EVIDENCE_PROJECT="+evidenceProject)
+	}
 	if governed {
 		cmd.Env = append(cmd.Env, "AIGW_E2E_AUTH_MODE=newapi", "AIGW_E2E_NEWAPI_UPSTREAM="+nativeUpstream)
 	}

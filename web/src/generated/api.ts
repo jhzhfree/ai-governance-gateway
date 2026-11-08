@@ -2176,6 +2176,7 @@ export interface components {
             updated_at: string;
             attempt: components["schemas"]["ExecutionAttempt"];
             cache_billing?: components["schemas"]["CacheBilling"];
+            embedded_completion?: components["schemas"]["EmbeddedCompletion"];
         };
         RequestPage: {
             data: components["schemas"]["RequestRecord"][];
@@ -3508,6 +3509,29 @@ export interface components {
         };
         NewAPIChannelOperations: {
             data: components["schemas"]["NewAPIChannelOperation"][];
+        };
+        /** @description Scoped single-process completion metadata. Recorded quantities are not a settlement receipt. Receipted usage is included in reports even when the client attempt remains unfinished/canceled. Never exposes raw usage, content, route digests or credentials. All amounts and rates use the parent request currency. */
+        EmbeddedCompletion: {
+            /** @enum {string} */
+            engine: "bifrost";
+            /** @enum {string} */
+            protocol: "chat_v1";
+            /** @enum {string} */
+            state: "awaiting_usage" | "recorded" | "receipted";
+            /** Format: int64 */
+            input_per_million: number;
+            /** Format: int64 */
+            output_per_million: number;
+            /** Format: int64 */
+            input_tokens: number | null;
+            /** Format: int64 */
+            output_tokens: number | null;
+            /** Format: int64 */
+            actual: number | null;
+            /** Format: date-time */
+            recorded_at: string | null;
+            /** Format: date-time */
+            received_at: string | null;
         };
     };
     responses: never;

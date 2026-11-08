@@ -42,10 +42,20 @@
 - 最终代码复查收紧 JSON 完成契约：原始单候选必须明确给出受支持的结束原因，不能仅凭 HTTP 200 和用量计数生成完成事件。新增适配器负向测试及治理回归，单独重跑最终嵌套模块完整门禁；该修正不改变根模块或前端代码。
 - 最终 `AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 bash scripts/verify.sh` 退出 0，使用固定 Go 1.27.3、Node 24.19.0、真实隔离 PostgreSQL 和干净 `934d85c` 对照夹具：模块/契约/格式/vet/race、冻结 Web 安装/构建、21 项浏览器检查（125.127 秒）和逻辑备份恢复通过。唯一顶层 SKIP 仍是子进程 helper，对应进程测试实际执行；本地未额外启用 SDK 专用门禁。日志 `/tmp/aigw-completion-final-verify.log`。JSON 边界最终修正后的 `bash modules/engine/scripts/verify.sh` 也退出 0（适配器 19.445 秒、桥接 44.000 秒，日志 `/tmp/aigw-completion-finish-verify.log`）；根业务和 Web 在补验期间未再修改。
 - 当前仍限文本 Chat、统一输入/输出单价；控制台完成证据展示、其他三类 API、工具/内联图片与缓存细分计费按后续阶段推进。真实供应商账单、目标机器、企业身份/终端、商业发行审查和生产发布不在本轮开发验证中。
+- 已核对远端提交 `1603aacbbdc589c99a677b1370cfdc73ed1f7979`；[CI 42428349399](https://github.com/jhzhfree/ai-governance-gateway/actions/runs/42428349399) 的后端/Web/SDK 主任务已 success，Linux 候选包任务仍在执行，工作流整体结果另行核对。
+
+## 完成证据查询与费用分析（2026-11-08，本地验证通过）
+
+- 调用列表/详情复用原项目权限，新增可选 `embedded_completion`，区分未取得完成证据、已记录事件和已生成回执；返回冻结费率、数量、金额及时间，不返回原始用量字节、配置摘要、凭证或内容。不覆盖原 attempt 结果，无嵌入绑定的历史记录不推测新引擎。
+- 成本报表和账单比对优先采用与回执匹配的原始数量，解决进程退出后已恢复费用但 attempt 数量为空的问题。无回执时沿用原 attempt 语义；两来源不会重复累计，金额仍来自唯一预算账本，读取不发起结算。
+- Web 详情增加独立证据卡片，展示元/微元精度和冻结单价，明确回执不代表客户端成功。CLI/TUI 与生成的 Go/TS 契约同步。操作手册及账务专题同步新增状态说明，保留原身份与内容审计权限。
+- 针对性真实数据库/管理 API 检查通过：三种证据状态、跨项目/组织拒绝、viewer 查看、推理 Key 拒绝、迟到恢复后报表更新且不重复计量、账单识别恢复后的用量差异。CLI/TUI 实际 API 检查也通过。
+- 首次新增 API 测试使用了只支持 MOCK 的历史组织辅助函数，改为显式 CNY 项目后通过；首次浏览器发现旧“待核对”标签对比度为 2.82:1，已加深该页面的警示文字颜色，保留 axe 门禁。定向浏览器检查通过后优化窄屏卡片布局；定向筛选运行不计为完整回归。最终 `AIGW_VERIFY_WEB=1 bash scripts/verify.sh` 退出 0：嵌套/根模块、真实 PostgreSQL、race/vet、契约、固定 Node 24.19.0 冻结安装/构建及 22 项浏览器检查（20＋1＋1，133.138 秒）通过。后端 HTTP API 346.756 秒、newapibridge 547.722 秒；唯一顶层 SKIP 是实际子进程测试使用的 helper。本地未另启用 SDK/备份恢复可选门禁，上一阶段有恢复验证。日志 `/tmp/aigw-evidence-full-verify.log`。最终补充的双来源不重复计量及历史记录不推测引擎测试另验通过（7.322 秒）；未改变上述已验证的业务实现。桌面/窄屏截图复查通过。
+- 当前未新增数据库迁移或第三方依赖；未调用真实模型、修改生产配置或完成外部商业发行验收。
 
 ---
 
-状态：开发中，未发布 V1.0。当前控制面分支为 `feature/newapi-foundation-validation`，配套 new-api 数据面为 `feature/enterprise-governance-integration`。此前 `feature/v1.0-enterprise-gateway` 从主线 b4e4bc983f3058cd88ec0cc5ddcf0649d2014300 创建；下文保留其历史阶段证据。当前接入与部署约束以 [new-api 集成](new-api-integration.md) 的最新章节为准。
+以下为历史双进程分支记录，不是当前单进程产品状态。该历史控制面分支为 `feature/newapi-foundation-validation`，配套 new-api 数据面为 `feature/enterprise-governance-integration`。此前 `feature/v1.0-enterprise-gateway` 从主线 b4e4bc983f3058cd88ec0cc5ddcf0649d2014300 创建；下文保留其历史阶段证据。当前接入与部署约束以 [new-api 集成](new-api-integration.md) 的最新章节为准。
 
 ## 基线与原则
 

@@ -1,6 +1,56 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
+test('completion evidence separates durable billing from unfinished client outcomes', async ({
+  page,
+}) => {
+  const org = process.env.AIGW_EVIDENCE_ORG;
+  const project = process.env.AIGW_EVIDENCE_PROJECT;
+  expect(org).toBeTruthy();
+  expect(project).toBeTruthy();
+  await page.goto('/');
+  await page.getByRole('link', { name: /使用组织账号登录/ }).click();
+  await expect(page.getByRole('heading', { name: '项目概览.' })).toBeVisible();
+  for (const [state, label] of [
+    ['awaiting_usage', '未取得完成证据'],
+    ['recorded', '完成证据已记录'],
+    ['receipted', '已生成结算回执'],
+  ]) {
+    await page.goto(
+      `/?org=${org}&project=${project}&view=requests&request=browser-evidence-${state}`,
+    );
+    const detail = page.getByRole('region', { name: '调用账本详情' });
+    const evidence = detail.getByRole('region', { name: '供应商完成证据' });
+    await expect(evidence.getByText(label, { exact: true })).toBeVisible();
+    await expect(detail.getByText('未结束', { exact: true }).first()).toBeVisible();
+    if (state === 'receipted') {
+      await expect(evidence.getByText('0.000014 元', { exact: true })).toBeVisible();
+      await expect(evidence.getByText('3 / 2', { exact: true })).toBeVisible();
+      await expect(evidence).toContainText('不代表客户端收到成功响应');
+    } else {
+      await expect(evidence.getByText('尚无结算回执', { exact: true })).toBeVisible();
+      await expect(evidence).not.toContainText('0.000000');
+    }
+  }
+  const evidence = page.getByRole('region', { name: '供应商完成证据' });
+  await evidence.screenshot({ path: '/tmp/aigw-completion-evidence-desktop.png' });
+  const accessibility = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+    .analyze();
+  expect(
+    accessibility.violations.map((v) => ({
+      id: v.id,
+      nodes: v.nodes.map((n) => ({ target: n.target, reason: n.failureSummary })),
+    })),
+  ).toEqual([]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(evidence.getByText('0.000014 元', { exact: true })).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
+  ).toBeTruthy();
+  await evidence.screenshot({ path: '/tmp/aigw-completion-evidence-mobile.png' });
+});
+
 test('feature chunks load on demand and recover without losing navigation', async ({ page }) => {
   const systemChunk = /\/assets\/SystemPanel-[^/]+\.js(?:\?.*)?$/;
   let requests = 0;

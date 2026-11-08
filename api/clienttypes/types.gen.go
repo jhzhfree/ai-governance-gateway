@@ -164,6 +164,23 @@ const (
 	DeviceStateRevoked DeviceState = "revoked"
 )
 
+// Defines values for EmbeddedCompletionEngine.
+const (
+	EmbeddedCompletionEngineBifrost EmbeddedCompletionEngine = "bifrost"
+)
+
+// Defines values for EmbeddedCompletionProtocol.
+const (
+	ChatV1 EmbeddedCompletionProtocol = "chat_v1"
+)
+
+// Defines values for EmbeddedCompletionState.
+const (
+	AwaitingUsage EmbeddedCompletionState = "awaiting_usage"
+	Receipted     EmbeddedCompletionState = "receipted"
+	Recorded      EmbeddedCompletionState = "recorded"
+)
+
 // Defines values for EmbeddingItemObject.
 const (
 	Embedding EmbeddingItemObject = "embedding"
@@ -445,9 +462,9 @@ const (
 
 // Defines values for ProviderConfigurationStatusExecutionEngine.
 const (
-	Bifrost ProviderConfigurationStatusExecutionEngine = "bifrost"
-	Native  ProviderConfigurationStatusExecutionEngine = "native"
-	Newapi  ProviderConfigurationStatusExecutionEngine = "newapi"
+	ProviderConfigurationStatusExecutionEngineBifrost ProviderConfigurationStatusExecutionEngine = "bifrost"
+	ProviderConfigurationStatusExecutionEngineNative  ProviderConfigurationStatusExecutionEngine = "native"
+	ProviderConfigurationStatusExecutionEngineNewapi  ProviderConfigurationStatusExecutionEngine = "newapi"
 )
 
 // Defines values for ProviderModelConfigurationApi.
@@ -1281,6 +1298,29 @@ type DeviceSessionPage struct {
 	Data       []DeviceSession `json:"data"`
 	NextCursor string          `json:"next_cursor"`
 }
+
+// EmbeddedCompletion Scoped single-process completion metadata. Recorded quantities are not a settlement receipt. Receipted usage is included in reports even when the client attempt remains unfinished/canceled. Never exposes raw usage, content, route digests or credentials. All amounts and rates use the parent request currency.
+type EmbeddedCompletion struct {
+	Actual           *int64                     `json:"actual"`
+	Engine           EmbeddedCompletionEngine   `json:"engine"`
+	InputPerMillion  int64                      `json:"input_per_million"`
+	InputTokens      *int64                     `json:"input_tokens"`
+	OutputPerMillion int64                      `json:"output_per_million"`
+	OutputTokens     *int64                     `json:"output_tokens"`
+	Protocol         EmbeddedCompletionProtocol `json:"protocol"`
+	ReceivedAt       *time.Time                 `json:"received_at"`
+	RecordedAt       *time.Time                 `json:"recorded_at"`
+	State            EmbeddedCompletionState    `json:"state"`
+}
+
+// EmbeddedCompletionEngine defines model for EmbeddedCompletion.Engine.
+type EmbeddedCompletionEngine string
+
+// EmbeddedCompletionProtocol defines model for EmbeddedCompletion.Protocol.
+type EmbeddedCompletionProtocol string
+
+// EmbeddedCompletionState defines model for EmbeddedCompletion.State.
+type EmbeddedCompletionState string
 
 // EmbeddingItem defines model for EmbeddingItem.
 type EmbeddingItem struct {
@@ -2225,16 +2265,19 @@ type RequestRecord struct {
 	Actual *int64 `json:"actual"`
 
 	// Attempt One durable attempt per reserved request; no retries. Completed means valid upstream result and durable local accounting/metadata, not client receipt. Unfinished can include crashed processes. Timing is wall-clock gateway execution time including accounting and metadata writes. Null on old or unrecorded requests.
-	Attempt      *ExecutionAttempt  `json:"attempt"`
-	CacheBilling *CacheBilling      `json:"cache_billing,omitempty"`
-	CreatedAt    time.Time          `json:"created_at"`
-	Currency     string             `json:"currency"`
-	Period       string             `json:"period"`
-	PriceVersion string             `json:"price_version"`
-	RequestId    string             `json:"request_id"`
-	Reserved     int64              `json:"reserved"`
-	State        RequestRecordState `json:"state"`
-	UpdatedAt    time.Time          `json:"updated_at"`
+	Attempt      *ExecutionAttempt `json:"attempt"`
+	CacheBilling *CacheBilling     `json:"cache_billing,omitempty"`
+	CreatedAt    time.Time         `json:"created_at"`
+	Currency     string            `json:"currency"`
+
+	// EmbeddedCompletion Scoped single-process completion metadata. Recorded quantities are not a settlement receipt. Receipted usage is included in reports even when the client attempt remains unfinished/canceled. Never exposes raw usage, content, route digests or credentials. All amounts and rates use the parent request currency.
+	EmbeddedCompletion *EmbeddedCompletion `json:"embedded_completion,omitempty"`
+	Period             string              `json:"period"`
+	PriceVersion       string              `json:"price_version"`
+	RequestId          string              `json:"request_id"`
+	Reserved           int64               `json:"reserved"`
+	State              RequestRecordState  `json:"state"`
+	UpdatedAt          time.Time           `json:"updated_at"`
 }
 
 // RequestRecordState defines model for RequestRecord.State.

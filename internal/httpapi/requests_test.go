@@ -26,6 +26,9 @@ func TestInferenceRequestLedgerContractAndIsolation(t *testing.T) {
 		t.Fatal("successful inference missing durable accounting record")
 	}
 	record := page.Data[0]
+	if record.EmbeddedCompletion != nil {
+		t.Fatal("legacy request fabricated embedded evidence")
+	}
 	if record.Attempt == nil || record.Attempt.Outcome != "completed" || record.Attempt.Model != "mock-text" || record.Attempt.Provider != "mock" || record.Attempt.RequestID != record.RequestID || record.Attempt.DurationMS == nil || record.Attempt.FinishedAt == nil || record.Attempt.UpstreamStatus == nil || *record.Attempt.UpstreamStatus != 200 {
 		t.Fatal("durable request execution metadata missing")
 	}

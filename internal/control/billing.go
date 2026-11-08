@@ -178,7 +178,7 @@ func matchBill(ctx context.Context, tx pgx.Tx, org, project, id string, v *Billi
 	var supplier *string
 	var active, recent bool
 	var input, output *int64
-	err := tx.QueryRow(ctx, `SELECT r.state,r.period_id,r.currency,r.reserved,r.actual,a.provider,a.input_tokens,a.output_tokens,EXISTS(SELECT 1 FROM admission_leases l WHERE l.request_id=r.request_id AND l.expires_at>clock_timestamp()),r.updated_at>clock_timestamp()-interval '5 minutes' FROM budget_reservations r LEFT JOIN inference_attempts a USING(request_id) WHERE r.organization_id=$1 AND r.project_id=$2 AND r.request_id=$3`, org, project, id).Scan(&v.LedgerState, &period, &currency, &reserved, &actual, &supplier, &input, &output, &active, &recent)
+	err := tx.QueryRow(ctx, `SELECT r.state,r.period_id,r.currency,r.reserved,r.actual,a.provider,`+accountedInput+`,`+accountedOutput+`,EXISTS(SELECT 1 FROM admission_leases l WHERE l.request_id=r.request_id AND l.expires_at>clock_timestamp()),r.updated_at>clock_timestamp()-interval '5 minutes' FROM budget_reservations r LEFT JOIN inference_attempts a USING(request_id) `+settledCompletionJoins+` WHERE r.organization_id=$1 AND r.project_id=$2 AND r.request_id=$3`, org, project, id).Scan(&v.LedgerState, &period, &currency, &reserved, &actual, &supplier, &input, &output, &active, &recent)
 	if errors.Is(err, pgx.ErrNoRows) {
 		v.Issues = append(v.Issues, "missing_request")
 		return nil
