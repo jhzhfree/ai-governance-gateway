@@ -76,6 +76,15 @@
 - 最终 `AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 AIGW_VERIFY_SDK=1 bash scripts/verify.sh` 退出 0（`/tmp/aigw-embedding-full-verify.log`）：固定 Go 1.27.3、Node 24.19.0、真实隔离 PostgreSQL、模块/契约/格式/vet/race、冻结 Web 安装/构建、23 项浏览器检查、备份恢复和两组固定 SDK 门禁全部通过。HTTP API 396.993 秒、旧 new-api 兼容包 572.012 秒；新增嵌入式浏览器 9.423 秒、原浏览器 131.576 秒、恢复 6.035 秒、嵌入 SDK 9.483 秒、旧 SDK/协议 68.098 秒。唯一顶层 SKIP 是由实际子进程场景调用的 helper，不是省略数据库或进程验证。嵌套适配器 19.762 秒、桥接 107.660 秒；包级 timeout 从 120 秒增至 180 秒为新增 60 场景与真实进程恢复留出 CI 余量，场景/请求截止时间不变，这轮桥接仍在原 120 秒内通过。完整运行开始后仅整理文档和调整该包级上限，没有再修改业务/测试实现。本阶段远端 CI 须按新提交独立核验。
 - 本轮无新增第三方依赖、素材或 new-api 源码复制。目标硬件、真实供应商/账单、企业身份/终端、完整权属与商业许可、生产发布仍单列验收；Messages、工具/图片、缓存细分和统一审核渠道继续推进，不发布 V1.0 标签。
 
+## Chat/Responses 原始 JSON 加固（2026-11-08，本地验证通过）
+
+- 上一阶段远端提交 `b8727c4bfe51c7e460cf664038355b6f62748f1a` 已核对，关联 [CI 42437920200](https://github.com/jhzhfree/ai-governance-gateway/actions/runs/42437920200)；新阶段开始时仍在运行，随后已确认两个任务均已 success。
+- 共用 Chat/Embedding 有限接收器，解析前 1 MiB 上限、identity/UTF-8 与媒体检查、原始 usage 字节保留、SDK 内部元数据隔离；原并发/SSRF/取消/证据/结算链保持，移除闲置 Core worker 初始化。实际复用范围和代价见 [ADR 0013](../modules/engine/docs/adr/0013-bounded-json-reception.md)。没有复制上游源码、新迁移或改锁文件。
+- 最先运行的故障回归如实失败（`/tmp/aigw-chat-json-before.log`），证明旧路径会接受超限分块空白、压缩后超限、错误媒体和无效 UTF-8，并改变原始 usage 空白。修复后专项测试退出 0（4.828 秒），涵盖 13 类原始响应拒绝、内部字段伪造、字节保留和三种连接回收路径；首次模块回归中新增字节断言误查事件表不存在的 request_id 列，修正为按绑定关联查询；没有改变持久模型。该失败不计入通过，完整模块与根门禁继续执行。最终复查另增加 choices/usage 大小写冲突拒绝与准确 1 MiB/TLS 边界专项；最后只改执行适配器，再完整复验嵌套模块及其 SDK/浏览器链，根业务/前端不变。
+
+- 完整根 `AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 AIGW_VERIFY_SDK=1 bash scripts/verify.sh` 退出 0（`/tmp/aigw-chat-json-full-verify.log`），覆盖固定 Go 1.27.3/Node 24.19.0、真实隔离数据库、race/vet/契约、冻结 Web 构建、23 项浏览器、备份恢复及两组 SDK。HTTP API 377.299 秒、旧 new-api 兼容 559.975 秒、嵌套桥接 147.981 秒；浏览器原套件 127.850 秒、嵌入页 8.853 秒，恢复 6.053 秒，SDK 8.531＋68.340 秒。唯一顶层 SKIP 仍为实际子进程使用的 helper。
+- 最终补充大小写拒绝后，只修改执行适配器并重新执行其完整模块、固定 SDK 与真实嵌入页面门禁，退出 0（`/tmp/aigw-chat-json-final-engine.log`）。精确上限和 TLS/目的地址专项也已通过（2.742 秒，并执行 vet）。最终引擎测试包含 66 个三协议治理场景与五个实际强杀恢复路径，正常原始用量字节已在数据库核对。根业务、数据库、前端源码未在补验期间改动。没有生产调用或正式 V1.0 发布。
+
 以下为历史双进程分支记录，不是当前单进程产品状态。该历史控制面分支为 `feature/newapi-foundation-validation`，配套 new-api 数据面为 `feature/enterprise-governance-integration`。此前 `feature/v1.0-enterprise-gateway` 从主线 b4e4bc983f3058cd88ec0cc5ddcf0649d2014300 创建；下文保留其历史阶段证据。当前接入与部署约束以 [new-api 集成](new-api-integration.md) 的最新章节为准。
 
 ## 基线与原则

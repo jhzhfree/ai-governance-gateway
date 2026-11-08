@@ -1,13 +1,8 @@
 package bifrost
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"io"
-	"mime"
-	"net/http"
-	"time"
 
 	"github.com/jhzhfree/ai-governance-gateway/internal/completion"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
@@ -34,31 +29,9 @@ func (e *Executor) embedding(ctx context.Context, req execution.Request, emit ex
 		return err
 	}
 	defer release()
-	parent := ctx
-	ctx, cancel := context.WithCancelCause(ctx)
-	defer cancel(nil)
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, e.streamURL, bytes.NewReader(req.Body))
+	raw, err := e.receiveJSON(ctx, req.Body)
 	if err != nil {
-		return execution.ErrInvalidRequest
-	}
-	request.Header.Set("Authorization", "Bearer "+e.streamKey)
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Accept", "application/json")
-	request.Header.Set("Accept-Encoding", "identity")
-	timer := time.AfterFunc(10*time.Second, func() { cancel(context.DeadlineExceeded) })
-	response, err := e.streamHTTP.Do(request)
-	timer.Stop()
-	if err != nil {
-		return streamError(parent, ctx, execution.ErrUpstream)
-	}
-	defer response.Body.Close()
-	media, _, mediaErr := mime.ParseMediaType(response.Header.Get("Content-Type"))
-	if response.StatusCode != http.StatusOK || mediaErr != nil || media != "application/json" || response.ContentLength > 1<<20 || (response.Header.Get("Content-Encoding") != "" && response.Header.Get("Content-Encoding") != "identity") {
-		return execution.ErrUpstream
-	}
-	raw, err := io.ReadAll(io.LimitReader(&idleReader{Reader: response.Body, cancel: cancel}, (1<<20)+1))
-	if err != nil || len(raw) > 1<<20 {
-		return streamError(parent, ctx, execution.ErrUpstream)
+		return err
 	}
 	fields, ok := object(raw, "id", "model", "object", "data", "usage")
 	if !ok {

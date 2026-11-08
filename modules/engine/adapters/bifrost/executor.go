@@ -6,15 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/jhzhfree/ai-governance-gateway/modules/engine/execution"
-	core "github.com/maximhq/bifrost/core"
 	"github.com/maximhq/bifrost/core/providers/openai"
 	"github.com/maximhq/bifrost/core/schemas"
 )
@@ -28,12 +25,13 @@ type Config struct {
 	// generic OpenAI Chat. No client request field can change this selection.
 	Supplier string
 	// BaseURL is the origin, optionally with a proxy prefix, without /v1.
-	// The OpenAI provider appends /v1/chat/completions itself.
+	// The reviewed profile appends its fixed Chat/Embeddings path.
 	BaseURL string
 	APIKey  string `json:"-"`
 	Model   string
 	// MaxOutputTokens is a server-owned ceiling, never a client override.
-	// Zero selects 4096. Values outside 16..1,000,000 are rejected.
+	// Chat zero selects 4096; other values must be 16..1,000,000.
+	// Embeddings requires zero.
 	MaxOutputTokens int
 	// MaxConcurrent bounds active executions, including streams and consumers.
 	// Zero selects 4. There is no adapter-side waiting queue.
@@ -43,7 +41,6 @@ type Config struct {
 }
 
 type Executor struct {
-	client               *core.Bifrost
 	streamHTTP           *http.Client
 	streamURL, streamKey string
 	api, model           string
@@ -89,24 +86,11 @@ func New(ctx context.Context, cfg Config) (*Executor, error) {
 		return nil, errors.New("invalid execution concurrency")
 	}
 	e := &Executor{api: cfg.API, streamHTTP: streamClient(cfg.TestLoopback), profile: profile, streamURL: strings.TrimRight(cfg.BaseURL, "/") + profile.path, streamKey: cfg.APIKey, model: cfg.Model, maxOutputTokens: cfg.MaxOutputTokens, lifecycle: newLifecycle(ctx, cfg.MaxConcurrent)}
-	// Embeddings uses the bounded receiver and SDK network protections only;
-	// do not allocate an idle Chat SDK pool for an input-only route.
-	if cfg.API != "embeddings" {
-		client, err := core.Init(ctx, schemas.BifrostConfig{Account: &account{cfg: cfg}, Logger: core.NewNoOpLogger(), InitialPoolSize: 8, DropExcessRequests: true})
-		if err != nil {
-			e.Close()
-			return nil, errors.New("execution engine initialization failed")
-		}
-		e.client = client
-	}
 	return e, nil
 }
 func (e *Executor) Close() {
 	e.lifecycle.close(func() {
 		e.streamHTTP.CloseIdleConnections()
-		if e.client != nil {
-			e.client.Shutdown()
-		}
 	})
 }
 
@@ -136,47 +120,14 @@ func (e *Executor) Execute(ctx context.Context, req execution.Request, emit exec
 	if wire.Stream != nil && *wire.Stream {
 		return e.stream(ctx, req, maxOutput, emit)
 	}
-	bctx, cancel := schemas.NewBifrostContextWithCancel(ctx)
-	defer cancel()
-	bctx.SetValue(schemas.BifrostContextKeyRequestID, req.AttemptID)
-	// Capture raw provider frames solely for bounded evidence validation. They
-	// are removed before events leave this adapter.
-	converted := wire.ToBifrostChatRequest(bctx)
-	converted.Provider = schemas.OpenAI
-	converted.Model = e.model
-	converted.Fallbacks = nil
-	if e.profile.id != "" {
-		body, err := e.profile.wireBody(req.Body, false)
-		if err != nil {
-			return execution.ErrInvalidRequest
-		}
-		converted.RawRequestBody = body
-		bctx.SetValue(schemas.BifrostContextKeyUseRawRequestBody, true)
-	}
-	evidence := &usageEvidence{}
-	resp, upstreamErr := e.client.ChatCompletionRequest(bctx, converted)
-	if upstreamErr != nil {
-		return classify(ctx)
-	}
-	if resp == nil {
-		return execution.ErrUpstream
-	}
-	return deliver(ctx, req, resp, maxOutput, evidence, emit)
-}
-
-func classify(ctx context.Context) error {
-	if ctx.Err() != nil {
-		return ctx.Err()
-	}
-	// Provider errors may contain echoed content or credentials. Do not expose them.
-	return execution.ErrUpstream
+	return e.chatJSON(ctx, req, maxOutput, emit)
 }
 
 func deliver(ctx context.Context, req execution.Request, resp *schemas.BifrostChatResponse, maxOutput int, evidence *usageEvidence, emit execution.Emit) error {
 	if err := evidence.observe(resp.ExtraFields.RawResponse, maxOutput); err != nil {
 		return err
 	}
-	// The SDK accepts Chat responses only with HTTP 200. Do not retain raw
+	// The receiver accepts only HTTP 200. Do not retain raw
 	// request/response content in event payloads or logs.
 	resp.ExtraFields.RawResponse = nil
 	resp.ExtraFields.RawRequest = nil
@@ -194,37 +145,6 @@ func deliver(ctx context.Context, req execution.Request, resp *schemas.BifrostCh
 		return execution.ErrUpstream
 	}
 	return emit(ctx, execution.Event{Completed: true, UpstreamStatus: 200, RequestID: req.RequestID, AttemptID: req.AttemptID, Payload: data, Usage: usage})
-}
-
-type account struct{ cfg Config }
-
-func (a *account) GetConfiguredProviders() ([]schemas.ModelProvider, error) {
-	return []schemas.ModelProvider{schemas.OpenAI}, nil
-}
-func (a *account) GetKeysForProvider(_ context.Context, p schemas.ModelProvider) ([]schemas.Key, error) {
-	if p != schemas.OpenAI {
-		return nil, fmt.Errorf("provider not configured")
-	}
-	return []schemas.Key{{ID: "m0-provider", Name: "m0-provider", Value: *schemas.NewSecretVar(a.cfg.APIKey), Models: schemas.WhiteList{a.cfg.Model}, Weight: 1}}, nil
-}
-func (a *account) GetConfigForProvider(p schemas.ModelProvider) (*schemas.ProviderConfig, error) {
-	if p != schemas.OpenAI {
-		return nil, fmt.Errorf("provider not configured")
-	}
-	var custom *schemas.CustomProviderConfig
-	if _, profile, err := resolveSupplier(a.cfg); err == nil && profile.id != "" {
-		operation := schemas.ChatCompletionRequest
-		if a.cfg.API == "embeddings" {
-			operation = schemas.EmbeddingRequest
-		}
-		custom = &schemas.CustomProviderConfig{BaseProviderType: schemas.OpenAI, RequestPathOverrides: map[schemas.RequestType]string{operation: profile.path}}
-	}
-	return &schemas.ProviderConfig{
-		CustomProviderConfig:     custom,
-		SendBackRawResponse:      true,
-		NetworkConfig:            schemas.NetworkConfig{BaseURL: a.cfg.BaseURL, MaxRetries: 0, DefaultRequestTimeoutInSeconds: 10, StreamIdleTimeoutInSeconds: 3, RetryBackoffInitial: time.Millisecond, RetryBackoffMax: time.Millisecond, AllowPrivateNetwork: a.cfg.TestLoopback},
-		ConcurrencyAndBufferSize: schemas.ConcurrencyAndBufferSize{Concurrency: a.cfg.MaxConcurrent, BufferSize: a.cfg.MaxConcurrent * 2},
-	}, nil
 }
 
 func (*Executor) String() string   { return "[execution engine; credentials redacted]" }

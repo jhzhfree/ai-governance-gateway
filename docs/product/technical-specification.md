@@ -10,6 +10,8 @@
 
 本产品不是模型训练平台、完整企业 IdP、EDR 或通用内容安全审核系统。开源组件的功能清单不能代替本产品实装能力。单进程分支候选包默认且仅使用嵌入式 Bifrost 产品入口；历史 native/newapi 命令和后文双进程能力保留为迁移对照，不能用于判定新执行链已通过验收。
 
+当前适配器复用 Bifrost SDK 的公开网络保护、请求/响应类型和规范化；受控 JSON/SSE 的有界接收与原始完成证据由产品适配层负责。产品没有直接接入 SDK 全部供应商、Core worker/Key 调度或企业插件。具体实现范围见 [原始响应接收决策](../../modules/engine/docs/adr/0013-bounded-json-reception.md)。
+
 ## 2. 逻辑架构
 
 ```mermaid

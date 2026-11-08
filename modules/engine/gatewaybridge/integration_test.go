@@ -41,6 +41,7 @@ func governedPooledExecution(t *testing.T, protocol string) {
 	if protocol == "embeddings" {
 		modes = []string{"json", "binding failure", "completion persistence failure", "receipt failure", "completed then cancel", "missing usage", "duplicate usage", "upstream failure", "revoked key", "budget denial", "device denial", "audit unavailable", "unauthorized model", "model permission removed", "no journal", "no settlement store"}
 	}
+	modes = append(modes, "oversized json", "wrong media")
 	wantCost := int64(14)
 	replyText := "synthetic reply"
 	if protocol == "embeddings" {
@@ -89,8 +90,17 @@ func governedPooledExecution(t *testing.T, protocol string) {
 					_, _ = io.WriteString(w, "synthetic-secret-error")
 					return
 				}
+				jsonMedia := "application/json"
+				if mode == "wrong media" {
+					jsonMedia = "text/html"
+				}
+				if mode == "oversized json" {
+					w.Header().Set("Content-Type", jsonMedia)
+					w.(http.Flusher).Flush()
+					io.WriteString(w, strings.Repeat(" ", 1<<20))
+				}
 				if protocol == "embeddings" {
-					w.Header().Set("Content-Type", "application/json")
+					w.Header().Set("Content-Type", jsonMedia)
 					usage := `,"usage":{ "prompt_tokens":3, "total_tokens":3 }`
 					if mode == "missing usage" {
 						usage = ""
@@ -101,7 +111,7 @@ func governedPooledExecution(t *testing.T, protocol string) {
 					fmt.Fprintf(w, `{"object":"list","model":"fixture-model","data":[{"object":"embedding","index":0,"embedding":[0.1,-0.2]}]%s}`, usage)
 					return
 				}
-				usage := `,"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}`
+				usage := `,"usage":{ "prompt_tokens":3, "completion_tokens":2, "total_tokens":5 }`
 				if mode == "missing usage" {
 					usage = ""
 				}
@@ -126,7 +136,7 @@ func governedPooledExecution(t *testing.T, protocol string) {
 					}
 					return
 				}
-				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("Content-Type", jsonMedia)
 				if mode == "json without finish" {
 					_, _ = fmt.Fprintf(w, `{"choices":[{"index":0,"message":{"role":"assistant","content":"synthetic reply"},"finish_reason":null}]%s}`, usage)
 					return
@@ -253,7 +263,7 @@ func governedPooledExecution(t *testing.T, protocol string) {
 			}
 			id := w.Header().Get("X-Request-ID")
 			successful := mode == "json" || mode == "stream"
-			dispatched := successful || mode == "json without finish" || mode == "missing usage" || mode == "duplicate usage" || mode == "upstream failure" || mode == "malformed stream" || mode == "oversized stream" || mode == "usage then disconnect"
+			dispatched := mode == "oversized json" || mode == "wrong media" || successful || mode == "json without finish" || mode == "missing usage" || mode == "duplicate usage" || mode == "upstream failure" || mode == "malformed stream" || mode == "oversized stream" || mode == "usage then disconnect"
 			if dispatched || mode == "binding failure" || mode == "completion persistence failure" || mode == "receipt failure" || mode == "completed then cancel" {
 				wantCalls := int32(1)
 				if mode == "binding failure" {
@@ -285,6 +295,16 @@ func governedPooledExecution(t *testing.T, protocol string) {
 				}
 				if events != wantEvents || receipts != wantReceipts {
 					t.Fatal("completion evidence/receipt mismatch")
+				}
+				if successful {
+					wantRaw := `{ "prompt_tokens":3, "completion_tokens":2, "total_tokens":5 }`
+					if protocol == "embeddings" {
+						wantRaw = `{ "prompt_tokens":3, "total_tokens":3 }`
+					}
+					var raw []byte
+					if err := pool.QueryRow(ctx, `SELECT e.raw_usage FROM engine_completion_events e JOIN engine_execution_bindings b USING(attempt_id) WHERE b.request_id=$1`, id).Scan(&raw); err != nil || string(raw) != wantRaw {
+						t.Fatal("original usage byte identity lost", err)
+					}
 				}
 				if successful && (reservation.Actual == nil || *reservation.Actual != wantCost) {
 					t.Fatal("wrong settled cost")
