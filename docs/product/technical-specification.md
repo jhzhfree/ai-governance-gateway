@@ -1,6 +1,6 @@
 # 产品技术规格
 
-> 单进程分支提示（2026-11-08）：`feature/v1-single-process-commercial` 现在以进程内 Bifrost 为产品入口，并已开始提供对应候选安装包；下文四协议和双进程能力仍是旧分支基线，不等于新引擎已全部迁移。新引擎已接入受控文本 Chat、无状态文本 Responses JSON/SSE 和仅输入计费的文本 Embeddings JSON；DeepSeek 文本 Chat/Responses 支持原始命中/未命中分项与冻结费率恢复（schema 0034）；Messages、工具和多模态仍在迁移。当前启动与安装以 [单进程入口](../engine-entrypoint.md)、[Linux 候选包](../linux-package.md) 和 [交付跟踪](../v1-delivery.md) 为准。
+> 单进程分支提示（2026-11-08）：`feature/v1-single-process-commercial` 现在以进程内 Bifrost 为产品入口，并已开始提供对应候选安装包；下文四协议和双进程能力仍是旧分支基线，不等于新引擎已全部迁移。新引擎已接入受控文本 Chat、无状态文本 Responses JSON/SSE 和仅输入计费的文本 Embeddings JSON；DeepSeek 文本 Chat/Responses 支持原始命中/未命中分项与冻结费率恢复（schema 0034）；原生 DeepSeek Messages 文本 JSON 已接入 0035；Messages 实时流、工具和多模态仍在迁移。当前启动与安装以 [单进程入口](../engine-entrypoint.md)、[Linux 候选包](../linux-package.md) 和 [交付跟踪](../v1-delivery.md) 为准。
 
 适用版本见 [文档中心](README.md)。下列“已实现”表示基线代码具备该能力，不代表已经通过全部生产、合规或容量验收。
 
@@ -95,7 +95,7 @@ flowchart TB
 | --- | --- |
 | 工具链 | Go 1.27.3；候选包固定 Node 24.19.0，Web 使用冻结锁文件 |
 | 数据库 | PostgreSQL；本地恢复演练客户端/服务端为 17.11，不等于所有版本已验收 |
-| 数据库版本 | 旧双进程基线 0031，单进程分支已追加 0032；校验和、漂移检测、事务锁、拒绝更新版本结构 |
+| 数据库版本 | 旧双进程基线 0031，单进程分支已追加至 0035；校验和、漂移检测、事务锁、拒绝更新版本结构 |
 | 供应商模型目录 | 1–32 个模型，整体发布和版本冲突检查 |
 | new-api 渠道管理 | 渠道分页 100 条，近期操作 50 条，每渠道 1–32 个模型、最多 256 个轮询凭据；独立平台身份和后台管理 Token；约 5 秒重新验证目录 |
 | 内容保留/体积 | 1–90 天；每方向 1024–262144 字节；策略固定在记录中 |

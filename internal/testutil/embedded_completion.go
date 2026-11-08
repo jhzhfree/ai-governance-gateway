@@ -26,7 +26,7 @@ func seedEmbeddedCompletion(t testing.TB, pool *pgxpool.Pool, scope budget.Scope
 	t.Helper()
 	ctx := context.Background()
 	embedding := protocol == "embeddings"
-	cached := protocol == "cache"
+	cached := protocol == "cache" || protocol == "messages"
 	cfg := MainlandConfig()
 	for i := range cfg.Models {
 		cfg.Models[i].MaxOutputTokens = 32
@@ -46,6 +46,9 @@ func seedEmbeddedCompletion(t testing.TB, pool *pgxpool.Pool, scope budget.Scope
 		cfg.Models[0].CachePricing = &provider.CachePricing{ReadPerMillion: 500000}
 		alias = "deepseek/fixture"
 		newCatalog = provider.NewEmbedded
+	}
+	if protocol == "messages" {
+		cfg.Models[0].API = "messages"
 	}
 	catalog, err := newCatalog(cfg, func(string) string { return "synthetic-metadata-fixture" }, nil)
 	if err != nil {
@@ -85,6 +88,9 @@ func seedEmbeddedCompletion(t testing.TB, pool *pgxpool.Pool, scope budget.Scope
 		usage = `{ "prompt_tokens":3, "completion_tokens":2, "total_tokens":5, "prompt_cache_hit_tokens":2, "prompt_cache_miss_tokens":1 }`
 		actual = 11
 	}
+	if protocol == "messages" {
+		usage = `{ "input_tokens":1, "output_tokens":2, "cache_read_input_tokens":2, "cache_creation_input_tokens":0 }`
+	}
 	if state != "awaiting_usage" {
 		if err := journal.Record(ctx, id, attempt, completion.RouteDigest(route), []byte(usage)); err != nil {
 			t.Fatal(err)
@@ -106,4 +112,9 @@ func seedEmbeddedCompletion(t testing.TB, pool *pgxpool.Pool, scope budget.Scope
 func SeedEmbeddedCacheCompletion(t testing.TB, pool *pgxpool.Pool, scope budget.Scope, id, state string) {
 	t.Helper()
 	seedEmbeddedCompletion(t, pool, scope, id, state, "cache")
+}
+
+func SeedEmbeddedMessagesCompletion(t testing.TB, pool *pgxpool.Pool, scope budget.Scope, id, state string) {
+	t.Helper()
+	seedEmbeddedCompletion(t, pool, scope, id, state, "messages")
 }

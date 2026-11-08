@@ -48,7 +48,10 @@ func (b *Binding) validateShape(route *provider.Route, req provider.Request) err
 	if b == nil || route == nil || !route.Ready() || route.PriceVersion() != b.price || route.ExecutionIdentity() != b.revision || req.Model != b.alias || !provider.ValidateRequest(req) || (req.IsEmbedding() != (route.API() == "embeddings")) || (!req.IsEmbedding() && req.MaxTokens < 16) || req.HasTools() || req.HasParts() {
 		return execution.ErrInvalidRequest
 	}
-	if route.UsesReadOnlyCache() && b.journal == nil {
+	if route.UsesEmbeddedCacheEvidence() && b.journal == nil {
+		return execution.ErrInvalidRequest
+	}
+	if route.UsesNativeMessages() && provider.ValidateEmbeddedMessages(req) != nil {
 		return execution.ErrInvalidRequest
 	}
 	if req.IsEmbedding() && provider.ValidateEmbeddedEmbedding(route.Provider(), req) != nil {
@@ -63,7 +66,7 @@ func (b *Binding) validateShape(route *provider.Route, req provider.Request) err
 func (b *Binding) SupportsPublicProtocol(route *provider.Route, req provider.Request, path string) bool {
 	// The public Responses subset is converted to the same physical Chat request
 	// and original chat_v1 evidence. Non-durable contract fixtures do not opt in.
-	return ((path == "/v1/chat/completions" && route.UsesReadOnlyCache()) || (path == "/v1/responses" && !req.IsEmbedding()) || (path == "/v1/embeddings" && req.IsEmbedding())) && b != nil && b.journal != nil && b.validateShape(route, req) == nil
+	return ((path == "/v1/messages" && route.UsesNativeMessages()) || (path == "/v1/chat/completions" && route.UsesEmbeddedCacheEvidence()) || (path == "/v1/responses" && !req.IsEmbedding()) || (path == "/v1/embeddings" && req.IsEmbedding())) && b != nil && b.journal != nil && b.validateShape(route, req) == nil
 }
 
 // Open adapts synchronous events to a bounded, unbuffered response body. Closing
@@ -145,7 +148,11 @@ func (b *Binding) Open(ctx context.Context, route *provider.Route, req provider.
 					projection["completion_tokens"] = u.OutputTokens
 				}
 				if cache != nil {
-					projection["prompt_tokens_details"] = map[string]int64{"cached_tokens": cache.Read}
+					details := map[string]int64{"cached_tokens": cache.Read}
+					if cache.Creation != nil {
+						details["cached_creation_tokens"] = *cache.Creation
+					}
+					projection["prompt_tokens_details"] = details
 				}
 				raw, _ := json.Marshal(projection)
 				data["usage"] = raw

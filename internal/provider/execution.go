@@ -57,3 +57,11 @@ func (r *Route) AllowsMessagesStream() bool { return r.model.AllowMessagesStream
 func (r *Route) UsesReadOnlyCache() bool {
 	return r != nil && r.embedded && r.model.Provider == "deepseek" && r.model.CachePricing != nil && r.model.API == ""
 }
+
+// UsesNativeMessages is server-owned physical protocol selection, not a client switch.
+func (r *Route) UsesNativeMessages() bool { return r != nil && r.embedded && r.model.API == "messages" }
+
+// UsesEmbeddedCacheEvidence distinguishes both original embedded cache protocols from legacy contracts.
+func (r *Route) UsesEmbeddedCacheEvidence() bool {
+	return r.UsesReadOnlyCache() || r.UsesNativeMessages()
+}

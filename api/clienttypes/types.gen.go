@@ -171,9 +171,10 @@ const (
 
 // Defines values for EmbeddedCompletionProtocol.
 const (
-	ChatV1          EmbeddedCompletionProtocol = "chat_v1"
-	DeepseekCacheV1 EmbeddedCompletionProtocol = "deepseek_cache_v1"
-	EmbeddingsV1    EmbeddedCompletionProtocol = "embeddings_v1"
+	ChatV1             EmbeddedCompletionProtocol = "chat_v1"
+	DeepseekCacheV1    EmbeddedCompletionProtocol = "deepseek_cache_v1"
+	DeepseekMessagesV1 EmbeddedCompletionProtocol = "deepseek_messages_v1"
+	EmbeddingsV1       EmbeddedCompletionProtocol = "embeddings_v1"
 )
 
 // Defines values for EmbeddedCompletionState.
@@ -393,6 +394,7 @@ const (
 // Defines values for ModelInfoApi.
 const (
 	ModelInfoApiEmbeddings ModelInfoApi = "embeddings"
+	ModelInfoApiMessages   ModelInfoApi = "messages"
 )
 
 // Defines values for ModelInfoCurrency.
@@ -473,6 +475,7 @@ const (
 const (
 	ProviderModelConfigurationApiEmbeddings ProviderModelConfigurationApi = "embeddings"
 	ProviderModelConfigurationApiEmpty      ProviderModelConfigurationApi = ""
+	ProviderModelConfigurationApiMessages   ProviderModelConfigurationApi = "messages"
 )
 
 // Defines values for ProviderResidencyRegion.
@@ -1312,7 +1315,10 @@ type EmbeddedCompletion struct {
 	CacheReadPerMillion *int64 `json:"cache_read_per_million"`
 
 	// CacheReadTokens Explicit DeepSeek cache contract only; null for flat tariffs or missing original quantities.
-	CacheReadTokens  *int64                     `json:"cache_read_tokens"`
+	CacheReadTokens *int64 `json:"cache_read_tokens"`
+
+	// CacheWriteTokens Explicit original creation=0 for the reviewed native Messages contract; null for protocols without write evidence.
+	CacheWriteTokens *int64                     `json:"cache_write_tokens"`
 	Engine           EmbeddedCompletionEngine   `json:"engine"`
 	InputPerMillion  int64                      `json:"input_per_million"`
 	InputTokens      *int64                     `json:"input_tokens"`
@@ -1972,7 +1978,7 @@ type ModelInfo struct {
 	// AllowMessagesStream Explicitly reviewed text Messages streaming over an Anthropic channel with original initial usage evidence.
 	AllowMessagesStream *bool `json:"allow_messages_stream,omitempty"`
 
-	// Api When present, this reviewed model is input-only Embeddings. Omitted means Chat.
+	// Api Server-owned upstream operation; omitted means Chat. Native Messages is a reviewed DeepSeek JSON-only route with original cache evidence.
 	Api *ModelInfoApi `json:"api,omitempty"`
 
 	// CachePricing Reviewed newapi enterprise cache tariff. Omitted means uniform input pricing; explicit zero is a free category.
@@ -1990,7 +1996,7 @@ type ModelInfo struct {
 	Region   ModelInfoRegion `json:"region"`
 }
 
-// ModelInfoApi When present, this reviewed model is input-only Embeddings. Omitted means Chat.
+// ModelInfoApi Server-owned upstream operation; omitted means Chat. Native Messages is a reviewed DeepSeek JSON-only route with original cache evidence.
 type ModelInfoApi string
 
 // ModelInfoCurrency defines model for ModelInfo.Currency.

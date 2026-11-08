@@ -5,6 +5,7 @@ import "time"
 // EmbeddedCompletion is scoped accounting metadata, never raw supplier payloads.
 // A receipt confirms posting, not client delivery or content-audit completeness.
 type EmbeddedCompletion struct {
+	CacheWriteTokens    *int64     `json:"cache_write_tokens"`
 	CacheReadPerMillion *int64     `json:"cache_read_per_million"`
 	CacheReadTokens     *int64     `json:"cache_read_tokens"`
 	UncachedInputTokens *int64     `json:"uncached_input_tokens"`

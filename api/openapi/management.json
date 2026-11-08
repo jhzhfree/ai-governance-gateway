@@ -13587,9 +13587,10 @@
           "api": {
             "type": "string",
             "enum": [
-              "embeddings"
+              "embeddings",
+              "messages"
             ],
-            "description": "When present, this reviewed model is input-only Embeddings. Omitted means Chat."
+            "description": "Server-owned upstream operation; omitted means Chat. Native Messages is a reviewed DeepSeek JSON-only route with original cache evidence."
           },
           "cache_pricing": {
             "$ref": "#/components/schemas/CachePricing"
@@ -15081,7 +15082,8 @@
             "type": "string",
             "enum": [
               "",
-              "embeddings"
+              "embeddings",
+              "messages"
             ]
           },
           "cache_pricing": {
@@ -18898,7 +18900,8 @@
           "received_at",
           "cache_read_per_million",
           "cache_read_tokens",
-          "uncached_input_tokens"
+          "uncached_input_tokens",
+          "cache_write_tokens"
         ],
         "properties": {
           "engine": {
@@ -18912,7 +18915,8 @@
             "enum": [
               "chat_v1",
               "embeddings_v1",
-              "deepseek_cache_v1"
+              "deepseek_cache_v1",
+              "deepseek_messages_v1"
             ]
           },
           "state": {
@@ -18989,6 +18993,14 @@
             "maximum": 9007199254740991,
             "nullable": true,
             "description": "Explicit DeepSeek cache contract only; null for flat tariffs or missing original quantities."
+          },
+          "cache_write_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 0,
+            "description": "Explicit original creation=0 for the reviewed native Messages contract; null for protocols without write evidence."
           }
         }
       }

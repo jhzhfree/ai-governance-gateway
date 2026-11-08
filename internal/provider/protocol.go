@@ -85,7 +85,7 @@ func ValidateRequest(req Request) bool {
 	return true
 }
 func (r *Route) Open(ctx context.Context, req Request) (*http.Response, error) {
-	if req.MessagesStream || req.IsEmbedding() || !r.Ready() || r.key == "" || req.HasTools() || req.HasParts() {
+	if r.UsesNativeMessages() || req.MessagesStream || req.IsEmbedding() || !r.Ready() || r.key == "" || req.HasTools() || req.HasParts() {
 		return nil, errors.New("mainland residency review expired")
 	}
 	payload := map[string]any{"model": r.model.UpstreamModel, "max_tokens": req.MaxTokens, "stream": req.Stream, "messages": req.Messages}

@@ -58,3 +58,7 @@
 
 
 2026-11-08 缓存计费增量：仅复用本仓库现有配置、整数计价、预算和完成日志，新增 DeepSeek 原始计数字段约束、投影及界面。依据公开官方 API 文档核对字段语义，未复制第三方实现、未新增或更新依赖。新增源文件仍受本文件既定来源/贡献者审查要求约束；此说明不是来源确权或商业分发许可结论。决策见 [ADR 0014](../../modules/engine/docs/adr/0014-embedded-cache-read-pricing.md)。
+
+### 原生 Messages 增量（2026-11-08）
+
+本阶段直接调用固定 Bifrost v1.14.1 `openai.OpenAIChatRequest.ToBifrostChatRequest`、`anthropic.ToAnthropicChatRequest`、`AnthropicMessageResponse.ToBifrostChatResponse`；源码实现保留在模块依赖，未复制或补丁上游。新增有限适配只负责服务端能力白名单、原始计数/模型/完成边界、有界接收和现有账本对接。协议事实参考 DeepSeek 官方接口说明，见 ADR 0015。未新增或更新 Go/npm 锁定项、UI 素材或复制 new-api 源码。新增 SDK 公开转换包的实际链接依赖由候选包清单和通知收集核对，不能由锁文件未变推断链接组成完全相同。此来源记录不替代固定 SDK 全依赖、历史自有代码权属与发行义务的完整审查，不据此声明可商业分发。

@@ -174,7 +174,7 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 			return nil, errors.New("Messages streaming requires reviewed cache evidence")
 		}
 		if m.CachePricing != nil {
-			if (requireCredential && !embedded) || m.API != "" || !m.CachePricing.valid() || (embedded && (m.Provider != "deepseek" || m.CachePricing.WritePerMillion != 0 || m.CachePricing.WriteTTL != nil)) {
+			if (requireCredential && !embedded) || (m.API != "" && !(embedded && m.API == "messages")) || !m.CachePricing.valid() || (embedded && (m.Provider != "deepseek" || m.CachePricing.WritePerMillion != 0 || m.CachePricing.WriteTTL != nil)) {
 				return nil, errors.New("cache pricing requires reviewed Chat rates; embedded DeepSeek supports only cache reads")
 			}
 			m.CachePricing = m.CachePricing.clone()
@@ -190,13 +190,17 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 			}
 		}
 		embedding := m.API == "embeddings"
+		messages := embedded && m.API == "messages"
+		if messages && (m.Provider != "deepseek" || m.CachePricing == nil || strings.HasPrefix(strings.ToLower(m.UpstreamModel), "claude")) {
+			return nil, errors.New("native Messages requires reviewed DeepSeek model and original cache pricing")
+		}
 		if embedded && !embedding && m.MaxOutputTokens < 16 {
 			return nil, errors.New("embedded Chat requires an output ceiling of at least 16")
 		}
 		if embedded && embedding && m.Provider != "aliyun" && m.Provider != "volcengine" && m.Provider != "zhipu" {
 			return nil, errors.New("unreviewed embedding supplier")
 		}
-		if (m.API != "" && !embedding) || (embedding && (m.AllowImages || m.AllowMessagesStream || len(m.AllowedTools) > 0 || m.MaxOutputTokens != 0 || m.OutputPerMillion != 0)) {
+		if (m.API != "" && !embedding && !messages) || (embedding && (m.AllowImages || m.AllowMessagesStream || len(m.AllowedTools) > 0 || m.MaxOutputTokens != 0 || m.OutputPerMillion != 0)) {
 			return nil, errors.New("invalid model API capability")
 		}
 		p, ok := profiles[m.Provider]
@@ -226,6 +230,9 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 			prices, _ := json.Marshal(m.CachePricing)
 			canonical = append(canonical, []byte("\ncache-tariff-v1:")...)
 			canonical = append(canonical, prices...)
+		}
+		if messages {
+			canonical = append(canonical, []byte("\ndeepseek-messages-json-v1")...)
 		}
 		if embedded && m.CachePricing != nil {
 			canonical = append(canonical, []byte("\ndeepseek-cache-v1")...)

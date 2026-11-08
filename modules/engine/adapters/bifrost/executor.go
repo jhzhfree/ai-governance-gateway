@@ -101,6 +101,9 @@ func (e *Executor) Execute(ctx context.Context, req execution.Request, emit exec
 	if req.RequestID == "" || req.AttemptID == "" || emit == nil || len(req.Body) == 0 || len(req.Body) > MaxRequestBytes {
 		return execution.ErrInvalidRequest
 	}
+	if e.api == "messages" {
+		return e.messagesJSON(ctx, req, emit)
+	}
 	if e.api == "embeddings" {
 		return e.embedding(ctx, req, emit)
 	}

@@ -32,12 +32,18 @@ func supplier(id string) (supplierProfile, bool) {
 	}
 }
 func resolveSupplier(cfg Config) (Config, supplierProfile, error) {
-	if cfg.API != "" && cfg.API != "chat" && cfg.API != "embeddings" {
+	if cfg.API != "" && cfg.API != "chat" && cfg.API != "embeddings" && cfg.API != "messages" {
 		return cfg, supplierProfile{}, errors.New("unsupported API")
 	}
 	p, ok := supplier(cfg.Supplier)
 	if !ok {
 		return cfg, p, errors.New("unsupported supplier profile")
+	}
+	if cfg.API == "messages" {
+		if p.id != "deepseek" || strings.HasPrefix(strings.ToLower(cfg.Model), "claude") {
+			return cfg, p, errors.New("unreviewed Messages supplier or model alias")
+		}
+		p.path = "/anthropic/v1/messages"
 	}
 	if cfg.API == "embeddings" {
 		if p.id != "aliyun" && p.id != "volcengine" && p.id != "zhipu" {

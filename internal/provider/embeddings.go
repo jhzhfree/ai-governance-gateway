@@ -46,6 +46,9 @@ func validEmbeddingRequest(r Request) bool {
 	return total <= 64<<10
 }
 func (r *Route) API() string {
+	if r.UsesNativeMessages() {
+		return "messages"
+	}
 	if r.model.API == "embeddings" {
 		return "embeddings"
 	}

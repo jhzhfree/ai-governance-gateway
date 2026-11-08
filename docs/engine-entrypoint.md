@@ -26,13 +26,13 @@ cd ../..
 ## 启用条件
 
 - 有效的部署及供应商驻留审查、密钥、模型映射和经核验的预算费率。
-- 当前网关仅开放文本 JSON/SSE；新执行契约要求 max_tokens 至少为 16。工具、多模态、思考输出未通过网关验收。
-- 四家固定配置包括 DeepSeek；缓存优惠/分时价格精确计费仍不包含在当前内部单价结算中。
+- 当前开放受控文本 Chat/Responses JSON/SSE、文本 Embeddings JSON，以及 DeepSeek 原生 Messages JSON；生成接口 max_tokens 至少为 16。原生 Messages 流式、工具、多模态、思考输出未通过网关验收。
+- 四家固定配置包括 DeepSeek；DeepSeek Chat/Responses 可显式开启原始命中计费，原生 Messages 必须配置命中费率并取得显式写入零值。其他缓存类别与分时价格尚未开放。
 - max-bindings 包含现用、构建与排空实例，应预留轮换容量；默认 64 为最多 32 个模型的一轮完整替换预留空间，不代表经过容量压测。
 
 ## 探针、升级与退出
 
-数据库按默认 auto 模式完成升级后才监听，版本/校验和/结构漂移检查保持；可用 --schema-mode=check 分离权限。单进程完成证据为迁移 0032，文本 Embeddings 追加 0033；实际最新版本以迁移命令为准。
+数据库按默认 auto 模式完成升级后才监听，版本/校验和/结构漂移检查保持；可用 --schema-mode=check 分离权限。单进程完成证据为迁移 0032，文本 Embeddings 追加 0033、命中计费 0034、原生 Messages JSON 0035；实际最新版本以迁移命令为准。
 
 未配置供应商时管理服务可启动，`/health/live` 为 204、`/health/ready` 为 503；完成受保护的配置发布后刷新就绪状态。ready 同时依赖执行器、数据库、审计和设备条件；不能用 live 代替 ready。
 
@@ -71,3 +71,7 @@ SIGTERM/SIGINT 后先拒绝新请求，允许已有请求最多 10 秒完成；�
 ## 单进程文本 Embeddings
 
 管理员在供应商配置中选择“文本 Embeddings”，录入审核输入单价和最大输入量；输出价格和上限固定为零。当前仅审核阿里云/火山引擎/智谱文本接口，应用使用项目 Key、授权模型别名和 `encoding_format="float"`。输入预估超限在派发前拒绝；统计和恢复以实际原始用量为准。具体接口范围、1 MiB 响应上限、预算/审计及升级语义见 [ADR 0012](../modules/engine/docs/adr/0012-embedded-embeddings.md)。不使用原生传输作回退，未核验真实账号兼容。
+
+## 原生 Messages 文本 JSON
+
+采用 [ADR 0015](../modules/engine/docs/adr/0015-embedded-messages-json.md) 的 `api:messages` 服务端路由，仅 DeepSeek 固定 `/anthropic/v1/messages`。SDK 复用公开请求/响应转换，不依赖 Core worker 或第二进程。四个原始计数、模型标识与完成原因经过严格校验后保存；失败与未知费用沿用现有账本。当前真实供应商账户兼容及账单仍须外部验收。管理步骤见[操作手册](product/user-guide.md#单进程原生-messages-接入)。

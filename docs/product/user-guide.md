@@ -1,6 +1,6 @@
 # 页面操作手册
 
-> 单进程分支提示（2026-11-08）：`feature/v1-single-process-commercial` 现在以进程内 Bifrost 为产品入口，并已开始提供对应候选安装包；下文四协议和双进程能力仍是旧分支基线，不等于新引擎已全部迁移。新引擎已接入受控文本 Chat、无状态文本 Responses JSON/SSE 和仅输入计费的文本 Embeddings JSON；Messages、工具和多模态仍在迁移。当前启动与安装以 [单进程入口](../engine-entrypoint.md)、[Linux 候选包](../linux-package.md) 和 [交付跟踪](../v1-delivery.md) 为准。
+> 单进程分支提示（2026-11-08）：`feature/v1-single-process-commercial` 现在以进程内 Bifrost 为产品入口，并已开始提供对应候选安装包；下文四协议和双进程能力仍是旧分支基线，不等于新引擎已全部迁移。新引擎已接入受控文本 Chat、无状态文本 Responses JSON/SSE 和仅输入计费的文本 Embeddings JSON；原生 DeepSeek Messages 文本 JSON 已接入 0035；Messages 实时流、工具和多模态仍在迁移。当前启动与安装以 [单进程入口](../engine-entrypoint.md)、[Linux 候选包](../linux-package.md) 和 [交付跟踪](../v1-delivery.md) 为准。
 
 版本和适用范围见 [文档中心](README.md)。页面名称以当前导航为准。金额、请求状态和审计内容是不同事实，不应互相代替。
 
@@ -17,6 +17,14 @@
 在项目模型授权中允许该公开模型，再用 OpenAI 兼容 SDK 调用 `/v1/embeddings`，显式设置 `encoding_format="float"`。当前只接受文本字符串或文本数组；base64、预分词 token ID、图片和音频不在此范围。阿里云最多 10 条文本，火山/智谱最多 16 条；维度选项和细项边界见 [向量接入契约](../../modules/engine/docs/adr/0012-embedded-embeddings.md)。输入估算超限会在预留与派发之前拒绝，应调整文本长度或审核路由额度；此估算不能代替供应商实际 token 计量。
 
 完成后，在“调用账本”按 `X-Request-ID` 查详情。“供应商完成证据”显示“文本向量 · 仅输入计费”，输入数量来自供应商原始 usage，输出为此协议的零输出语义，费用使用派发时冻结的输入费率。`awaiting_usage`、`recorded` 和 `receipted` 分别表示缺证据、证据已保存、回执已生成；未知状态保留占额，不能手工当作免费或重发请求。回执不证明客户端收到向量。真实供应商账号仍须独立验收。
+
+## 单进程原生 Messages 接入
+
+供应商配置中选择 DeepSeek，将“接口能力”设为“原生 Messages · 文本 JSON”，填写供应商实际模型名和经核验的缓存命中费率后发布；不使用 `claude*` 映射别名。同一模型不能同时标为 Chat 和 Messages 上游能力，需要两种协议时建立不同模型条目。继承的输入价格只是编辑初值，发布前需核对合同与版本；当前仅支持原始缓存写入计数明确为零的响应。
+
+授权项目模型后，客户端使用网关项目 Key，调用 `POST /v1/messages`，字段为 `model`、`max_tokens`、`messages`，可加 `system`；使用 `anthropic-version: 2023-06-01`，Key 放 `x-api-key` 或 Bearer 其中一种。支持字符串/纯 text 块；规范化后必须是可选首条 system、交替 user/assistant，并以 user 结束。SDK 多轮历史同样受模型输入估算上限限制。此原生模型也可承载受控 Chat/Responses JSON；本阶段任何入口的 `stream:true` 均在预留/派发前拒绝，工具、图片、thinking、beta 等尚未开放。
+
+完成后在“调用账本 → 详情 → 供应商完成证据”核对“原生 Messages · 缓存命中计费”、总输入/输出、缓存命中/未命中、原始缓存写入 0、冻结单价与回执。计数缺失会保留未知费用，不能把未取得当作零；成本报表只把已记账且匹配原始证据的记录纳入缓存覆盖。具体完成契约见 [ADR 0015](../../modules/engine/docs/adr/0015-embedded-messages-json.md)。
 
 ## 1. 使用前准备
 

@@ -7,6 +7,8 @@ import "encoding/json"
 // it is never inserted into raw evidence that did not contain that field.
 func ParseUsage(protocol string, raw []byte) (Counters, error) {
 	switch protocol {
+	case "deepseek_messages_v1":
+		return MessagesUsage(raw)
 	case "deepseek_cache_v1":
 		return DeepSeekCacheUsage(raw)
 	case "chat_v1":

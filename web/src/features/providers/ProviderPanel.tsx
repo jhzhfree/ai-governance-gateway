@@ -123,7 +123,11 @@ export function ProviderPanel({ identity, csrf }: { identity: string[]; csrf: st
                             {model.id}
                             <br />
                             {names[model.provider] ?? model.provider} · {model.region} ·{' '}
-                            {model.api === 'embeddings' ? '文本向量' : '对话'}
+                            {model.api === 'embeddings'
+                              ? '文本向量'
+                              : model.api === 'messages'
+                                ? '原生 Messages · JSON'
+                                : '对话'}
                           </td>
                           <td>
                             {model.input_per_million} / {model.output_per_million}
@@ -240,7 +244,10 @@ export function ProviderEditor({
               ...model,
               [field]: value,
               ...(embedded && field === 'provider' && value !== 'deepseek'
-                ? { cache_pricing: undefined }
+                ? {
+                    cache_pricing: undefined,
+                    ...(model.api === 'messages' ? { api: '' as const } : {}),
+                  }
                 : {}),
             }
           : model,
@@ -381,7 +388,18 @@ export function ProviderEditor({
                           i === index
                             ? {
                                 ...m,
-                                api: e.target.value as '' | 'embeddings',
+                                api: e.target.value as '' | 'embeddings' | 'messages',
+                                ...(e.target.value === 'messages'
+                                  ? {
+                                      cache_pricing: m.cache_pricing ?? {
+                                        read_per_million: m.input_per_million,
+                                        write_per_million: 0,
+                                      },
+                                      allow_images: false,
+                                      allowed_tools: [],
+                                      allow_messages_stream: false,
+                                    }
+                                  : {}),
                                 ...(e.target.value === 'embeddings'
                                   ? {
                                       max_output_tokens: 0,
@@ -403,6 +421,11 @@ export function ProviderEditor({
                         ? 'Chat / 受控文本 Responses 与 Messages'
                         : 'Chat / 受控文本 Responses'}
                     </option>
+                    {embedded && (
+                      <option value="messages" disabled={model.provider !== 'deepseek'}>
+                        原生 Messages · 文本 JSON
+                      </option>
+                    )}
                     <option value="embeddings" disabled={embedded && model.provider === 'deepseek'}>
                       文本 Embeddings
                     </option>
@@ -411,7 +434,8 @@ export function ProviderEditor({
                 {embedded && (
                   <p>
                     文本向量仅计输入费用；支持阿里云、火山引擎、智谱。切回 Chat
-                    后请重新填写输出上限与输出单价。
+                    后请重新填写输出上限与输出单价。原生 Messages 当前只支持 DeepSeek 文本
+                    JSON，需原始缓存计量；实时流尚未开放。
                   </p>
                 )}
               </>
@@ -573,20 +597,23 @@ export function ProviderEditor({
                 )}
               </>
             )}
-            {embedded && model.provider === 'deepseek' && !model.api && (
-              <EmbeddedCachePricing
-                value={model.cache_pricing}
-                inputPrice={model.input_per_million}
-                onChange={(value) =>
-                  setDraft((old) => ({
-                    ...old,
-                    models: old.models.map((m, i) =>
-                      i === index ? { ...m, cache_pricing: value } : m,
-                    ),
-                  }))
-                }
-              />
-            )}
+            {embedded &&
+              model.provider === 'deepseek' &&
+              (!model.api || model.api === 'messages') && (
+                <EmbeddedCachePricing
+                  value={model.cache_pricing}
+                  inputPrice={model.input_per_million}
+                  nativeMessages={model.api === 'messages'}
+                  onChange={(value) =>
+                    setDraft((old) => ({
+                      ...old,
+                      models: old.models.map((m, i) =>
+                        i === index ? { ...m, cache_pricing: value } : m,
+                      ),
+                    }))
+                  }
+                />
+              )}
             <label>
               价格版本
               <input

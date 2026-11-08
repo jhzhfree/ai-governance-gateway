@@ -2205,10 +2205,10 @@ export interface components {
              */
             allow_images: boolean;
             /**
-             * @description When present, this reviewed model is input-only Embeddings. Omitted means Chat.
+             * @description Server-owned upstream operation; omitted means Chat. Native Messages is a reviewed DeepSeek JSON-only route with original cache evidence.
              * @enum {string}
              */
-            api?: "embeddings";
+            api?: "embeddings" | "messages";
             cache_pricing?: components["schemas"]["CachePricing"];
             /** @description Explicitly reviewed text Messages streaming over an Anthropic channel with original initial usage evidence. */
             allow_messages_stream?: boolean;
@@ -2579,7 +2579,7 @@ export interface components {
             allow_images?: boolean;
             allow_messages_stream?: boolean;
             /** @enum {string} */
-            api?: "" | "embeddings";
+            api?: "" | "embeddings" | "messages";
             cache_pricing?: components["schemas"]["CachePricing"];
         };
         ProviderConfiguration: {
@@ -3520,7 +3520,7 @@ export interface components {
             /** @enum {string} */
             engine: "bifrost";
             /** @enum {string} */
-            protocol: "chat_v1" | "embeddings_v1" | "deepseek_cache_v1";
+            protocol: "chat_v1" | "embeddings_v1" | "deepseek_cache_v1" | "deepseek_messages_v1";
             /** @enum {string} */
             state: "awaiting_usage" | "recorded" | "receipted";
             /** Format: int64 */
@@ -3552,6 +3552,11 @@ export interface components {
              * @description Explicit DeepSeek cache contract only; null for flat tariffs or missing original quantities.
              */
             uncached_input_tokens: number | null;
+            /**
+             * Format: int64
+             * @description Explicit original creation=0 for the reviewed native Messages contract; null for protocols without write evidence.
+             */
+            cache_write_tokens: number | null;
         };
     };
     responses: never;

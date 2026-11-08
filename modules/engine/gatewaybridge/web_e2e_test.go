@@ -25,7 +25,7 @@ import (
 )
 
 func TestEmbeddedConsoleBrowser(t *testing.T) {
-	for _, protocol := range []string{"embeddings", "cache"} {
+	for _, protocol := range []string{"embeddings", "cache", "messages"} {
 		t.Run(protocol, func(t *testing.T) { embeddedConsoleBrowser(t, protocol) })
 	}
 }
@@ -36,12 +36,19 @@ func embeddedConsoleBrowser(t *testing.T, protocol string) {
 	cfg.Models = cfg.Models[:1]
 	cfg.Models[0].MaxOutputTokens = 32
 	path := "/compatible-mode/v1/embeddings"
-	if protocol == "cache" {
+	if protocol == "cache" || protocol == "messages" {
 		cfg.Models[0].ID, cfg.Models[0].Provider = "deepseek/fixture", "deepseek"
 		path = "/chat/completions"
 	}
+	if protocol == "messages" {
+		path = "/anthropic/v1/messages"
+	}
 	f := embeddedProductFixtureAs(t, cfg, path, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		if protocol == "messages" {
+			io.WriteString(w, `{"id":"msg_browser","type":"message","role":"assistant","model":"fixture-model","content":[{"type":"text","text":"synthetic native response"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":1,"output_tokens":2,"cache_read_input_tokens":2,"cache_creation_input_tokens":0}}`)
+			return
+		}
 		if protocol == "cache" {
 			io.WriteString(w, `{"choices":[{"index":0,"message":{"role":"assistant","content":"synthetic cache response"},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5,"prompt_cache_hit_tokens":2,"prompt_cache_miss_tokens":1}}`)
 			return
@@ -88,6 +95,9 @@ func embeddedConsoleBrowser(t *testing.T, protocol string) {
 	wantProtocol, wantCost := "embeddings_v1", 6
 	if protocol == "cache" {
 		wantProtocol, wantCost = "deepseek_cache_v1", 11
+	}
+	if protocol == "messages" {
+		wantProtocol, wantCost = "deepseek_messages_v1", 11
 	}
 	var events, receipts int
 	if err := f.db.QueryRow(ctx, `SELECT (SELECT count(*) FROM engine_execution_bindings WHERE protocol=$1),(SELECT count(*) FROM engine_completion_receipts WHERE actual=$2)`, wantProtocol, wantCost).Scan(&events, &receipts); err != nil || events != 1 || receipts != 1 || f.calls.Load() != 1 {

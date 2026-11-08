@@ -34,6 +34,11 @@ func TestGovernedPooledBifrostExecution(t *testing.T) {
 }
 
 func governedPooledExecution(t *testing.T, protocol string, cached bool) {
+	native := strings.HasPrefix(protocol, "native-")
+	if native {
+		protocol = strings.TrimPrefix(protocol, "native-")
+		cached = true
+	}
 	modes := []string{"json", "stream", "binding failure", "completion persistence failure", "receipt failure", "completed then cancel", "json without finish", "missing usage", "duplicate usage", "upstream failure", "revoked key", "budget denial", "device denial", "audit unavailable", "small limit", "unauthorized model", "model permission removed", "malformed stream", "oversized stream", "usage then disconnect"}
 	if protocol == "responses" {
 		modes = append(modes, "no journal", "no settlement store", "stored responses", "responses tools")
@@ -59,6 +64,13 @@ func governedPooledExecution(t *testing.T, protocol string, cached bool) {
 		wantCost = 6
 		replyText = "embedding"
 	}
+	if native {
+		originalUsage = `{ "input_tokens":1, "output_tokens":2, "cache_read_input_tokens":2, "cache_creation_input_tokens":0 }`
+		modes = []string{"json", "missing cache", "missing usage", "duplicate usage", "upstream failure", "binding failure", "completion persistence failure", "receipt failure", "completed then cancel", "budget denial", "revoked key", "device denial", "audit unavailable", "model permission removed", "no journal", "no settlement store", "native stream refusal"}
+		if protocol != "messages" {
+			modes = []string{"json", "receipt failure", "native stream refusal"}
+		}
+	}
 	for _, mode := range modes {
 		t.Run(mode, func(t *testing.T) {
 			ctx := context.Background()
@@ -79,6 +91,9 @@ func governedPooledExecution(t *testing.T, protocol string, cached bool) {
 			if cached {
 				cfg.Models = cfg.Models[3:]
 				cfg.Models[0].CachePricing = &provider.CachePricing{ReadPerMillion: 500000}
+				if native {
+					cfg.Models[0].API = "messages"
+				}
 				newCatalog = provider.NewEmbedded
 			}
 			catalog, err := newCatalog(cfg, func(string) string { return "synthetic-route-key" }, &http.Client{Transport: forbiddenTransport{t}})
@@ -93,6 +108,9 @@ func governedPooledExecution(t *testing.T, protocol string, cached bool) {
 				wantPath := "/compatible-mode/v1/chat/completions"
 				if cached {
 					wantPath = "/chat/completions"
+				}
+				if native {
+					wantPath = "/anthropic/v1/messages"
 				}
 				if protocol == "embeddings" {
 					wantPath = "/compatible-mode/v1/embeddings"
@@ -117,6 +135,21 @@ func governedPooledExecution(t *testing.T, protocol string, cached bool) {
 					w.Header().Set("Content-Type", jsonMedia)
 					w.(http.Flusher).Flush()
 					io.WriteString(w, strings.Repeat(" ", 1<<20))
+				}
+				if native {
+					w.Header().Set("Content-Type", jsonMedia)
+					usage := `,"usage":` + originalUsage
+					if mode == "missing usage" {
+						usage = ""
+					}
+					if mode == "missing cache" {
+						usage = strings.Replace(usage, `, "cache_creation_input_tokens":0`, "", 1)
+					}
+					if mode == "duplicate usage" {
+						usage += usage
+					}
+					fmt.Fprintf(w, `{"id":"msg_fixture","type":"message","role":"assistant","model":"fixture-model","content":[{"type":"text","text":"synthetic reply"}],"stop_reason":"end_turn","stop_sequence":null%s}`, usage)
+					return
 				}
 				if protocol == "embeddings" {
 					w.Header().Set("Content-Type", jsonMedia)
@@ -238,7 +271,10 @@ func governedPooledExecution(t *testing.T, protocol string, cached bool) {
 			if mode == "audit unavailable" {
 				h.Content = contentaudit.New(pool, nil)
 			}
-			stream := protocol != "embeddings" && (mode == "stream" || mode == "missing usage" || mode == "duplicate usage" || mode == "malformed stream" || mode == "oversized stream" || mode == "usage then disconnect")
+			stream := !native && protocol != "embeddings" && (mode == "stream" || mode == "missing usage" || mode == "duplicate usage" || mode == "malformed stream" || mode == "oversized stream" || mode == "usage then disconnect")
+			if mode == "native stream refusal" {
+				stream = true
+			}
 			maxTokens := 32
 			if mode == "small limit" {
 				maxTokens = 8
@@ -248,6 +284,9 @@ func governedPooledExecution(t *testing.T, protocol string, cached bool) {
 				model = "zhipu/fixture"
 			}
 			path := "/v1/chat/completions"
+			if protocol == "messages" {
+				path = "/v1/messages"
+			}
 			raw := fmt.Sprintf(`{"model":%q,"stream":%t,"max_tokens":%d,"messages":[{"role":"user","content":"synthetic question"}]}`, model, stream, maxTokens)
 			if protocol == "responses" {
 				path = "/v1/responses"
@@ -441,5 +480,11 @@ func (e terminalCancelExecutor) Execute(ctx context.Context, r execution.Request
 func TestGovernedDeepSeekCacheExecution(t *testing.T) {
 	for _, protocol := range []string{"chat", "responses"} {
 		t.Run(protocol, func(t *testing.T) { governedPooledExecution(t, protocol, true) })
+	}
+}
+
+func TestGovernedNativeMessagesJSONExecution(t *testing.T) {
+	for _, protocol := range []string{"messages", "chat", "responses"} {
+		t.Run(protocol, func(t *testing.T) { governedPooledExecution(t, "native-"+protocol, true) })
 	}
 }

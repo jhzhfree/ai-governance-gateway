@@ -211,3 +211,32 @@ func TestCacheRecoveryRevalidatesOriginalProjection(t *testing.T) {
 		t.Fatal("cache receipt not idempotent", err)
 	}
 }
+
+func TestMessagesRecoveryRequiresExplicitCreationProjection(t *testing.T) {
+	db, ledger, scope := testutil.Database(t)
+	ctx := context.Background()
+	scope.Currency = provider.Currency
+	testutil.Accounts(t, ledger, scope, 10000, 10000)
+	testutil.SeedEmbeddedMessagesCompletion(t, db, scope, "messages-damaged", "recorded")
+	testutil.SeedEmbeddedMessagesCompletion(t, db, scope, "messages-healthy", "recorded")
+	if _, err := db.Exec(ctx, `UPDATE engine_completion_events SET cache_write_tokens=NULL WHERE attempt_id='attempt-messages-damaged'`); err != nil {
+		t.Fatal(err)
+	}
+	journal := completion.New(db)
+	if n, err := journal.Recover(ctx, time.Now().Add(time.Minute)); n != 1 || err == nil {
+		t.Fatal("missing explicit zero settled or blocked healthy item", n, err)
+	}
+	r, err := ledger.Get(ctx, "messages-damaged")
+	if err != nil || r.State != "uncertain" || r.Actual != nil {
+		t.Fatal("unknown evidence released hold")
+	}
+	if _, err := db.Exec(ctx, `UPDATE engine_completion_events SET cache_write_tokens=0 WHERE attempt_id='attempt-messages-damaged'`); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := journal.Recover(ctx, time.Now().Add(time.Minute)); n != 1 || err != nil {
+		t.Fatal("original explicit zero not recovered", n, err)
+	}
+	if err := journal.Settle(ctx, "messages-damaged", "attempt-messages-damaged", 11); err != nil {
+		t.Fatal("native receipt not idempotent", err)
+	}
+}

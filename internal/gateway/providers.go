@@ -28,7 +28,7 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 		problem(w, 400, "unsupported_request", id)
 		return
 	}
-	if route.UsesReadOnlyCache() && !h.supportsPublicProtocol(route, req, r.URL.Path) {
+	if route.UsesEmbeddedCacheEvidence() && !h.supportsPublicProtocol(route, req, r.URL.Path) {
 		problem(w, 400, "cache_requires_durable_execution", id)
 		return
 	}
@@ -40,7 +40,7 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 		problem(w, 400, "embeddings_requires_governed_execution", id)
 		return
 	}
-	if r.URL.Path == "/v1/messages" && (h.Executor == nil || route.GovernanceChannelID() <= 0 || !route.RequiresCacheEvidence()) {
+	if r.URL.Path == "/v1/messages" && ((h.Executor == nil || route.GovernanceChannelID() <= 0 || !route.RequiresCacheEvidence()) && !(route.UsesNativeMessages() && h.supportsPublicProtocol(route, req, r.URL.Path))) {
 		problem(w, 400, "messages_requires_governed_cache_evidence", id)
 		return
 	}

@@ -9,6 +9,7 @@ import (
 // RevertEmbeddedCacheMigration constructs only disposable released-v33 schemas.
 func RevertEmbeddedCacheMigration(t testing.TB, pool *pgxpool.Pool) {
 	t.Helper()
+	RevertEmbeddedMessagesMigration(t, pool)
 	_, err := pool.Exec(context.Background(), `ALTER TABLE engine_execution_bindings DROP CONSTRAINT engine_execution_bindings_protocol_check;
  ALTER TABLE engine_execution_bindings DROP CONSTRAINT engine_execution_bindings_protocol_limits;
  ALTER TABLE engine_execution_bindings DROP COLUMN cache_read_price;

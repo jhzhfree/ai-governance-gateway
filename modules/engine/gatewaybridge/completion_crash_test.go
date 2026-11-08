@@ -21,7 +21,7 @@ func TestCompletedEvidenceSurvivesKilledSettlementProcess(t *testing.T) {
 	for _, scenario := range []struct {
 		protocol string
 		stream   bool
-	}{{"chat", false}, {"chat", true}, {"responses", false}, {"responses", true}, {"embeddings", false}, {"cache", false}, {"cache", true}} {
+	}{{"chat", false}, {"chat", true}, {"responses", false}, {"responses", true}, {"embeddings", false}, {"cache", false}, {"cache", true}, {"messages", false}} {
 		stream := scenario.stream
 		t.Run(fmt.Sprintf("%s_stream_%t", scenario.protocol, stream), func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -35,10 +35,15 @@ func TestCompletedEvidenceSurvivesKilledSettlementProcess(t *testing.T) {
 			path := "/chat/completions"
 			wantCost := int64(14)
 			usage := `{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}`
-			if scenario.protocol == "cache" {
+			if scenario.protocol == "cache" || scenario.protocol == "messages" {
 				cfg.Models[0].CachePricing = &provider.CachePricing{ReadPerMillion: 500000}
 				usage = `{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5,"prompt_cache_hit_tokens":2,"prompt_cache_miss_tokens":1}`
 				wantCost = 11
+			}
+			if scenario.protocol == "messages" {
+				cfg.Models[0].API = "messages"
+				path = "/anthropic/v1/messages"
+				usage = `{ "input_tokens":1, "output_tokens":2, "cache_read_input_tokens":2, "cache_creation_input_tokens":0 }`
 			}
 			if scenario.protocol == "embeddings" {
 				cfg = testutil.MainlandConfig()
@@ -75,6 +80,11 @@ func TestCompletedEvidenceSurvivesKilledSettlementProcess(t *testing.T) {
 				calls.Add(1)
 				if r.URL.Path != path || r.Header.Get("Authorization") != "Bearer synthetic-cluster-key" {
 					t.Error("unexpected provider request")
+				}
+				if scenario.protocol == "messages" {
+					w.Header().Set("Content-Type", "application/json")
+					fmt.Fprintf(w, `{"id":"msg_crash","type":"message","role":"assistant","model":"fixture-model","content":[{"type":"text","text":"synthetic"}],"stop_reason":"end_turn","stop_sequence":null,"usage":%s}`, usage)
+					return
 				}
 				if scenario.protocol == "embeddings" {
 					w.Header().Set("Content-Type", "application/json")
@@ -119,6 +129,9 @@ func TestCompletedEvidenceSurvivesKilledSettlementProcess(t *testing.T) {
 				defer close(finished)
 				raw := fmt.Sprintf(`{"model":"deepseek/fixture","stream":%t,"max_tokens":32,"messages":[{"role":"user","content":"synthetic"}]}`, stream)
 				path := "/v1/chat/completions"
+				if scenario.protocol == "messages" {
+					path = "/v1/messages"
+				}
 				if scenario.protocol == "responses" {
 					path = "/v1/responses"
 					raw = fmt.Sprintf(`{"model":"deepseek/fixture","stream":%t,"max_output_tokens":32,"store":false,"input":"synthetic"}`, stream)
@@ -175,7 +188,7 @@ func TestCompletedEvidenceSurvivesKilledSettlementProcess(t *testing.T) {
 			if _, err := db.Exec(ctx, `DROP TRIGGER hold_receipt ON engine_completion_receipts; DROP FUNCTION hold_completion_receipt()`); err != nil {
 				t.Fatal(err)
 			}
-			if scenario.protocol == "cache" {
+			if scenario.protocol == "cache" || scenario.protocol == "messages" {
 				// A new process sees the current route, but recovery must use the old tariff.
 				cfg.Models[0].CachePricing.ReadPerMillion = 1900000
 				cfg.Models[0].PriceVersion = "changed-after-crash"

@@ -24,6 +24,8 @@ export function CompletionEvidence({
   evidence: Evidence;
   currency: string;
 }) {
+  const cached =
+    evidence.protocol === 'deepseek_cache_v1' || evidence.protocol === 'deepseek_messages_v1';
   const unit = currency === 'CNY_MICRO' ? '元' : currency;
   return (
     <section className="completion-evidence" aria-label="供应商完成证据">
@@ -34,8 +36,11 @@ export function CompletionEvidence({
             单进程执行 ·{' '}
             {evidence.protocol === 'embeddings_v1'
               ? '文本向量 · 仅输入计费'
-              : evidence.protocol === 'deepseek_cache_v1'
-                ? 'DeepSeek · 缓存命中计费'
+              : evidence.protocol === 'deepseek_cache_v1' ||
+                  evidence.protocol === 'deepseek_messages_v1'
+                ? evidence.protocol === 'deepseek_messages_v1'
+                  ? '原生 Messages · 缓存命中计费'
+                  : 'DeepSeek · 缓存命中计费'
                 : '上游 Chat 计量'}{' '}
             · 沿用派发价格快照
           </p>
@@ -55,7 +60,7 @@ export function CompletionEvidence({
           {budgetAmount(evidence.input_per_million, currency)} /{' '}
           {budgetAmount(evidence.output_per_million, currency)} {unit} / 百万 Token
         </dd>
-        {evidence.protocol === 'deepseek_cache_v1' && (
+        {cached && (
           <>
             <dt>缓存命中 / 未命中 Token</dt>
             <dd>
@@ -68,6 +73,12 @@ export function CompletionEvidence({
                 : budgetAmount(evidence.cache_read_per_million, currency)}{' '}
               {unit} / 百万 Token
             </dd>
+          </>
+        )}
+        {evidence.cache_write_tokens !== null && (
+          <>
+            <dt>原始缓存写入 Token</dt>
+            <dd>{tokens(evidence.cache_write_tokens)}</dd>
           </>
         )}
         <dt>回执金额</dt>

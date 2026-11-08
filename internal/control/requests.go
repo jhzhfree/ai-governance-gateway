@@ -91,7 +91,7 @@ const recordColumns = `r.request_id,r.period_id,r.currency,r.price_version,r.sta
  'engine',eb.engine,'protocol',eb.protocol,
  'state',CASE WHEN er.attempt_id IS NOT NULL THEN 'receipted' WHEN ee.attempt_id IS NOT NULL THEN 'recorded' ELSE 'awaiting_usage' END,
  'input_per_million',eb.input_price,'output_per_million',eb.output_price,
- 'cache_read_per_million',eb.cache_read_price,'cache_read_tokens',ee.cache_read_tokens,'uncached_input_tokens',ee.uncached_input_tokens,
+ 'cache_write_tokens',ee.cache_write_tokens,'cache_read_per_million',eb.cache_read_price,'cache_read_tokens',ee.cache_read_tokens,'uncached_input_tokens',ee.uncached_input_tokens,
  'input_tokens',ee.input_tokens,'output_tokens',ee.output_tokens,'actual',er.actual,
  'recorded_at',ee.created_at,'received_at',er.received_at) END`
 const recordFrom = ` FROM budget_reservations r LEFT JOIN inference_attempts a ON a.request_id=r.request_id LEFT JOIN newapi_execution_bindings b ON b.attempt_id=a.attempt_id LEFT JOIN newapi_execution_receipts e ON e.attempt_id=b.attempt_id

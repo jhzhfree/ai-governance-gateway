@@ -56,7 +56,7 @@ func TestFreshSchemaAndReadOnlyStatus(t *testing.T) {
 	pool := testutil.EmptyDatabase(t)
 	ctx := context.Background()
 	initial := status(t, pool)
-	if initial.Managed || initial.Ready || initial.CurrentVersion != 0 || len(initial.Pending) != 34 {
+	if initial.Managed || initial.Ready || initial.CurrentVersion != 0 || len(initial.Pending) != 35 {
 		t.Fatal("unexpected unmanaged status")
 	}
 	if relation(t, pool, "aigw_schema_migrations") {
@@ -69,7 +69,7 @@ func TestFreshSchemaAndReadOnlyStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := status(t, pool)
-	if !before.Ready || before.CurrentVersion != 34 || len(before.Applied) != 34 {
+	if !before.Ready || before.CurrentVersion != 35 || len(before.Applied) != 35 {
 		t.Fatal("fresh migration incomplete")
 	}
 	for _, a := range before.Applied {
@@ -203,7 +203,7 @@ func TestConcurrentMigrationsRunExactlyOnce(t *testing.T) {
 	close(start)
 	wg.Wait()
 	r := status(t, pool)
-	if len(r.Applied) != 34 || !r.Ready {
+	if len(r.Applied) != 35 || !r.Ready {
 		t.Fatal("concurrent migration history invalid")
 	}
 }
@@ -1203,7 +1203,7 @@ func TestEmbeddedEmbeddingsUpgradePreservesReceiptsAndRollsBack(t *testing.T) {
 	testutil.SeedEmbeddedCompletion(t, pool, scope, "before-embedding", "receipted")
 	testutil.RevertEmbeddedEmbeddingsMigration(t, pool)
 	before := status(t, pool)
-	if before.CurrentVersion != 32 || before.Ready || len(before.Pending) != 2 {
+	if before.CurrentVersion != 32 || before.Ready || len(before.Pending) != 3 {
 		t.Fatal("released schema not detected")
 	}
 	execSQL(t, pool, `ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v33 CHECK(version<>33)`)
@@ -1246,7 +1246,7 @@ func TestEmbeddedCacheUpgradeRollbackAndReadiness(t *testing.T) {
 	testutil.SeedEmbeddedEmbeddingCompletion(t, pool, scope, "before-cache-embedding", "receipted")
 	testutil.RevertEmbeddedCacheMigration(t, pool)
 	before := status(t, pool)
-	if before.CurrentVersion != 33 || before.Ready || len(before.Pending) != 1 {
+	if before.CurrentVersion != 33 || before.Ready || len(before.Pending) != 2 {
 		t.Fatal("v33 not detected")
 	}
 	execSQL(t, pool, `ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v34 CHECK(version<>34)`)
@@ -1276,5 +1276,51 @@ func TestEmbeddedCacheUpgradeRollbackAndReadiness(t *testing.T) {
 	execSQL(t, pool, `ALTER TABLE engine_completion_events DROP CONSTRAINT engine_completion_events_cache_counts`)
 	if err := database.Check(ctx, pool); err == nil {
 		t.Fatal("cache constraint drift accepted")
+	}
+}
+
+func TestNativeMessagesUpgradeRollbackAndReadiness(t *testing.T) {
+	pool, ledger, scope := testutil.Database(t)
+	ctx := context.Background()
+	scope.Currency = "CNY_MICRO"
+	testutil.Accounts(t, ledger, scope, 10000, 10000)
+	testutil.SeedEmbeddedCacheCompletion(t, pool, scope, "before-native-messages", "receipted")
+	testutil.RevertEmbeddedMessagesMigration(t, pool)
+	before := status(t, pool)
+	if before.CurrentVersion != 34 || before.Ready || len(before.Pending) != 1 {
+		t.Fatal("v34 not detected")
+	}
+	execSQL(t, pool, `ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v35 CHECK(version<>35)`)
+	if err := database.Migrate(ctx, pool); err == nil {
+		t.Fatal("failed migration accepted")
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM pg_attribute WHERE attrelid='engine_completion_events'::regclass AND attname='cache_write_tokens' AND NOT attisdropped`).Scan(&count); err != nil || count != 0 {
+		t.Fatal("partial upgrade committed", err)
+	}
+	execSQL(t, pool, `ALTER TABLE aigw_schema_migrations DROP CONSTRAINT reject_v35`)
+	for range 2 {
+		if err := database.Migrate(ctx, pool); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := database.Check(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	old, err := ledger.Get(ctx, "before-native-messages")
+	if err != nil || old.Actual == nil || *old.Actual != 11 {
+		t.Fatal("old cache receipt changed")
+	}
+	testutil.SeedEmbeddedMessagesCompletion(t, pool, scope, "after-native-messages", "receipted")
+	var write *int64
+	if err := pool.QueryRow(ctx, `SELECT cache_write_tokens FROM engine_completion_events WHERE attempt_id='attempt-before-native-messages'`).Scan(&write); err != nil || write != nil {
+		t.Fatal("old absent write count fabricated", err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT cache_write_tokens FROM engine_completion_events WHERE attempt_id='attempt-after-native-messages'`).Scan(&write); err != nil || write == nil || *write != 0 {
+		t.Fatal("original explicit zero lost", err)
+	}
+	execSQL(t, pool, `ALTER TABLE engine_completion_events DROP CONSTRAINT engine_completion_events_cache_writes`)
+	if err := database.Check(ctx, pool); err == nil {
+		t.Fatal("write count constraint drift accepted")
 	}
 }

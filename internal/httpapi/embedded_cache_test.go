@@ -11,6 +11,21 @@ import (
 )
 
 func TestEmbeddedCacheEvidenceAndReportCoverage(t *testing.T) {
+	for _, native := range []bool{false, true} {
+		name := "chat"
+		if native {
+			name = "messages"
+		}
+		t.Run(name, func(t *testing.T) { embeddedCacheEvidenceAndReport(t, native) })
+	}
+}
+func embeddedCacheEvidenceAndReport(t *testing.T, native bool) {
+	seed := testutil.SeedEmbeddedCacheCompletion
+	protocol := "deepseek_cache_v1"
+	if native {
+		seed = testutil.SeedEmbeddedMessagesCompletion
+		protocol = "deepseek_messages_v1"
+	}
 	f := providerSetup(t, testutil.SupplierFixture(t))
 	o, p, key := providerProject(f)
 	ctx := context.Background()
@@ -18,10 +33,10 @@ func TestEmbeddedCacheEvidenceAndReportCoverage(t *testing.T) {
 	base := projectPath(o, p)
 	for _, state := range []string{"awaiting_usage", "recorded", "receipted"} {
 		id := "cached-" + state
-		testutil.SeedEmbeddedCacheCompletion(t, f.pool, scope, id, state)
+		seed(t, f.pool, scope, id, state)
 		v := parse[control.RequestRecord](t, f.request(f.token("alice"), "GET", base+"/requests/"+id, nil, 200))
 		e := v.EmbeddedCompletion
-		if e == nil || e.Protocol != "deepseek_cache_v1" || e.State != state || e.CacheReadPerMillion == nil || *e.CacheReadPerMillion != 500000 {
+		if e == nil || e.Protocol != protocol || e.State != state || e.CacheReadPerMillion == nil || *e.CacheReadPerMillion != 500000 {
 			t.Fatal("frozen tariff missing")
 		}
 		if state == "awaiting_usage" {
@@ -30,6 +45,13 @@ func TestEmbeddedCacheEvidenceAndReportCoverage(t *testing.T) {
 			}
 		} else if e.CacheReadTokens == nil || e.UncachedInputTokens == nil || *e.CacheReadTokens != 2 || *e.UncachedInputTokens != 1 {
 			t.Fatal("cache evidence changed")
+		}
+		if native && state != "awaiting_usage" {
+			if e.CacheWriteTokens == nil || *e.CacheWriteTokens != 0 {
+				t.Fatal("native explicit zero missing")
+			}
+		} else if e.CacheWriteTokens != nil {
+			t.Fatal("unmeasured write count fabricated")
 		}
 		if state == "receipted" && (e.Actual == nil || *e.Actual != 11) {
 			t.Fatal("wrong cache settlement")

@@ -4,14 +4,17 @@ import AxeBuilder from '@axe-core/playwright';
 test('embedded model editor publishes reviewed pricing and shows durable evidence', async ({
   page,
 }) => {
-  const cached = process.env.AIGW_E2E_EMBEDDED_PROTOCOL === 'cache';
+  const native = process.env.AIGW_E2E_EMBEDDED_PROTOCOL === 'messages';
+  const cached = native || process.env.AIGW_E2E_EMBEDDED_PROTOCOL === 'cache';
+  const label = native ? 'messages' : cached ? 'cache' : 'embedding';
   await page.goto('/');
   await page.getByRole('link', { name: /使用组织账号登录/ }).click();
   await page.getByRole('button', { name: '供应商配置', exact: true }).click();
   await expect(page.getByLabel('接口能力 1', { exact: true })).toBeVisible();
   await expect(page.getByLabel('审核渠道 1', { exact: true })).toHaveCount(0);
   if (cached) {
-    await page.getByLabel('启用 DeepSeek 缓存命中计费').check();
+    if (native) await page.getByLabel('接口能力 1', { exact: true }).selectOption('messages');
+    else await page.getByLabel('启用 DeepSeek 缓存命中计费').check();
     await expect(page.getByLabel('缓存命中单价（微元/百万 Token）', { exact: true })).toHaveValue(
       '2000000',
     );
@@ -32,7 +35,7 @@ test('embedded model editor publishes reviewed pricing and shows durable evidenc
   expect((await published).ok()).toBeTruthy();
   await page.reload();
   await expect(page.getByLabel('接口能力 1', { exact: true })).toHaveValue(
-    cached ? '' : 'embeddings',
+    native ? 'messages' : cached ? '' : 'embeddings',
   );
   await expect(page.getByRole('region', { name: '已发布模型配置表' })).toContainText(
     cached ? '缓存命中 500000' : '文本向量',
@@ -41,16 +44,19 @@ test('embedded model editor publishes reviewed pricing and shows durable evidenc
   expect(a11y.violations.map((v) => ({ id: v.id, nodes: v.nodes.map((n) => n.target) }))).toEqual(
     [],
   );
-  const response = await page.request.post(cached ? '/v1/chat/completions' : '/v1/embeddings', {
-    headers: { Authorization: `Bearer ${process.env.AIGW_E2E_EMBEDDING_KEY}` },
-    data: cached
-      ? {
-          model: 'deepseek/fixture',
-          max_tokens: 32,
-          messages: [{ role: 'user', content: 'synthetic' }],
-        }
-      : { model: 'aliyun/fixture', input: 'synthetic', encoding_format: 'float' },
-  });
+  const response = await page.request.post(
+    native ? '/v1/messages' : cached ? '/v1/chat/completions' : '/v1/embeddings',
+    {
+      headers: { Authorization: `Bearer ${process.env.AIGW_E2E_EMBEDDING_KEY}` },
+      data: cached
+        ? {
+            model: 'deepseek/fixture',
+            max_tokens: 32,
+            messages: [{ role: 'user', content: 'synthetic' }],
+          }
+        : { model: 'aliyun/fixture', input: 'synthetic', encoding_format: 'float' },
+    },
+  );
   expect(response.status()).toBe(200);
   const requestID = response.headers()['x-request-id'];
   const organizations = await (await page.request.get('/api/v1/organizations')).json();
@@ -60,7 +66,11 @@ test('embedded model editor publishes reviewed pricing and shows durable evidenc
   await page.goto(`/?org=${org}&project=${project}&view=requests&request=${requestID}`);
   const evidence = page.getByRole('region', { name: '供应商完成证据' });
   await expect(evidence).toContainText(
-    cached ? 'DeepSeek · 缓存命中计费' : '文本向量 · 仅输入计费',
+    native
+      ? '原生 Messages · 缓存命中计费'
+      : cached
+        ? 'DeepSeek · 缓存命中计费'
+        : '文本向量 · 仅输入计费',
   );
   await expect(evidence.getByText(cached ? '3 / 2' : '3 / 0', { exact: true })).toBeVisible();
   await expect(
@@ -68,15 +78,16 @@ test('embedded model editor publishes reviewed pricing and shows durable evidenc
   ).toBeVisible();
   await expect(evidence).toContainText('已生成结算回执');
   if (cached) await expect(evidence.getByText('2 / 1', { exact: true })).toBeVisible();
+  if (native) await expect(evidence).toContainText('原始缓存写入');
   await evidence.screenshot({
-    path: `/tmp/aigw-${cached ? 'cache' : 'embedding'}-evidence-desktop.png`,
+    path: `/tmp/aigw-${label}-evidence-desktop.png`,
   });
   await page.setViewportSize({ width: 390, height: 844 });
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
   ).toBeTruthy();
   await evidence.screenshot({
-    path: `/tmp/aigw-${cached ? 'cache' : 'embedding'}-evidence-mobile.png`,
+    path: `/tmp/aigw-${label}-evidence-mobile.png`,
   });
   if (cached) {
     await page.setViewportSize({ width: 1280, height: 900 });

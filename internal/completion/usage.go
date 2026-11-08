@@ -15,7 +15,10 @@ type Counters struct {
 }
 
 // CacheCounts contains only categories explicitly reported by this protocol.
-type CacheCounts struct{ Read, Uncached int64 }
+type CacheCounts struct {
+	Read, Uncached int64
+	Creation       *int64
+}
 
 // ChatUsage rejects duplicate keys, arbitrary nested content and non-integers.
 // Optional provider details are retained exactly, but do not imply a cache tariff.
