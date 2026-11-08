@@ -18,7 +18,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
+	"github.com/jhzhfree/ai-governance-gateway/internal/completion"
 	"github.com/jhzhfree/ai-governance-gateway/internal/database"
+	"github.com/jhzhfree/ai-governance-gateway/internal/execution"
+	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 	"github.com/jhzhfree/ai-governance-gateway/internal/testutil"
 )
 
@@ -67,6 +70,7 @@ func TestLogicalBackupRestore(t *testing.T) {
 			}
 
 			if !previous {
+				seedEmbeddedRestore(t, pool, store)
 				execSQL(t, pool, `INSERT INTO inference_attempts(attempt_id,request_id,model,provider,region,stream) VALUES('restore_attempt_12345','settled','reviewed-compatible/fixture','reviewed-compatible','cn-mainland',false)`)
 				execSQL(t, pool, `INSERT INTO newapi_execution_bindings(attempt_id,request_id,backend,model,channel_id,fingerprint,price_version,input_price,output_price,max_input,max_output,recovery_complete,cache_read_price,cache_write_price) VALUES('restore_attempt_12345','settled','https://synthetic.invalid','fixture-model',1,repeat('a',64),'synthetic-v1',2000000,4000000,128,8,true,1000000,3000000)`)
 				execSQL(t, pool, `INSERT INTO newapi_execution_receipts(attempt_id,state,input_tokens,output_tokens,actual,cache_details_version,cache_read_tokens,cache_write_tokens) VALUES('restore_attempt_12345','completed',4,8,40,1,1,1)`)
@@ -152,10 +156,73 @@ func TestLogicalBackupRestore(t *testing.T) {
 				t.Fatal("restored holds/spend not preserved")
 			}
 			var id int64
+			if !previous {
+				journal := completion.New(pool)
+				if n, err := journal.Recover(ctx, time.Now().Add(time.Minute)); err != nil || n != 1 {
+					t.Fatal("restored completion could not reconcile", n, err)
+				}
+				for _, name := range []string{"restore_embedded_settled", "restore_embedded_waiting"} {
+					if err := journal.Settle(ctx, name, name+"_attempt", 14); err != nil {
+						t.Fatal("restored receipt was not idempotent", err)
+					}
+				}
+				var receipts int
+				if err := pool.QueryRow(ctx, `SELECT count(*) FROM engine_completion_receipts`).Scan(&receipts); err != nil || receipts != 2 {
+					t.Fatal("restored completion receipts differ")
+				}
+			}
 			if err := pool.QueryRow(ctx, `INSERT INTO system_management_events(operation_id,node,actor_issuer,actor_subject,action,phase,reason,payload) VALUES('after-restore','fixture-node','fixture-issuer','fixture-subject','apply','requested','restored identity sequence','{}') RETURNING id`).Scan(&id); err != nil || (!previous && id <= 1) {
 				t.Fatal("restored identity sequence cannot continue")
 			}
 		})
+	}
+}
+
+func seedEmbeddedRestore(t *testing.T, pool *pgxpool.Pool, ledger *budget.Store) {
+	t.Helper()
+	ctx := context.Background()
+	scope := budget.Scope{Organization: "embedded-restore-org", Project: "embedded-restore-project", Period: "2026-11", Currency: provider.Currency}
+	testutil.Accounts(t, ledger, scope, 10000, 10000)
+	cfg := testutil.MainlandConfig()
+	for i := range cfg.Models {
+		cfg.Models[i].MaxOutputTokens = 32
+	}
+	catalog, err := provider.New(cfg, func(string) string { return "synthetic-restore-only" }, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	route, _ := catalog.Find("deepseek/fixture")
+	req := provider.Request{Model: "deepseek/fixture", MaxTokens: 32, Messages: []provider.Message{{Role: "user", Content: "synthetic"}}}
+	journal := completion.New(pool)
+	for _, id := range []string{"restore_embedded_settled", "restore_embedded_waiting"} {
+		amount, err := route.Bound(32)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: id, PriceVersion: route.PriceVersion(), Amount: amount}); err != nil {
+			t.Fatal(err)
+		}
+		if err := execution.New(pool).Begin(ctx, execution.Start{AttemptID: id + "_attempt", RequestID: id, Model: req.Model, Provider: route.Provider(), Region: route.Region()}); err != nil {
+			t.Fatal(err)
+		}
+		if err := ledger.Dispatch(ctx, id); err != nil {
+			t.Fatal(err)
+		}
+		if err := journal.Bind(ctx, route, req, id, id+"_attempt"); err != nil {
+			t.Fatal(err)
+		}
+		if err := journal.Record(ctx, id, id+"_attempt", completion.RouteDigest(route), []byte(`{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}`)); err != nil {
+			t.Fatal(err)
+		}
+		if id == "restore_embedded_settled" {
+			if err := journal.Settle(ctx, id, id+"_attempt", 14); err != nil {
+				t.Fatal(err)
+			}
+		} else {
+			if err := ledger.MarkUncertain(ctx, id); err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
 }
 

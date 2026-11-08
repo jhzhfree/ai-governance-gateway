@@ -140,6 +140,7 @@ func receiveStream(ctx context.Context, body io.Reader, req execution.Request, m
 					return execution.ErrUpstream
 				}
 				if terminalUsage != nil {
+					terminalUsage.Completed = true
 					return emit(ctx, *terminalUsage)
 				}
 				return nil

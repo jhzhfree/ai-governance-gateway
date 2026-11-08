@@ -9,7 +9,7 @@ import (
 )
 
 func createEngine(ctx context.Context, manager *provider.Manager, cfg gatewayapp.EngineConfig) (gatewayapp.RuntimeEngine, error) {
-	engine, err := gatewaybridge.NewManaged(ctx, manager, gatewaybridge.PoolConfig{MaxBindings: cfg.MaxBindings, MaxConcurrent: cfg.MaxConcurrent})
+	engine, err := gatewaybridge.NewDurableManaged(ctx, manager, gatewaybridge.PoolConfig{MaxBindings: cfg.MaxBindings, MaxConcurrent: cfg.MaxConcurrent}, cfg.Completions)
 	if err != nil {
 		return nil, err
 	}

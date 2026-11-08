@@ -22,6 +22,7 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/browser"
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
 	"github.com/jhzhfree/ai-governance-gateway/internal/circuit"
+	"github.com/jhzhfree/ai-governance-gateway/internal/completion"
 	"github.com/jhzhfree/ai-governance-gateway/internal/console"
 	"github.com/jhzhfree/ai-governance-gateway/internal/contentaudit"
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
@@ -44,7 +45,10 @@ type RuntimeEngine interface {
 	ModelsIn(context.Context, pgx.Tx) []provider.ModelInfo
 	Close()
 }
-type EngineConfig struct{ MaxBindings, MaxConcurrent int }
+type EngineConfig struct {
+	MaxBindings, MaxConcurrent int
+	Completions                *completion.Store
+}
 type EngineFactory func(context.Context, *provider.Manager, EngineConfig) (RuntimeEngine, error)
 
 type config struct {
@@ -140,6 +144,10 @@ func run(ctx context.Context, c config, factory EngineFactory, listener net.List
 	setup, cancel = context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	ledger := budget.New(pool)
+	var completions *completion.Store
+	if c.executionEngine == "bifrost" {
+		completions = completion.New(pool)
+	}
 	store := control.New(pool)
 	var providers provider.Routing
 	if c.executionEngine == "newapi" {
@@ -192,7 +200,9 @@ func run(ctx context.Context, c config, factory EngineFactory, listener net.List
 		var management control.ProviderManagement = manager
 		providers = manager
 		if c.executionEngine == "bifrost" {
-			selected, err = factory(resources, manager, c.engineLimits)
+			limits := c.engineLimits
+			limits.Completions = completions
+			selected, err = factory(resources, manager, limits)
 			if err != nil {
 				if selected != nil {
 					selected.Close()
@@ -286,6 +296,11 @@ func run(ctx context.Context, c config, factory EngineFactory, listener net.List
 		defer ticker.Stop()
 		for {
 			jobCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			if completions != nil {
+				if _, err := completions.Recover(jobCtx, time.Now().Add(-3*time.Minute)); err != nil && ctx.Err() == nil {
+					log.Print("embedded completion recovery pending")
+				}
+			}
 			if err := store.PruneDeviceProofs(jobCtx); err != nil && ctx.Err() == nil {
 				log.Print("device proof maintenance unavailable")
 			}
@@ -306,7 +321,7 @@ func run(ctx context.Context, c config, factory EngineFactory, listener net.List
 		}
 	}()
 	store.WithDeviceOrigin(c.browserOrigin)
-	mux.Handle("/v1/", &gateway.Handler{Executor: selected, DeviceProof: store.VerifyDeviceRequest, Keywords: keyword.New(pool), Content: content, ListModels: store.KeyModels, Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Providers: providers, Ledger: ledger, Authorize: store.ResolveKey, Client: client, Upstream: c.upstream, Report: func(id, code string) { log.Printf("request_id=%s code=%s", id, code) }})
+	mux.Handle("/v1/", &gateway.Handler{Completions: completions, Executor: selected, DeviceProof: store.VerifyDeviceRequest, Keywords: keyword.New(pool), Content: content, ListModels: store.KeyModels, Monitor: monitor, Circuits: circuit.New(pool), Admission: admission.New(pool), Attempts: execution.New(pool), Providers: providers, Ledger: ledger, Authorize: store.ResolveKey, Client: client, Upstream: c.upstream, Report: func(id, code string) { log.Printf("request_id=%s code=%s", id, code) }})
 	mux.HandleFunc("GET /health/live", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) })
 	dbReady := readiness(pool)
 	var stopping atomic.Bool

@@ -16,6 +16,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
+	"github.com/jhzhfree/ai-governance-gateway/internal/completion"
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
@@ -24,6 +25,7 @@ import (
 
 type runtimeFixture struct {
 	*provider.Catalog
+	journal          *completion.Store
 	ready            atomic.Bool
 	opened, closed   atomic.Int32
 	started, release chan struct{}
@@ -37,13 +39,23 @@ func (f *runtimeFixture) Validate(r *provider.Route, req provider.Request) error
 	}
 	return nil
 }
-func (f *runtimeFixture) Open(ctx context.Context, _ *provider.Route, _ provider.Request, _, _ string) (*http.Response, error) {
+func (f *runtimeFixture) Open(ctx context.Context, route *provider.Route, req provider.Request, id, attempt string) (*http.Response, error) {
+	if f.journal != nil {
+		if err := f.journal.Bind(ctx, route, req, id, attempt); err != nil {
+			return nil, err
+		}
+	}
 	f.opened.Add(1)
 	close(f.started)
 	select {
 	case <-f.release:
 	case <-ctx.Done():
 		return nil, ctx.Err()
+	}
+	if f.journal != nil {
+		if err := f.journal.Record(ctx, id, attempt, completion.RouteDigest(route), []byte(`{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}`)); err != nil {
+			return nil, err
+		}
 	}
 	return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"choices":[{"index":0,"message":{"role":"assistant","content":"synthetic"},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}}`))}, nil
 }
@@ -57,7 +69,7 @@ func appConfig(t *testing.T, dsn string, l net.Listener) config {
 	for _, name := range []string{"AIGW_CONTENT_AUDIT_KEYS", "AIGW_CONTENT_AUDIT_ACTIVE_KEY", "AIGW_METRICS_TOKEN"} {
 		t.Setenv(name, "")
 	}
-	return config{database: dsn, listen: l.Addr().String(), authMode: "local", browserOrigin: "http://" + l.Addr().String(), allowLoopbackHTTP: true, webDir: dir, executionEngine: "bifrost", engineLimits: EngineConfig{4, 2}}
+	return config{database: dsn, listen: l.Addr().String(), authMode: "local", browserOrigin: "http://" + l.Addr().String(), allowLoopbackHTTP: true, webDir: dir, executionEngine: "bifrost", engineLimits: EngineConfig{MaxBindings: 4, MaxConcurrent: 2}}
 }
 func fixtureDSN(t *testing.T, original, searchPath string) string {
 	t.Helper()
@@ -108,7 +120,14 @@ func TestEmbeddedProviderStatusReflectsExecutionReadiness(t *testing.T) {
 func TestApplicationPairsEngineReadinessAndGracefulShutdown(t *testing.T) {
 	db, _, _ := testutil.Database(t)
 	dsn := fixtureDSN(t, os.Getenv("TEST_DATABASE_URL"), db.Config().ConnConfig.RuntimeParams["search_path"])
-	catalog, _ := testutil.MainlandCatalog(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Error("native fallback dispatched") }))
+	cfg := testutil.MainlandConfig()
+	for i := range cfg.Models {
+		cfg.Models[i].MaxOutputTokens = 32
+	}
+	catalog, err := provider.New(cfg, func(string) string { return "synthetic" }, &http.Client{Transport: rejectedRuntimeTransport{t}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	engine := &runtimeFixture{Catalog: catalog, started: make(chan struct{}), release: make(chan struct{})}
 	engine.ready.Store(true)
 	store := control.NewWithCatalog(db, engine)
@@ -141,8 +160,9 @@ func TestApplicationPairsEngineReadinessAndGracefulShutdown(t *testing.T) {
 	resourceCreated := make(chan context.Context, 1)
 	go func() {
 		done <- run(life, c, func(resource context.Context, _ *provider.Manager, limits EngineConfig) (RuntimeEngine, error) {
+			engine.journal = limits.Completions
 			resourceCreated <- resource
-			if limits != c.engineLimits {
+			if limits.MaxBindings != c.engineLimits.MaxBindings || limits.MaxConcurrent != c.engineLimits.MaxConcurrent || limits.Completions == nil {
 				t.Error("pool limits lost")
 			}
 			return engine, nil
@@ -186,7 +206,7 @@ func TestApplicationPairsEngineReadinessAndGracefulShutdown(t *testing.T) {
 	check("/health/ready", 503)
 	check("/health/live", 204)
 	engine.ready.Store(true)
-	request, _ := http.NewRequest("POST", base+"/v1/chat/completions", strings.NewReader(`{"model":"aliyun/fixture","max_tokens":8,"messages":[{"role":"user","content":"synthetic"}]}`))
+	request, _ := http.NewRequest("POST", base+"/v1/chat/completions", strings.NewReader(`{"model":"aliyun/fixture","max_tokens":16,"messages":[{"role":"user","content":"synthetic"}]}`))
 	request.Header.Set("Authorization", "Bearer "+key.Secret)
 	completed := make(chan *http.Response, 1)
 	failed := make(chan error, 1)
@@ -264,7 +284,7 @@ func TestEngineSelectionFailsBeforeDatabaseAccess(t *testing.T) {
 	if err := run(context.Background(), c, nil, nil); err == nil || !strings.Contains(err.Error(), "unavailable in this binary") {
 		t.Fatal("native binary silently selected fallback")
 	}
-	valid := config{database: "unused", listen: "127.0.0.1:8080", authMode: "local", browserOrigin: "https://gateway.example", executionEngine: "bifrost", engineLimits: EngineConfig{32, 32}}
+	valid := config{database: "unused", listen: "127.0.0.1:8080", authMode: "local", browserOrigin: "https://gateway.example", executionEngine: "bifrost", engineLimits: EngineConfig{MaxBindings: 32, MaxConcurrent: 32}}
 	for _, change := range []func(*config){func(c *config) { c.executionEngine = "typo" }, func(c *config) { c.mockOnly = true }, func(c *config) { c.providerConfig = "example.json" }, func(c *config) { c.engineLimits.MaxBindings = 0 }, func(c *config) { c.engineLimits.MaxConcurrent = 1025 }} {
 		c := valid
 		change(&c)
@@ -272,4 +292,11 @@ func TestEngineSelectionFailsBeforeDatabaseAccess(t *testing.T) {
 			t.Fatal("invalid engine configuration accepted")
 		}
 	}
+}
+
+type rejectedRuntimeTransport struct{ t *testing.T }
+
+func (r rejectedRuntimeTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	r.t.Error("native fallback dispatched")
+	return nil, errors.New("forbidden native fallback")
 }

@@ -158,9 +158,6 @@ func classify(ctx context.Context) error {
 }
 
 func deliver(ctx context.Context, req execution.Request, resp *schemas.BifrostChatResponse, maxOutput int, evidence *usageEvidence, emit execution.Emit) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
 	if err := evidence.observe(resp.ExtraFields.RawResponse, maxOutput); err != nil {
 		return err
 	}
@@ -181,7 +178,7 @@ func deliver(ctx context.Context, req execution.Request, resp *schemas.BifrostCh
 	if err != nil {
 		return execution.ErrUpstream
 	}
-	return emit(ctx, execution.Event{UpstreamStatus: 200, RequestID: req.RequestID, AttemptID: req.AttemptID, Payload: data, Usage: usage})
+	return emit(ctx, execution.Event{Completed: true, UpstreamStatus: 200, RequestID: req.RequestID, AttemptID: req.AttemptID, Payload: data, Usage: usage})
 }
 
 type account struct{ cfg Config }

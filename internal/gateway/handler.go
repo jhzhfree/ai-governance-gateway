@@ -16,6 +16,7 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/admission"
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
 	"github.com/jhzhfree/ai-governance-gateway/internal/circuit"
+	"github.com/jhzhfree/ai-governance-gateway/internal/completion"
 	"github.com/jhzhfree/ai-governance-gateway/internal/contentaudit"
 	"github.com/jhzhfree/ai-governance-gateway/internal/execution"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
@@ -40,6 +41,7 @@ type ProviderExecutor interface {
 }
 
 type Handler struct {
+	Completions *completion.Store
 	Executor    ProviderExecutor
 	DeviceProof func(context.Context, *http.Request, string) (context.Context, error)
 	Keywords    *keyword.Service

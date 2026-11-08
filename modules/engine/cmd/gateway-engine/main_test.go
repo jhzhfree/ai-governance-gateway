@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/jhzhfree/ai-governance-gateway/internal/completion"
 	"github.com/jhzhfree/ai-governance-gateway/internal/gatewayapp"
 	"github.com/jhzhfree/ai-governance-gateway/internal/identity"
 	"github.com/jhzhfree/ai-governance-gateway/internal/testutil"
@@ -18,7 +19,10 @@ func TestEngineEntrypointFactoryReadinessAndPublication(t *testing.T) {
 	if engine, err := createEngine(ctx, source, gatewayapp.EngineConfig{}); err == nil || engine != nil {
 		t.Fatal("invalid limits must return a nil engine")
 	}
-	engine, err := createEngine(ctx, source, gatewayapp.EngineConfig{MaxBindings: 8, MaxConcurrent: 2})
+	if engine, err := createEngine(ctx, source, gatewayapp.EngineConfig{MaxBindings: 8, MaxConcurrent: 2}); err == nil || engine != nil {
+		t.Fatal("product factory accepted missing completion journal")
+	}
+	engine, err := createEngine(ctx, source, gatewayapp.EngineConfig{MaxBindings: 8, MaxConcurrent: 2, Completions: completion.New(db)})
 	if err != nil {
 		t.Fatal(err)
 	}

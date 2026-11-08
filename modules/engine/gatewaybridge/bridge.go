@@ -9,7 +9,9 @@ import (
 	"io"
 	"net/http"
 	"sync"
+	"time"
 
+	"github.com/jhzhfree/ai-governance-gateway/internal/completion"
 	"github.com/jhzhfree/ai-governance-gateway/internal/gateway"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 	"github.com/jhzhfree/ai-governance-gateway/modules/engine/execution"
@@ -19,6 +21,7 @@ import (
 // change. It never chooses a fallback or creates a second physical attempt.
 // The owner closes the Executor after all bound requests have been reclaimed.
 type Binding struct {
+	journal                *completion.Store
 	executor               execution.Executor
 	revision               [32]byte
 	price, alias, upstream string
@@ -57,6 +60,11 @@ func (b *Binding) Open(ctx context.Context, route *provider.Route, req provider.
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	if b.journal != nil {
+		if err := b.journal.Bind(ctx, route, req, requestID, attemptID); err != nil {
+			return nil, execution.ErrUpstream
+		}
+	}
 	req.Model = b.upstream
 	payload, err := json.Marshal(req)
 	if err != nil {
@@ -76,9 +84,6 @@ func (b *Binding) Open(ctx context.Context, route *provider.Route, req provider.
 		totalBytes := 0
 		usageSeen := false
 		err := b.executor.Execute(ctx, execution.Request{RequestID: requestID, AttemptID: attemptID, Body: payload}, func(ctx context.Context, event execution.Event) error {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
 			if event.UpstreamStatus != http.StatusOK || event.RequestID != requestID || event.AttemptID != attemptID || len(event.Payload) > 1<<20 || (!req.Stream && count != 0) {
 				return execution.ErrUpstream
 			}
@@ -94,6 +99,20 @@ func (b *Binding) Open(ctx context.Context, route *provider.Route, req provider.
 					return execution.ErrUpstream
 				}
 				usageSeen = true
+				if b.journal != nil {
+					c, err := completion.ChatUsage(u.Evidence)
+					if err != nil || !event.Completed || c.Input != int64(u.InputTokens) || c.Output != int64(u.OutputTokens) || c.Total != int64(u.TotalTokens) {
+						return execution.ErrUpstream
+					}
+					// Persist already observed completion despite downstream cancellation.
+					// This synchronous, bounded operation never detaches a worker.
+					persist, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+					err = b.journal.Record(persist, requestID, attemptID, completion.RouteDigest(route), u.Evidence)
+					cancel()
+					if err != nil {
+						return execution.ErrUpstream
+					}
+				}
 				raw, _ := json.Marshal(map[string]int{"prompt_tokens": u.InputTokens, "completion_tokens": u.OutputTokens, "total_tokens": u.TotalTokens})
 				data["usage"] = raw
 			}
@@ -103,6 +122,9 @@ func (b *Binding) Open(ctx context.Context, route *provider.Route, req provider.
 			}
 			if req.Stream {
 				normalized = append(append([]byte("data: "), normalized...), '\n', '\n')
+			}
+			if err := ctx.Err(); err != nil {
+				return err
 			}
 			totalBytes += len(normalized)
 			if totalBytes > 16<<20 || (req.Stream && len(normalized) > 64<<10) || (!req.Stream && totalBytes > 1<<20) {

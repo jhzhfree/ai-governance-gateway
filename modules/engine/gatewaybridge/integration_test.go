@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jhzhfree/ai-governance-gateway/internal/admission"
 	"github.com/jhzhfree/ai-governance-gateway/internal/circuit"
+	"github.com/jhzhfree/ai-governance-gateway/internal/completion"
 	"github.com/jhzhfree/ai-governance-gateway/internal/contentaudit"
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
 	recorder "github.com/jhzhfree/ai-governance-gateway/internal/execution"
@@ -27,10 +28,11 @@ import (
 )
 
 func TestGovernedPooledBifrostExecution(t *testing.T) {
-	for _, mode := range []string{"json", "stream", "missing usage", "duplicate usage", "upstream failure", "revoked key", "budget denial", "device denial", "audit unavailable", "small limit", "unauthorized model", "model permission removed", "malformed stream", "oversized stream", "usage then disconnect"} {
+	for _, mode := range []string{"json", "stream", "binding failure", "completion persistence failure", "receipt failure", "completed then cancel", "json without finish", "missing usage", "duplicate usage", "upstream failure", "revoked key", "budget denial", "device denial", "audit unavailable", "small limit", "unauthorized model", "model permission removed", "malformed stream", "oversized stream", "usage then disconnect"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx := context.Background()
 			pool, ledger, _ := testutil.Database(t)
+			journal := completion.New(pool)
 			cfg := testutil.MainlandConfig()
 			for i := range cfg.Models {
 				cfg.Models[i].MaxOutputTokens = 32
@@ -41,6 +43,7 @@ func TestGovernedPooledBifrostExecution(t *testing.T) {
 			}
 			route, _ := catalog.Find("aliyun/fixture")
 			var calls atomic.Int32
+			var cancelRequest context.CancelFunc
 			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calls.Add(1)
 				if r.URL.Path != "/compatible-mode/v1/chat/completions" || r.Header.Get("Authorization") != "Bearer synthetic-route-key" {
@@ -81,6 +84,10 @@ func TestGovernedPooledBifrostExecution(t *testing.T) {
 					return
 				}
 				w.Header().Set("Content-Type", "application/json")
+				if mode == "json without finish" {
+					_, _ = fmt.Fprintf(w, `{"choices":[{"index":0,"message":{"role":"assistant","content":"synthetic reply"},"finish_reason":null}]%s}`, usage)
+					return
+				}
 				_, _ = fmt.Fprintf(w, `{"id":"fixture","object":"chat.completion","model":"fixture-model","choices":[{"index":0,"message":{"role":"assistant","content":"synthetic reply"},"finish_reason":"stop"}]%s}`, usage)
 			}))
 			defer upstream.Close()
@@ -88,11 +95,16 @@ func TestGovernedPooledBifrostExecution(t *testing.T) {
 				binding, err := newSupplier(ctx, r, n, func(ctx context.Context, cfg adapter.Config) (execution.Executor, error) {
 					cfg.BaseURL = upstream.URL
 					cfg.TestLoopback = true
-					return adapter.New(ctx, cfg)
+					e, err := adapter.New(ctx, cfg)
+					if err == nil && mode == "completed then cancel" {
+						return terminalCancelExecutor{Executor: e, cancel: func() { cancelRequest() }}, nil
+					}
+					return e, err
 				})
 				if err != nil {
 					return nil, err
 				}
+				binding.binding.journal = journal
 				return binding, nil
 			})
 			if err != nil {
@@ -139,7 +151,7 @@ func TestGovernedPooledBifrostExecution(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
-			h := &gateway.Handler{Providers: catalog, Executor: enginePool, Ledger: ledger, Authorize: store.ResolveKey, Attempts: recorder.New(pool), Admission: admission.New(pool), Circuits: circuit.New(pool), Content: audit, DeviceProof: store.VerifyDeviceRequest}
+			h := &gateway.Handler{Completions: journal, Providers: catalog, Executor: enginePool, Ledger: ledger, Authorize: store.ResolveKey, Attempts: recorder.New(pool), Admission: admission.New(pool), Circuits: circuit.New(pool), Content: audit, DeviceProof: store.VerifyDeviceRequest}
 			if mode == "audit unavailable" {
 				h.Content = contentaudit.New(pool, nil)
 			}
@@ -153,9 +165,22 @@ func TestGovernedPooledBifrostExecution(t *testing.T) {
 				model = "zhipu/fixture"
 			}
 			r := httptest.NewRequest("POST", "http://gateway.invalid/v1/chat/completions", strings.NewReader(fmt.Sprintf(`{"model":%q,"stream":%t,"max_tokens":%d,"messages":[{"role":"user","content":"synthetic question"}]}`, model, stream, maxTokens)))
+			if mode == "completed then cancel" {
+				requestCtx, cancel := context.WithCancel(r.Context())
+				cancelRequest = cancel
+				defer cancel()
+				r = r.WithContext(requestCtx)
+			}
 			r.Header.Set("Authorization", "Bearer "+key.Secret)
 			if mode == "device denial" {
 				r.Header.Set("Authorization", "DPoP aigw_dt_invalid")
+			}
+			for name, table := range map[string]string{"binding failure": "engine_execution_bindings", "completion persistence failure": "engine_completion_events", "receipt failure": "engine_completion_receipts"} {
+				if mode == name {
+					if _, err := pool.Exec(ctx, "ALTER TABLE "+table+" ADD CONSTRAINT synthetic_failure CHECK(false)"); err != nil {
+						t.Fatal(err)
+					}
+				}
 			}
 			w := httptest.NewRecorder()
 			h.ServeHTTP(w, r)
@@ -164,9 +189,13 @@ func TestGovernedPooledBifrostExecution(t *testing.T) {
 			}
 			id := w.Header().Get("X-Request-ID")
 			successful := mode == "json" || mode == "stream"
-			dispatched := successful || mode == "missing usage" || mode == "duplicate usage" || mode == "upstream failure" || mode == "malformed stream" || mode == "oversized stream" || mode == "usage then disconnect"
-			if dispatched {
-				if calls.Load() != 1 {
+			dispatched := successful || mode == "json without finish" || mode == "missing usage" || mode == "duplicate usage" || mode == "upstream failure" || mode == "malformed stream" || mode == "oversized stream" || mode == "usage then disconnect"
+			if dispatched || mode == "binding failure" || mode == "completion persistence failure" || mode == "receipt failure" || mode == "completed then cancel" {
+				wantCalls := int32(1)
+				if mode == "binding failure" {
+					wantCalls = 0
+				}
+				if calls.Load() != wantCalls {
 					t.Fatalf("physical attempts = %d", calls.Load())
 				}
 				reservation, err := ledger.Get(ctx, id)
@@ -180,6 +209,19 @@ func TestGovernedPooledBifrostExecution(t *testing.T) {
 				if reservation.State != wantState {
 					t.Fatalf("ledger state %s, want %s; HTTP %d", reservation.State, wantState, w.Code)
 				}
+				var events, receipts int
+				if err := pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM engine_completion_events),(SELECT count(*) FROM engine_completion_receipts)`).Scan(&events, &receipts); err != nil {
+					t.Fatal(err)
+				}
+				wantEvents, wantReceipts := 0, 0
+				if successful {
+					wantEvents, wantReceipts = 1, 1
+				} else if mode == "receipt failure" || mode == "completed then cancel" {
+					wantEvents = 1
+				}
+				if events != wantEvents || receipts != wantReceipts {
+					t.Fatal("completion evidence/receipt mismatch")
+				}
 				if successful && (reservation.Actual == nil || *reservation.Actual != 14) {
 					t.Fatal("wrong settled cost")
 				}
@@ -190,7 +232,13 @@ func TestGovernedPooledBifrostExecution(t *testing.T) {
 				if err := pool.QueryRow(ctx, `SELECT attempt_id,request_id,outcome FROM inference_attempts WHERE request_id=$1`, id).Scan(&attemptID, &requestID, &outcome); err != nil {
 					t.Fatal(err)
 				}
-				if requestID != id || attemptID == "" || (successful && outcome != "completed") || (!successful && outcome != "failed") {
+				wantOutcome := "failed"
+				if successful {
+					wantOutcome = "completed"
+				} else if mode == "completed then cancel" {
+					wantOutcome = "canceled"
+				}
+				if requestID != id || attemptID == "" || outcome != wantOutcome {
 					t.Fatal("attempt correlation/outcome invalid")
 				}
 			} else {
@@ -203,6 +251,15 @@ func TestGovernedPooledBifrostExecution(t *testing.T) {
 				}
 				if w.Code < 400 {
 					t.Fatal("denied request succeeded")
+				}
+			}
+			if mode == "completed then cancel" {
+				if n, err := journal.Recover(ctx, time.Now().Add(time.Second)); err != nil || n != 1 {
+					t.Fatal("lost observed completion on client cancel", err)
+				}
+				r, err := ledger.Get(ctx, id)
+				if err != nil || r.State != "settled" || r.Actual == nil || *r.Actual != 14 || calls.Load() != 1 {
+					t.Fatal("canceled delivery evidence failed recovery")
 				}
 			}
 			if successful {
@@ -238,4 +295,19 @@ type forbiddenTransport struct{ t *testing.T }
 func (f forbiddenTransport) RoundTrip(*http.Request) (*http.Response, error) {
 	f.t.Error("native fallback must not execute")
 	return nil, fmt.Errorf("forbidden native dispatch")
+}
+
+// Cancel only after the real adapter has established terminal protocol evidence.
+type terminalCancelExecutor struct {
+	execution.Executor
+	cancel func()
+}
+
+func (e terminalCancelExecutor) Execute(ctx context.Context, r execution.Request, emit execution.Emit) error {
+	return e.Executor.Execute(ctx, r, func(c context.Context, event execution.Event) error {
+		if event.Completed {
+			e.cancel()
+		}
+		return emit(c, event)
+	})
 }

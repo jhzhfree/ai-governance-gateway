@@ -30,6 +30,8 @@ type Usage struct {
 }
 
 type Event struct {
+	// Completed proves adapter protocol completion, not client delivery or audit sealing.
+	Completed bool
 	// UpstreamStatus is evidence from the adapter, never a synthesized envelope.
 	UpstreamStatus int
 	RequestID      string

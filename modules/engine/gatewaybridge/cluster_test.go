@@ -24,6 +24,7 @@ import (
 	"github.com/jhzhfree/ai-governance-gateway/internal/admission"
 	"github.com/jhzhfree/ai-governance-gateway/internal/budget"
 	"github.com/jhzhfree/ai-governance-gateway/internal/circuit"
+	"github.com/jhzhfree/ai-governance-gateway/internal/completion"
 	"github.com/jhzhfree/ai-governance-gateway/internal/contentaudit"
 	"github.com/jhzhfree/ai-governance-gateway/internal/control"
 	"github.com/jhzhfree/ai-governance-gateway/internal/database"
@@ -60,6 +61,7 @@ func clusterChild(t *testing.T) {
 	if err := database.Check(ctx, db); err != nil {
 		t.Fatal(err)
 	}
+	journal := completion.New(db)
 	source := provider.NewManager(db, func(string) string { return "synthetic-cluster-key" }, nil, identity.Principal{})
 	engines, err := newPool(ctx, PoolConfig{4, 4}, func(ctx context.Context, r *provider.Route, n int) (ownedBinding, error) {
 		b, err := newSupplier(ctx, r, n, func(ctx context.Context, cfg adapter.Config) (execution.Executor, error) {
@@ -70,6 +72,7 @@ func clusterChild(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
+		b.binding.journal = journal
 		return b, nil
 	})
 	if err != nil {
@@ -81,7 +84,7 @@ func clusterChild(t *testing.T) {
 		t.Fatal("child engine not ready")
 	}
 	store := control.NewWithCatalog(db, managed)
-	handler := &gateway.Handler{Providers: managed, Executor: managed, Ledger: budget.New(db), Authorize: store.ResolveKey, Attempts: recorder.New(db), Admission: admission.New(db), Circuits: circuit.New(db), Content: clusterAudit(db), DeviceProof: store.VerifyDeviceRequest}
+	handler := &gateway.Handler{Completions: journal, Providers: managed, Executor: managed, Ledger: budget.New(db), Authorize: store.ResolveKey, Attempts: recorder.New(db), Admission: admission.New(db), Circuits: circuit.New(db), Content: clusterAudit(db), DeviceProof: store.VerifyDeviceRequest}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -89,10 +92,25 @@ func clusterChild(t *testing.T) {
 	server := &http.Server{Handler: handler, ReadHeaderTimeout: time.Second}
 	ended := make(chan error, 1)
 	go func() { ended <- server.Serve(listener) }()
+	recoveryDone := make(chan struct{})
+	go func() {
+		defer close(recoveryDone)
+		tick := time.NewTicker(100 * time.Millisecond)
+		defer tick.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-tick.C:
+				_, _ = journal.Recover(ctx, time.Now().Add(-3*time.Minute))
+			}
+		}
+	}()
 	fmt.Println("cluster-ready http://" + listener.Addr().String())
 	<-ctx.Done()
 	_ = server.Close()
 	<-ended
+	<-recoveryDone
 }
 
 type clusterNode struct {

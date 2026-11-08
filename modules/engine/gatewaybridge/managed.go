@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jhzhfree/ai-governance-gateway/internal/completion"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
 	"github.com/jhzhfree/ai-governance-gateway/modules/engine/execution"
 )
@@ -33,6 +34,26 @@ func NewManaged(ctx context.Context, source SnapshotSource, cfg PoolConfig) (*Ma
 		return nil, execution.ErrInvalidRequest
 	}
 	pool, err := NewPool(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return newManaged(source, pool), nil
+}
+
+// NewDurableManaged is the product path. The journal is required before any
+// supplier binding can be published; contract-only constructors stay isolated.
+func NewDurableManaged(ctx context.Context, source SnapshotSource, cfg PoolConfig, journal *completion.Store) (*Managed, error) {
+	if source == nil || journal == nil {
+		return nil, execution.ErrInvalidRequest
+	}
+	pool, err := newPool(ctx, cfg, func(ctx context.Context, route *provider.Route, n int) (ownedBinding, error) {
+		b, err := NewSupplier(ctx, route, n)
+		if err != nil {
+			return nil, err
+		}
+		b.binding.journal = journal
+		return b, nil
+	})
 	if err != nil {
 		return nil, err
 	}

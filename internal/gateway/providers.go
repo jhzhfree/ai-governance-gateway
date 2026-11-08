@@ -169,7 +169,13 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 	settle := func(actual int64) error {
 		finish, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		if err := h.Ledger.Settle(finish, id, actual); err != nil {
+		var err error
+		if h.Completions != nil {
+			err = h.Completions.Settle(finish, id, trace.id, actual)
+		} else {
+			err = h.Ledger.Settle(finish, id, actual)
+		}
+		if err != nil {
 			return err
 		}
 		settled = true

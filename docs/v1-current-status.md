@@ -1,6 +1,16 @@
 # V1 当前功能盘点与下一步
 
-当前盘点：`feature/newapi-foundation-validation` 控制面与 `feature/enterprise-governance-integration` new-api 数据面的受控接入阶段。依据仓库实现与测试，不以历史规划表的“完整/生产可用”标签代替验收。当前架构与执行顺序以 [V1 交付跟踪](v1-delivery.md) 为准；早期双产品线一页纸不是本分支当前架构决定。
+当前分支为 `feature/v1-single-process-commercial`，按用户已批准的 [复用优先 V2 规划](single-process-commercial-plan.md) 实施。依据实现与实测，不以历史规划表的“完整/生产可用”标签代替验收。准确验证与提交状态见 [V1 交付跟踪](v1-delivery.md)。
+
+- 产品入口是一个 `gateway-engine` 进程，嵌入固定 Bifrost Core；不启动或连接 new-api 数据面。原身份、项目 Key、预算、内容审计、终端与系统管理继续共用。
+- 文本 Chat JSON/SSE 已接入迁移 0032：执行绑定、原始用量、原子回执、后台恢复。强杀、取消和缺失证据保持独立语义；最终完整门禁按交付跟踪记录。
+- 控制台已改善导航、移动布局、金额精度、按页面加载和异常恢复；费用完成证据展示仍待下一阶段补齐。
+- 新执行器的 Embeddings、Responses、Messages、工具/内联图片与缓存细分计费尚未迁移完成，不能以旧双进程能力代替新产品验收。
+- 新的持久链性能、目标机器/真实供应商/企业系统和完整来源许可核验仍待完成；目前是开发候选，未发布 V1.0。
+
+## 历史双进程分支盘点
+
+下表及后续历史阶段对应 `feature/newapi-foundation-validation` 控制面与 `feature/enterprise-governance-integration` 数据面；用于迁移对照，不是当前单进程产品的已开放能力清单。
 
 | 模块 | 已实现的代码能力 | 仍需完成的验收或功能 |
 | --- | --- | --- |

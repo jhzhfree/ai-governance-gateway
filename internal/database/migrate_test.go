@@ -56,7 +56,7 @@ func TestFreshSchemaAndReadOnlyStatus(t *testing.T) {
 	pool := testutil.EmptyDatabase(t)
 	ctx := context.Background()
 	initial := status(t, pool)
-	if initial.Managed || initial.Ready || initial.CurrentVersion != 0 || len(initial.Pending) != 31 {
+	if initial.Managed || initial.Ready || initial.CurrentVersion != 0 || len(initial.Pending) != 32 {
 		t.Fatal("unexpected unmanaged status")
 	}
 	if relation(t, pool, "aigw_schema_migrations") {
@@ -69,7 +69,7 @@ func TestFreshSchemaAndReadOnlyStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := status(t, pool)
-	if !before.Ready || before.CurrentVersion != 31 || len(before.Applied) != 31 {
+	if !before.Ready || before.CurrentVersion != 32 || len(before.Applied) != 32 {
 		t.Fatal("fresh migration incomplete")
 	}
 	for _, a := range before.Applied {
@@ -203,7 +203,7 @@ func TestConcurrentMigrationsRunExactlyOnce(t *testing.T) {
 	close(start)
 	wg.Wait()
 	r := status(t, pool)
-	if len(r.Applied) != 31 || !r.Ready {
+	if len(r.Applied) != 32 || !r.Ready {
 		t.Fatal("concurrent migration history invalid")
 	}
 }
@@ -970,6 +970,41 @@ func TestSystemManagementMigrationUpgradeAndRollback(t *testing.T) {
 	execSQL(t, pool, `ALTER TABLE system_management_events DROP COLUMN reason`)
 	if err := database.Check(ctx, pool); err == nil {
 		t.Fatal("system event schema drift accepted")
+	}
+}
+
+func TestEmbeddedCompletionUpgradeRollbackAndReadiness(t *testing.T) {
+	pool, ledger, scope := testutil.Database(t)
+	ctx := context.Background()
+	testutil.Accounts(t, ledger, scope, 100, 100)
+	if _, err := ledger.Reserve(ctx, budget.Quote{Scope: scope, RequestID: "before-completion", PriceVersion: "old-price", Amount: 10}); err != nil {
+		t.Fatal(err)
+	}
+	testutil.RevertEmbeddedCompletionMigration(t, pool)
+	execSQL(t, pool, `ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v32 CHECK(version<>32)`)
+	if err := database.Migrate(ctx, pool); err == nil {
+		t.Fatal("failed completion migration accepted")
+	}
+	var exists bool
+	if err := pool.QueryRow(ctx, `SELECT to_regclass('engine_execution_bindings') IS NOT NULL`).Scan(&exists); err != nil || exists {
+		t.Fatal("completion DDL did not roll back")
+	}
+	execSQL(t, pool, `ALTER TABLE aigw_schema_migrations DROP CONSTRAINT reject_v32`)
+	for range 2 {
+		if err := database.Migrate(ctx, pool); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := database.Check(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	r, err := ledger.Get(ctx, "before-completion")
+	if err != nil || r.State != "reserved" || r.Amount != 10 {
+		t.Fatal("historical hold changed")
+	}
+	execSQL(t, pool, `ALTER TABLE engine_completion_events DROP COLUMN usage_sha256`)
+	if err := database.Check(ctx, pool); err == nil {
+		t.Fatal("evidence schema drift accepted")
 	}
 }
 

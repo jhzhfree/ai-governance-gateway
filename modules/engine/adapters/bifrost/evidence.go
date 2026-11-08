@@ -93,6 +93,16 @@ func (e *usageEvidence) observe(raw any, maxOutput int) error {
 		if _, err := fd.Token(); err != nil {
 			return execution.ErrUpstream
 		}
+		if !e.stream {
+			if len(choices) != 1 || choices[0].FinishReason == nil {
+				return execution.ErrUpstream
+			}
+			switch *choices[0].FinishReason {
+			case "stop", "length", "tool_calls", "content_filter":
+			default:
+				return execution.ErrUpstream
+			}
+		}
 		for _, c := range choices {
 			if c.FinishReason != nil && *c.FinishReason != "" {
 				e.finished = true

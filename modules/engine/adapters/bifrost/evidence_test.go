@@ -58,3 +58,19 @@ func TestRawCaptureNeverLeavesAdapter(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestJSONUsageWithoutOriginalFinishIsNotCompletion(t *testing.T) {
+	for _, reason := range []string{"null", `""`, `"unexpected"`} {
+		t.Run(reason, func(t *testing.T) {
+			e := fixture(t, func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				fmt.Fprintf(w, `{"choices":[{"index":0,"message":{"role":"assistant","content":"synthetic"},"finish_reason":%s}],"usage":{"prompt_tokens":7,"completion_tokens":3,"total_tokens":10}}`, reason)
+			})
+			emitted := false
+			err := e.Execute(context.Background(), request(body), func(context.Context, execution.Event) error { emitted = true; return nil })
+			if !errors.Is(err, execution.ErrUpstream) || emitted {
+				t.Fatal("unfinished JSON became durable completion", err)
+			}
+		})
+	}
+}
