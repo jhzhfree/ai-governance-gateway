@@ -16,15 +16,17 @@ import (
 // a killed request process independently of supplier evidence and recovery.
 func SeedEmbeddedCompletion(t *testing.T, pool *pgxpool.Pool, scope budget.Scope, id, state string) {
 	t.Helper()
-	seedEmbeddedCompletion(t, pool, scope, id, state, false)
+	seedEmbeddedCompletion(t, pool, scope, id, state, "chat")
 }
 func SeedEmbeddedEmbeddingCompletion(t testing.TB, pool *pgxpool.Pool, scope budget.Scope, id, state string) {
 	t.Helper()
-	seedEmbeddedCompletion(t, pool, scope, id, state, true)
+	seedEmbeddedCompletion(t, pool, scope, id, state, "embeddings")
 }
-func seedEmbeddedCompletion(t testing.TB, pool *pgxpool.Pool, scope budget.Scope, id, state string, embedding bool) {
+func seedEmbeddedCompletion(t testing.TB, pool *pgxpool.Pool, scope budget.Scope, id, state string, protocol string) {
 	t.Helper()
 	ctx := context.Background()
+	embedding := protocol == "embeddings"
+	cached := protocol == "cache"
 	cfg := MainlandConfig()
 	for i := range cfg.Models {
 		cfg.Models[i].MaxOutputTokens = 32
@@ -37,14 +39,22 @@ func seedEmbeddedCompletion(t testing.TB, pool *pgxpool.Pool, scope budget.Scope
 		cfg.Models[0].OutputPerMillion = 0
 		newCatalog = provider.NewEmbedded
 	}
+	alias := "aliyun/fixture"
+	if cached {
+		cfg.Models = cfg.Models[:1]
+		cfg.Models[0].ID, cfg.Models[0].Provider = "deepseek/fixture", "deepseek"
+		cfg.Models[0].CachePricing = &provider.CachePricing{ReadPerMillion: 500000}
+		alias = "deepseek/fixture"
+		newCatalog = provider.NewEmbedded
+	}
 	catalog, err := newCatalog(cfg, func(string) string { return "synthetic-metadata-fixture" }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	route, _ := catalog.Find("aliyun/fixture")
-	req := provider.Request{Model: "aliyun/fixture", MaxTokens: 32, Messages: []provider.Message{{Role: "user", Content: "synthetic metadata fixture"}}}
+	route, _ := catalog.Find(alias)
+	req := provider.Request{Model: alias, MaxTokens: 32, Messages: []provider.Message{{Role: "user", Content: "synthetic metadata fixture"}}}
 	if embedding {
-		req = provider.Request{API: "embeddings", Model: "aliyun/fixture", Input: []string{"synthetic metadata fixture"}}
+		req = provider.Request{API: "embeddings", Model: alias, Input: []string{"synthetic metadata fixture"}}
 	}
 	amount, err := route.Bound(req.MaxTokens)
 	if err != nil {
@@ -71,6 +81,10 @@ func seedEmbeddedCompletion(t testing.TB, pool *pgxpool.Pool, scope budget.Scope
 		usage = `{ "prompt_tokens":3, "total_tokens":3 }`
 		actual = 6
 	}
+	if cached {
+		usage = `{ "prompt_tokens":3, "completion_tokens":2, "total_tokens":5, "prompt_cache_hit_tokens":2, "prompt_cache_miss_tokens":1 }`
+		actual = 11
+	}
 	if state != "awaiting_usage" {
 		if err := journal.Record(ctx, id, attempt, completion.RouteDigest(route), []byte(usage)); err != nil {
 			t.Fatal(err)
@@ -87,4 +101,9 @@ func seedEmbeddedCompletion(t testing.TB, pool *pgxpool.Pool, scope budget.Scope
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+func SeedEmbeddedCacheCompletion(t testing.TB, pool *pgxpool.Pool, scope budget.Scope, id, state string) {
+	t.Helper()
+	seedEmbeddedCompletion(t, pool, scope, id, state, "cache")
 }

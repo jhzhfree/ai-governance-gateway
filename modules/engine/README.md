@@ -2,7 +2,7 @@
 
 Bifrost Core v1.14.1，独立 Go 模块。来源为本工作区已验证的 M0 代码，现纳入正式仓库版本管理。`feature/v1-single-process-commercial` 的产品命令 `gateway-engine` 默认且仅允许嵌入式 Bifrost，使用共享治理应用及持久完成 Store；原生根命令只保留为历史验证入口。生产部署与外部系统验收尚未完成。
 
-该隔离边界将 SDK 的依赖限制在执行模块。`adapters/bifrost` 是唯一 SDK 依赖边界；`execution` 提供不含 SDK 类型的公开执行契约。`gatewaybridge` 通过本地模块引用组合主治理 Handler；产品工厂使用 `NewDurableManaged` 保存完成事件和原子结算回执，参见 [入口](../../docs/engine-entrypoint.md)和 [ADR 0010](docs/adr/0010-durable-chat-completion.md)。当前产品链支持受控文本 Chat 与[无状态文本 Responses](docs/adr/0011-embedded-responses.md) JSON/SSE，以及[文本 Embeddings](docs/adr/0012-embedded-embeddings.md)；适配层历史工具测试不代表产品已开放工具或四协议。
+该隔离边界将 SDK 的依赖限制在执行模块。`adapters/bifrost` 是唯一 SDK 依赖边界；`execution` 提供不含 SDK 类型的公开执行契约。`gatewaybridge` 通过本地模块引用组合主治理 Handler；产品工厂使用 `NewDurableManaged` 保存完成事件和原子结算回执，参见 [入口](../../docs/engine-entrypoint.md)和 [ADR 0010](docs/adr/0010-durable-chat-completion.md)。当前产品链支持受控文本 Chat 与[无状态文本 Responses](docs/adr/0011-embedded-responses.md) JSON/SSE，以及[文本 Embeddings](docs/adr/0012-embedded-embeddings.md)，DeepSeek 文本链支持[原始命中计费](docs/adr/0014-embedded-cache-read-pricing.md)；适配层历史工具测试不代表产品已开放工具或四协议。
 
 当前 Chat JSON 与 Embeddings 使用共用的有界接收器，SSE 使用原始帧接收器；复用 SDK 的公开 network、类型与规范化能力，已不通过 Core worker pool 派发。实际范围与维护代价见 [ADR 0013](docs/adr/0013-bounded-json-reception.md)，不能据此宣称集成完整 Bifrost 产品。
 

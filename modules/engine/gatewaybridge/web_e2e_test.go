@@ -25,13 +25,27 @@ import (
 )
 
 func TestEmbeddedConsoleBrowser(t *testing.T) {
+	for _, protocol := range []string{"embeddings", "cache"} {
+		t.Run(protocol, func(t *testing.T) { embeddedConsoleBrowser(t, protocol) })
+	}
+}
+func embeddedConsoleBrowser(t *testing.T, protocol string) {
 	issuer := testutil.NewIssuer(t)
 	actor := identity.Principal{Issuer: issuer.URL, Subject: "alice"}
 	cfg := testutil.MainlandConfig()
 	cfg.Models = cfg.Models[:1]
 	cfg.Models[0].MaxOutputTokens = 32
-	f := embeddedProductFixtureAs(t, cfg, "/compatible-mode/v1/embeddings", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	path := "/compatible-mode/v1/embeddings"
+	if protocol == "cache" {
+		cfg.Models[0].ID, cfg.Models[0].Provider = "deepseek/fixture", "deepseek"
+		path = "/chat/completions"
+	}
+	f := embeddedProductFixtureAs(t, cfg, path, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		if protocol == "cache" {
+			io.WriteString(w, `{"choices":[{"index":0,"message":{"role":"assistant","content":"synthetic cache response"},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5,"prompt_cache_hit_tokens":2,"prompt_cache_miss_tokens":1}}`)
+			return
+		}
 		io.WriteString(w, `{"object":"list","model":"fixture-model","data":[{"object":"embedding","index":0,"embedding":[0.1,-0.2]}],"usage":{"prompt_tokens":3,"total_tokens":3}}`)
 	}), actor)
 	store := control.NewWithCatalog(f.db, f.managed).WithProviderManager(f.source)
@@ -65,14 +79,18 @@ func TestEmbeddedConsoleBrowser(t *testing.T) {
 	defer cancel()
 	command := exec.CommandContext(ctx, "npm", "run", "test:e2e")
 	command.Dir = webDir
-	command.Env = append(os.Environ(), "AIGW_E2E_BASE_URL="+origin, "AIGW_E2E_AUTH_MODE=embedded", "AIGW_E2E_EMBEDDING_KEY="+f.key)
+	command.Env = append(os.Environ(), "AIGW_E2E_BASE_URL="+origin, "AIGW_E2E_AUTH_MODE=embedded", "AIGW_E2E_EMBEDDING_KEY="+f.key, "AIGW_E2E_EMBEDDED_PROTOCOL="+protocol)
 	output, err := command.CombinedOutput()
 	t.Log(string(output))
 	if err != nil {
 		t.Fatal("embedded browser failed")
 	}
+	wantProtocol, wantCost := "embeddings_v1", 6
+	if protocol == "cache" {
+		wantProtocol, wantCost = "deepseek_cache_v1", 11
+	}
 	var events, receipts int
-	if err := f.db.QueryRow(ctx, `SELECT (SELECT count(*) FROM engine_execution_bindings WHERE protocol='embeddings_v1'),(SELECT count(*) FROM engine_completion_receipts WHERE actual=6)`).Scan(&events, &receipts); err != nil || events != 1 || receipts != 1 || f.calls.Load() != 1 {
+	if err := f.db.QueryRow(ctx, `SELECT (SELECT count(*) FROM engine_execution_bindings WHERE protocol=$1),(SELECT count(*) FROM engine_completion_receipts WHERE actual=$2)`, wantProtocol, wantCost).Scan(&events, &receipts); err != nil || events != 1 || receipts != 1 || f.calls.Load() != 1 {
 		t.Fatal("browser did not exercise durable embedding", err)
 	}
 }

@@ -5,7 +5,7 @@ import "testing"
 func TestEmbeddingOriginalUsage(t *testing.T) {
 	for _, raw := range []string{`{"prompt_tokens":3,"total_tokens":3}`, `{ "total_tokens":3, "prompt_tokens":3,"completion_tokens":0 }`} {
 		got, err := ParseUsage("embeddings_v1", []byte(raw))
-		if err != nil || got != (Counters{3, 0, 3}) {
+		if err != nil || got != (Counters{Input: 3, Total: 3}) {
 			t.Fatal(got, err)
 		}
 	}

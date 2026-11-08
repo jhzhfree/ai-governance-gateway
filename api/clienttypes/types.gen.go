@@ -171,8 +171,9 @@ const (
 
 // Defines values for EmbeddedCompletionProtocol.
 const (
-	ChatV1       EmbeddedCompletionProtocol = "chat_v1"
-	EmbeddingsV1 EmbeddedCompletionProtocol = "embeddings_v1"
+	ChatV1          EmbeddedCompletionProtocol = "chat_v1"
+	DeepseekCacheV1 EmbeddedCompletionProtocol = "deepseek_cache_v1"
+	EmbeddingsV1    EmbeddedCompletionProtocol = "embeddings_v1"
 )
 
 // Defines values for EmbeddedCompletionState.
@@ -1117,23 +1118,26 @@ type CostReport struct {
 	To         string    `json:"to"`
 }
 
-// CostRow defines model for CostRow.
+// CostRow Cache quantities count only posted original embedded cache evidence; use cache_measured_requests to distinguish unmeasured rows. Existing CSV layout is unchanged and excludes these new cache columns.
 type CostRow struct {
-	Admitted        int64                  `json:"admitted"`
-	Currency        string                 `json:"currency"`
-	Day             string                 `json:"day"`
-	DepartmentPath  []Department           `json:"department_path"`
-	DepartmentState CostRowDepartmentState `json:"department_state"`
-	EstimatedAmount string                 `json:"estimated_amount"`
-	InputTokens     string                 `json:"input_tokens"`
-	Model           *string                `json:"model"`
-	OpenReserved    string                 `json:"open_reserved"`
-	OutputTokens    string                 `json:"output_tokens"`
-	ProjectId       string                 `json:"project_id"`
-	Provider        *string                `json:"provider"`
-	Released        int64                  `json:"released"`
-	SettledAmount   string                 `json:"settled_amount"`
-	UsageKnown      int64                  `json:"usage_known"`
+	Admitted              int64                  `json:"admitted"`
+	CacheMeasuredRequests int64                  `json:"cache_measured_requests"`
+	CacheReadTokens       string                 `json:"cache_read_tokens"`
+	Currency              string                 `json:"currency"`
+	Day                   string                 `json:"day"`
+	DepartmentPath        []Department           `json:"department_path"`
+	DepartmentState       CostRowDepartmentState `json:"department_state"`
+	EstimatedAmount       string                 `json:"estimated_amount"`
+	InputTokens           string                 `json:"input_tokens"`
+	Model                 *string                `json:"model"`
+	OpenReserved          string                 `json:"open_reserved"`
+	OutputTokens          string                 `json:"output_tokens"`
+	ProjectId             string                 `json:"project_id"`
+	Provider              *string                `json:"provider"`
+	Released              int64                  `json:"released"`
+	SettledAmount         string                 `json:"settled_amount"`
+	UncachedInputTokens   string                 `json:"uncached_input_tokens"`
+	UsageKnown            int64                  `json:"usage_known"`
 }
 
 // CostRowDepartmentState defines model for CostRow.DepartmentState.
@@ -1302,7 +1306,13 @@ type DeviceSessionPage struct {
 
 // EmbeddedCompletion Scoped single-process completion metadata. Recorded quantities are not a settlement receipt. Receipted usage is included in reports even when the client attempt remains unfinished/canceled. Never exposes raw usage, content, route digests or credentials. All amounts and rates use the parent request currency.
 type EmbeddedCompletion struct {
-	Actual           *int64                     `json:"actual"`
+	Actual *int64 `json:"actual"`
+
+	// CacheReadPerMillion Explicit DeepSeek cache contract only; null for flat tariffs or missing original quantities.
+	CacheReadPerMillion *int64 `json:"cache_read_per_million"`
+
+	// CacheReadTokens Explicit DeepSeek cache contract only; null for flat tariffs or missing original quantities.
+	CacheReadTokens  *int64                     `json:"cache_read_tokens"`
 	Engine           EmbeddedCompletionEngine   `json:"engine"`
 	InputPerMillion  int64                      `json:"input_per_million"`
 	InputTokens      *int64                     `json:"input_tokens"`
@@ -1312,6 +1322,9 @@ type EmbeddedCompletion struct {
 	ReceivedAt       *time.Time                 `json:"received_at"`
 	RecordedAt       *time.Time                 `json:"recorded_at"`
 	State            EmbeddedCompletionState    `json:"state"`
+
+	// UncachedInputTokens Explicit DeepSeek cache contract only; null for flat tariffs or missing original quantities.
+	UncachedInputTokens *int64 `json:"uncached_input_tokens"`
 }
 
 // EmbeddedCompletionEngine defines model for EmbeddedCompletion.Engine.

@@ -2781,6 +2781,7 @@ export interface components {
             data: components["schemas"]["LocalSecurityEvent"][];
             next_cursor: string;
         };
+        /** @description Cache quantities count only posted original embedded cache evidence; use cache_measured_requests to distinguish unmeasured rows. Existing CSV layout is unchanged and excludes these new cache columns. */
         CostRow: {
             day: string;
             project_id: string;
@@ -2801,6 +2802,10 @@ export interface components {
             /** @enum {string} */
             department_state: "historical" | "unassigned" | "assigned";
             department_path: components["schemas"]["Department"][];
+            /** Format: int64 */
+            cache_measured_requests: number;
+            cache_read_tokens: string;
+            uncached_input_tokens: string;
         };
         CostReport: {
             /** Format: date */
@@ -3515,7 +3520,7 @@ export interface components {
             /** @enum {string} */
             engine: "bifrost";
             /** @enum {string} */
-            protocol: "chat_v1" | "embeddings_v1";
+            protocol: "chat_v1" | "embeddings_v1" | "deepseek_cache_v1";
             /** @enum {string} */
             state: "awaiting_usage" | "recorded" | "receipted";
             /** Format: int64 */
@@ -3532,6 +3537,21 @@ export interface components {
             recorded_at: string | null;
             /** Format: date-time */
             received_at: string | null;
+            /**
+             * Format: int64
+             * @description Explicit DeepSeek cache contract only; null for flat tariffs or missing original quantities.
+             */
+            cache_read_per_million: number | null;
+            /**
+             * Format: int64
+             * @description Explicit DeepSeek cache contract only; null for flat tariffs or missing original quantities.
+             */
+            cache_read_tokens: number | null;
+            /**
+             * Format: int64
+             * @description Explicit DeepSeek cache contract only; null for flat tariffs or missing original quantities.
+             */
+            uncached_input_tokens: number | null;
         };
     };
     responses: never;

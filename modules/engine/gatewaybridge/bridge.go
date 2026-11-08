@@ -48,6 +48,9 @@ func (b *Binding) validateShape(route *provider.Route, req provider.Request) err
 	if b == nil || route == nil || !route.Ready() || route.PriceVersion() != b.price || route.ExecutionIdentity() != b.revision || req.Model != b.alias || !provider.ValidateRequest(req) || (req.IsEmbedding() != (route.API() == "embeddings")) || (!req.IsEmbedding() && req.MaxTokens < 16) || req.HasTools() || req.HasParts() {
 		return execution.ErrInvalidRequest
 	}
+	if route.UsesReadOnlyCache() && b.journal == nil {
+		return execution.ErrInvalidRequest
+	}
 	if req.IsEmbedding() && provider.ValidateEmbeddedEmbedding(route.Provider(), req) != nil {
 		return execution.ErrInvalidRequest
 	}
@@ -60,7 +63,7 @@ func (b *Binding) validateShape(route *provider.Route, req provider.Request) err
 func (b *Binding) SupportsPublicProtocol(route *provider.Route, req provider.Request, path string) bool {
 	// The public Responses subset is converted to the same physical Chat request
 	// and original chat_v1 evidence. Non-durable contract fixtures do not opt in.
-	return ((path == "/v1/responses" && !req.IsEmbedding()) || (path == "/v1/embeddings" && req.IsEmbedding())) && b != nil && b.journal != nil && b.validateShape(route, req) == nil
+	return ((path == "/v1/chat/completions" && route.UsesReadOnlyCache()) || (path == "/v1/responses" && !req.IsEmbedding()) || (path == "/v1/embeddings" && req.IsEmbedding())) && b != nil && b.journal != nil && b.validateShape(route, req) == nil
 }
 
 // Open adapts synchronous events to a bounded, unbuffered response body. Closing
@@ -120,15 +123,14 @@ func (b *Binding) Open(ctx context.Context, route *provider.Route, req provider.
 					return execution.ErrUpstream
 				}
 				usageSeen = true
+				var cache *completion.CacheCounts
 				if b.journal != nil {
-					protocol := "chat_v1"
-					if req.IsEmbedding() {
-						protocol = "embeddings_v1"
-					}
+					protocol := completion.Protocol(route)
 					c, err := completion.ParseUsage(protocol, u.Evidence)
 					if err != nil || !event.Completed || c.Input != int64(u.InputTokens) || c.Output != int64(u.OutputTokens) || c.Total != int64(u.TotalTokens) {
 						return execution.ErrUpstream
 					}
+					cache = c.Cache
 					// Persist already observed completion despite downstream cancellation.
 					// This synchronous, bounded operation never detaches a worker.
 					persist, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -138,9 +140,12 @@ func (b *Binding) Open(ctx context.Context, route *provider.Route, req provider.
 						return execution.ErrUpstream
 					}
 				}
-				projection := map[string]int{"prompt_tokens": u.InputTokens, "total_tokens": u.TotalTokens}
+				projection := map[string]any{"prompt_tokens": u.InputTokens, "total_tokens": u.TotalTokens}
 				if !req.IsEmbedding() {
 					projection["completion_tokens"] = u.OutputTokens
+				}
+				if cache != nil {
+					projection["prompt_tokens_details"] = map[string]int64{"cached_tokens": cache.Read}
 				}
 				raw, _ := json.Marshal(projection)
 				data["usage"] = raw

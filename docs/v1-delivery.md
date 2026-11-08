@@ -85,6 +85,15 @@
 - 完整根 `AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 AIGW_VERIFY_SDK=1 bash scripts/verify.sh` 退出 0（`/tmp/aigw-chat-json-full-verify.log`），覆盖固定 Go 1.27.3/Node 24.19.0、真实隔离数据库、race/vet/契约、冻结 Web 构建、23 项浏览器、备份恢复及两组 SDK。HTTP API 377.299 秒、旧 new-api 兼容 559.975 秒、嵌套桥接 147.981 秒；浏览器原套件 127.850 秒、嵌入页 8.853 秒，恢复 6.053 秒，SDK 8.531＋68.340 秒。唯一顶层 SKIP 仍为实际子进程使用的 helper。
 - 最终补充大小写拒绝后，只修改执行适配器并重新执行其完整模块、固定 SDK 与真实嵌入页面门禁，退出 0（`/tmp/aigw-chat-json-final-engine.log`）。精确上限和 TLS/目的地址专项也已通过（2.742 秒，并执行 vet）。最终引擎测试包含 66 个三协议治理场景与五个实际强杀恢复路径，正常原始用量字节已在数据库核对。根业务、数据库、前端源码未在补验期间改动。没有生产调用或正式 V1.0 发布。
 
+## DeepSeek 原始缓存命中计费（2026-11-08，本地验证通过）
+
+- 上一阶段已推送并核对 `6f05a9357a03ab2234f2f187b5c081417f87543d`，关联 [CI 42439959962](https://github.com/jhzhfree/ai-governance-gateway/actions/runs/42439959962)。本阶段开始时仍在运行，随后已确认后端/Web/SDK 与 Linux 候选包两个任务均 success。
+- 按 [ADR 0014](../modules/engine/docs/adr/0014-embedded-cache-read-pricing.md) 复用现有预算/金额算法，新增 DeepSeek Chat/Responses 的原始命中/未命中、冻结命中费率、0034 事件投影和恢复重验。缺计数保留未知费用；不伪造缓存写入量，不改旧 native/new-api 契约或既有 CSV 格式。升级要求排空旧恢复消费者，不混跑不识别新协议的旧版本。
+- 管理 API/Web/CLI 显示缓存证据；成本 API/页面新增只涵盖已回执原始计量的缓存覆盖与命中/未命中数量。未计量不显示为零命中。更新 Go/TS 契约、操作手册和技术规格；没有新增依赖或复制第三方源代码，来源与商业分发审核仍未完成。
+- 专项检查：计数解析/旧协议隔离/一次取整/不可变快照、0033→0034 升级回滚/旧账保留/漂移、投影损坏公平恢复和费用权限/报表通过。24 个新增 Chat/Responses 治理场景加两条缓存 SIGKILL 恢复合计 40.428 秒；随后强化强杀重启前修改当前费率的断言，纳入完整模块复验。首次报表测试误用既有阿里云账单 helper，修正实际 provider 为 DeepSeek，未放宽账单匹配规则，复验退出 0（completion 2.696 秒、HTTP 3.513 秒）。
+- 页面真实 PostgreSQL/OIDC/合成上游验证退出 0（18.164 秒）：两条实际发布/调用链，含原有 Embeddings 和新增 DeepSeek 缓存、请求证据与报表、axe 及窄屏；桌面/手机证据卡截图已人工查看。固定 OpenAI Python SDK 3.46.0 的 Chat/Responses JSON/SSE 四次调用与恰好四个回执通过（4.022 秒），缺失写入量未被投影补零。
+- 完整根 `AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 AIGW_VERIFY_SDK=1 bash scripts/verify.sh` 退出 0（`/tmp/aigw-cache-full-verify.log`，对应 status 文件为 0），固定 Go 1.27.3/Node 24.19.0、真实隔离 PostgreSQL、race/vet/契约、冻结 Web 构建、24 项浏览器、逻辑恢复和 SDK 均通过。数据库 155.527 秒、HTTP API 372.349 秒、旧 new-api 兼容 551.975 秒；适配器 21.415 秒、桥接 157.572 秒（90 个治理场景、七条实际强杀路径）。两组浏览器 18.259＋126.127 秒，恢复 5.323 秒，SDK 10.323＋69.467 秒。唯一顶层 SKIP 是实际子进程运行的 `TestNewAPIControlHelper`。引擎包级上限从 180→300 秒，因为前阶段实测最高 148 秒加新增专项约 40 秒；每场景及运行时限时不变。最终 Web 门禁验证了开启缓存计费默认取普通输入价的保守默认值和明确的单进程覆盖标签。
+
 以下为历史双进程分支记录，不是当前单进程产品状态。该历史控制面分支为 `feature/newapi-foundation-validation`，配套 new-api 数据面为 `feature/enterprise-governance-integration`。此前 `feature/v1.0-enterprise-gateway` 从主线 b4e4bc983f3058cd88ec0cc5ddcf0649d2014300 创建；下文保留其历史阶段证据。当前接入与部署约束以 [new-api 集成](new-api-integration.md) 的最新章节为准。
 
 ## 基线与原则

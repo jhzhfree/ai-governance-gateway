@@ -12,21 +12,24 @@ import (
 const MaxCostReportRows = 1000
 
 type CostRow struct {
-	DepartmentState string       `json:"department_state"`
-	DepartmentPath  []Department `json:"department_path"`
-	Day             string       `json:"day"`
-	ProjectID       string       `json:"project_id"`
-	Model           *string      `json:"model"`
-	Provider        *string      `json:"provider"`
-	Currency        string       `json:"currency"`
-	Admitted        int64        `json:"admitted"`
-	SettledAmount   string       `json:"settled_amount"`
-	EstimatedAmount string       `json:"estimated_amount"`
-	OpenReserved    string       `json:"open_reserved"`
-	Released        int64        `json:"released"`
-	UsageKnown      int64        `json:"usage_known"`
-	InputTokens     string       `json:"input_tokens"`
-	OutputTokens    string       `json:"output_tokens"`
+	CacheMeasuredRequests int64        `json:"cache_measured_requests"`
+	CacheReadTokens       string       `json:"cache_read_tokens"`
+	UncachedInputTokens   string       `json:"uncached_input_tokens"`
+	DepartmentState       string       `json:"department_state"`
+	DepartmentPath        []Department `json:"department_path"`
+	Day                   string       `json:"day"`
+	ProjectID             string       `json:"project_id"`
+	Model                 *string      `json:"model"`
+	Provider              *string      `json:"provider"`
+	Currency              string       `json:"currency"`
+	Admitted              int64        `json:"admitted"`
+	SettledAmount         string       `json:"settled_amount"`
+	EstimatedAmount       string       `json:"estimated_amount"`
+	OpenReserved          string       `json:"open_reserved"`
+	Released              int64        `json:"released"`
+	UsageKnown            int64        `json:"usage_known"`
+	InputTokens           string       `json:"input_tokens"`
+	OutputTokens          string       `json:"output_tokens"`
 }
 type CostReport struct {
 	From       string    `json:"from"`
@@ -74,7 +77,9 @@ func (s *Store) CostReportByDepartment(ctx context.Context, p identity.Principal
  COALESCE(sum(r.reserved) FILTER(WHERE r.state IN ('reserved','dispatched','uncertain')),0)::text,
  count(*) FILTER(WHERE r.state='released'),count(*) FILTER(WHERE `+accountedInput+` IS NOT NULL AND `+accountedOutput+` IS NOT NULL),
  COALESCE(sum(`+accountedInput+`) FILTER(WHERE `+accountedInput+` IS NOT NULL AND `+accountedOutput+` IS NOT NULL),0)::text,
- COALESCE(sum(`+accountedOutput+`) FILTER(WHERE `+accountedInput+` IS NOT NULL AND `+accountedOutput+` IS NOT NULL),0)::text
+ COALESCE(sum(`+accountedOutput+`) FILTER(WHERE `+accountedInput+` IS NOT NULL AND `+accountedOutput+` IS NOT NULL),0)::text,
+ count(*) FILTER(WHERE eu.cache_read_tokens IS NOT NULL),
+ COALESCE(sum(eu.cache_read_tokens),0)::text, COALESCE(sum(eu.uncached_input_tokens),0)::text
  FROM budget_reservations r LEFT JOIN inference_attempts a USING(request_id) LEFT JOIN request_department_attributions d USING(request_id) `+settledCompletionJoins+`
  WHERE r.organization_id=$1 AND ($2='' OR r.project_id=$2) AND r.created_at >= $3 AND r.created_at < $4
  AND ($5='' OR d.department_path @> jsonb_build_array(jsonb_build_object('id',$5::text)))
@@ -86,7 +91,7 @@ func (s *Store) CostReportByDepartment(ctx context.Context, p identity.Principal
 		for rows.Next() {
 			var item CostRow
 			var path []byte
-			if err := rows.Scan(&item.Day, &item.ProjectID, &item.Model, &item.Provider, &item.Currency, &item.DepartmentState, &path, &item.Admitted, &item.SettledAmount, &item.EstimatedAmount, &item.OpenReserved, &item.Released, &item.UsageKnown, &item.InputTokens, &item.OutputTokens); err != nil {
+			if err := rows.Scan(&item.Day, &item.ProjectID, &item.Model, &item.Provider, &item.Currency, &item.DepartmentState, &path, &item.Admitted, &item.SettledAmount, &item.EstimatedAmount, &item.OpenReserved, &item.Released, &item.UsageKnown, &item.InputTokens, &item.OutputTokens, &item.CacheMeasuredRequests, &item.CacheReadTokens, &item.UncachedInputTokens); err != nil {
 				rows.Close()
 				return err
 			}

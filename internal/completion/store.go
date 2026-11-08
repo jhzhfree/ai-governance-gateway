@@ -34,20 +34,21 @@ func (s *Store) Bind(ctx context.Context, route *provider.Route, req provider.Re
 	p := route.PriceSnapshot()
 	alias, upstream := route.ExecutionModel()
 	revision := RouteDigest(route)
-	if req.IsEmbedding() != (route.API() == "embeddings") || alias != req.Model || p.CachePricing != nil || route.GovernanceChannelID() != 0 {
+	if req.IsEmbedding() != (route.API() == "embeddings") || alias != req.Model || (p.CachePricing != nil && !route.UsesReadOnlyCache()) || route.GovernanceChannelID() != 0 {
 		return ErrInvalid
 	}
 	if _, err := route.Bound(req.MaxTokens); err != nil {
 		return ErrInvalid
 	}
-	protocol := "chat_v1"
-	if req.IsEmbedding() {
-		protocol = "embeddings_v1"
+	protocol := Protocol(route)
+	var cachePrice *int64
+	if route.UsesReadOnlyCache() {
+		cachePrice = &p.CachePricing.ReadPerMillion
 	}
-	r, err := s.pool.Exec(ctx, `INSERT INTO engine_execution_bindings(attempt_id,request_id,engine,protocol,model,upstream_model,supplier,route_digest,price_version,input_price,output_price,max_input,max_output,stream)
- SELECT a.attempt_id,a.request_id,'bifrost',$14,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12 FROM inference_attempts a JOIN budget_reservations r ON r.request_id=a.request_id
+	r, err := s.pool.Exec(ctx, `INSERT INTO engine_execution_bindings(attempt_id,request_id,engine,protocol,model,upstream_model,supplier,route_digest,price_version,input_price,output_price,max_input,max_output,stream,cache_read_price)
+ SELECT a.attempt_id,a.request_id,'bifrost',$14,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$15 FROM inference_attempts a JOIN budget_reservations r ON r.request_id=a.request_id
  WHERE a.attempt_id=$1 AND a.request_id=$2 AND a.model=$3 AND a.provider=$5 AND a.stream=$12 AND a.outcome='unfinished' AND r.state='dispatched' AND r.price_version=$7 AND r.currency=$13
- ON CONFLICT DO NOTHING`, attemptID, requestID, alias, upstream, route.Provider(), revision[:], p.PriceVersion, p.InputPerMillion, p.OutputPerMillion, p.MaxInputTokens, req.MaxTokens, req.Stream, provider.Currency, protocol)
+ ON CONFLICT DO NOTHING`, attemptID, requestID, alias, upstream, route.Provider(), revision[:], p.PriceVersion, p.InputPerMillion, p.OutputPerMillion, p.MaxInputTokens, req.MaxTokens, req.Stream, provider.Currency, protocol, cachePrice)
 	if err != nil {
 		return err
 	}
@@ -89,7 +90,11 @@ func (s *Store) Record(ctx context.Context, requestID, attemptID string, revisio
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
-		_, err = tx.Exec(ctx, `INSERT INTO engine_completion_events(attempt_id,raw_usage,usage_sha256,input_tokens,output_tokens) VALUES($1,$2,$3,$4,$5)`, attemptID, raw, sum[:], c.Input, c.Output)
+		var read, uncached *int64
+		if c.Cache != nil {
+			read, uncached = &c.Cache.Read, &c.Cache.Uncached
+		}
+		_, err = tx.Exec(ctx, `INSERT INTO engine_completion_events(attempt_id,raw_usage,usage_sha256,input_tokens,output_tokens,cache_read_tokens,uncached_input_tokens) VALUES($1,$2,$3,$4,$5,$6,$7)`, attemptID, raw, sum[:], c.Input, c.Output, read, uncached)
 		return err
 	})
 }
@@ -106,7 +111,8 @@ func (s *Store) apply(ctx context.Context, requestID, attemptID string, expected
 		var id, protocol string
 		var inPrice, outPrice, maxIn, maxOut, input, output int64
 		var raw, hash []byte
-		if err := tx.QueryRow(ctx, `SELECT b.request_id,b.input_price,b.output_price,b.max_input,b.max_output,e.raw_usage,e.usage_sha256,e.input_tokens,e.output_tokens,b.protocol FROM engine_execution_bindings b JOIN engine_completion_events e USING(attempt_id) WHERE b.attempt_id=$1 FOR UPDATE OF b`, attemptID).Scan(&id, &inPrice, &outPrice, &maxIn, &maxOut, &raw, &hash, &input, &output, &protocol); err != nil {
+		var cachePrice, read, uncached *int64
+		if err := tx.QueryRow(ctx, `SELECT b.request_id,b.input_price,b.output_price,b.max_input,b.max_output,e.raw_usage,e.usage_sha256,e.input_tokens,e.output_tokens,b.protocol,b.cache_read_price,e.cache_read_tokens,e.uncached_input_tokens FROM engine_execution_bindings b JOIN engine_completion_events e USING(attempt_id) WHERE b.attempt_id=$1 FOR UPDATE OF b`, attemptID).Scan(&id, &inPrice, &outPrice, &maxIn, &maxOut, &raw, &hash, &input, &output, &protocol, &cachePrice, &read, &uncached); err != nil {
 			return err
 		}
 		c, err := ParseUsage(protocol, raw)
@@ -114,7 +120,18 @@ func (s *Store) apply(ctx context.Context, requestID, attemptID string, expected
 		if err != nil || id != requestID || !bytes.Equal(sum[:], hash) || c.Input != input || c.Output != output || input > maxIn || output > maxOut {
 			return ErrInvalid
 		}
-		actual, err := provider.TokenCost(input, output, 0, 0, inPrice, outPrice, nil)
+		var cache *provider.CachePricing
+		var readCount int64
+		if c.Cache != nil {
+			if cachePrice == nil || read == nil || uncached == nil || *read != c.Cache.Read || *uncached != c.Cache.Uncached {
+				return ErrInvalid
+			}
+			cache = &provider.CachePricing{ReadPerMillion: *cachePrice}
+			readCount = *read
+		} else if cachePrice != nil || read != nil || uncached != nil {
+			return ErrInvalid
+		}
+		actual, err := provider.TokenCost(input, output, readCount, 0, inPrice, outPrice, cache)
 		if err != nil || (expected != nil && *expected != actual) {
 			return ErrInvalid
 		}
@@ -206,4 +223,15 @@ func (s *Store) Recover(ctx context.Context, before time.Time) (int, error) {
 		}
 	}
 	return n, failure
+}
+
+// Protocol is chosen from the immutable server route, never client parameters.
+func Protocol(route *provider.Route) string {
+	if route.API() == "embeddings" {
+		return "embeddings_v1"
+	}
+	if route.UsesReadOnlyCache() {
+		return "deepseek_cache_v1"
+	}
+	return "chat_v1"
 }

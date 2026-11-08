@@ -51,3 +51,9 @@ func (r *Route) TariffVersion() int {
 }
 
 func (r *Route) AllowsMessagesStream() bool { return r.model.AllowMessagesStream }
+
+// UsesReadOnlyCache selects the reviewed DeepSeek hit/miss evidence contract.
+// It never changes the legacy new-api contract requiring explicit read/write counts.
+func (r *Route) UsesReadOnlyCache() bool {
+	return r != nil && r.embedded && r.model.Provider == "deepseek" && r.model.CachePricing != nil && r.model.API == ""
+}

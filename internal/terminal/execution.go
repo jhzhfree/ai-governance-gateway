@@ -82,7 +82,11 @@ func completionRows(record types.RequestRecord) [][]string {
 	if e.Protocol == types.EmbeddingsV1 {
 		protocol = "文本向量 · 仅输入计费"
 	}
-	return [][]string{{"供应商完成证据", state}, {"计量协议", protocol}, {"记录输入 / 输出 Token", tokensText(e.InputTokens) + " / " + tokensText(e.OutputTokens)}, {"冻结输入 / 输出费率（原始单位/百万 Token）", fmt.Sprintf("%d / %d", e.InputPerMillion, e.OutputPerMillion)}, {"回执金额", amount}, {"证据说明", "结算回执不代表客户端成功，也不改变原执行或审计结果"}}
+	rows := [][]string{{"供应商完成证据", state}, {"计量协议", protocol}, {"记录输入 / 输出 Token", tokensText(e.InputTokens) + " / " + tokensText(e.OutputTokens)}, {"冻结输入 / 输出费率（原始单位/百万 Token）", fmt.Sprintf("%d / %d", e.InputPerMillion, e.OutputPerMillion)}, {"回执金额", amount}, {"证据说明", "结算回执不代表客户端成功，也不改变原执行或审计结果"}}
+	if e.Protocol == types.DeepseekCacheV1 {
+		rows = append(rows, []string{"缓存命中 / 未命中 Token", tokensText(e.CacheReadTokens) + " / " + tokensText(e.UncachedInputTokens)}, []string{"冻结缓存命中费率（原始单位/百万 Token）", tokensText(e.CacheReadPerMillion)})
+	}
+	return rows
 }
 func attemptLines(record types.RequestRecord) []string {
 	lines := []string{}

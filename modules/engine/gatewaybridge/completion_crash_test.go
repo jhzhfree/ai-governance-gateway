@@ -21,7 +21,7 @@ func TestCompletedEvidenceSurvivesKilledSettlementProcess(t *testing.T) {
 	for _, scenario := range []struct {
 		protocol string
 		stream   bool
-	}{{"chat", false}, {"chat", true}, {"responses", false}, {"responses", true}, {"embeddings", false}} {
+	}{{"chat", false}, {"chat", true}, {"responses", false}, {"responses", true}, {"embeddings", false}, {"cache", false}, {"cache", true}} {
 		stream := scenario.stream
 		t.Run(fmt.Sprintf("%s_stream_%t", scenario.protocol, stream), func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -34,6 +34,12 @@ func TestCompletedEvidenceSurvivesKilledSettlementProcess(t *testing.T) {
 			model := "deepseek/fixture"
 			path := "/chat/completions"
 			wantCost := int64(14)
+			usage := `{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}`
+			if scenario.protocol == "cache" {
+				cfg.Models[0].CachePricing = &provider.CachePricing{ReadPerMillion: 500000}
+				usage = `{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5,"prompt_cache_hit_tokens":2,"prompt_cache_miss_tokens":1}`
+				wantCost = 11
+			}
 			if scenario.protocol == "embeddings" {
 				cfg = testutil.MainlandConfig()
 				cfg.Models = cfg.Models[:1]
@@ -77,10 +83,10 @@ func TestCompletedEvidenceSurvivesKilledSettlementProcess(t *testing.T) {
 				}
 				if stream {
 					w.Header().Set("Content-Type", "text/event-stream")
-					fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"synthetic\"},\"finish_reason\":null}]}\n\ndata: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: {\"choices\":[],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":2,\"total_tokens\":5}}\n\ndata: [DONE]\n\n")
+					fmt.Fprintf(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"synthetic\"},\"finish_reason\":null}]}\n\ndata: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: {\"choices\":[],\"usage\":%s}\n\ndata: [DONE]\n\n", usage)
 				} else {
 					w.Header().Set("Content-Type", "application/json")
-					fmt.Fprint(w, `{"choices":[{"index":0,"message":{"role":"assistant","content":"synthetic"},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}}`)
+					fmt.Fprintf(w, `{"choices":[{"index":0,"message":{"role":"assistant","content":"synthetic"},"finish_reason":"stop"}],"usage":%s}`, usage)
 				}
 			}))
 			t.Cleanup(upstream.Close)
@@ -168,6 +174,14 @@ func TestCompletedEvidenceSurvivesKilledSettlementProcess(t *testing.T) {
 			}
 			if _, err := db.Exec(ctx, `DROP TRIGGER hold_receipt ON engine_completion_receipts; DROP FUNCTION hold_completion_receipt()`); err != nil {
 				t.Fatal(err)
+			}
+			if scenario.protocol == "cache" {
+				// A new process sees the current route, but recovery must use the old tariff.
+				cfg.Models[0].CachePricing.ReadPerMillion = 1900000
+				cfg.Models[0].PriceVersion = "changed-after-crash"
+				if err := source.Publish(ctx, actor, 1, cfg); err != nil {
+					t.Fatal(err)
+				}
 			}
 			restarted := startClusterNode(t, ctx, schema, upstream.URL)
 			for {

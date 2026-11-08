@@ -32,8 +32,12 @@ export function CompletionEvidence({
           <h4>供应商完成证据</h4>
           <p>
             单进程执行 ·{' '}
-            {evidence.protocol === 'embeddings_v1' ? '文本向量 · 仅输入计费' : '上游 Chat 计量'} ·
-            沿用派发价格快照
+            {evidence.protocol === 'embeddings_v1'
+              ? '文本向量 · 仅输入计费'
+              : evidence.protocol === 'deepseek_cache_v1'
+                ? 'DeepSeek · 缓存命中计费'
+                : '上游 Chat 计量'}{' '}
+            · 沿用派发价格快照
           </p>
         </div>
         <Tag theme={evidence.state === 'receipted' ? 'success' : 'warning'} variant="light">
@@ -51,6 +55,21 @@ export function CompletionEvidence({
           {budgetAmount(evidence.input_per_million, currency)} /{' '}
           {budgetAmount(evidence.output_per_million, currency)} {unit} / 百万 Token
         </dd>
+        {evidence.protocol === 'deepseek_cache_v1' && (
+          <>
+            <dt>缓存命中 / 未命中 Token</dt>
+            <dd>
+              {tokens(evidence.cache_read_tokens)} / {tokens(evidence.uncached_input_tokens)}
+            </dd>
+            <dt>冻结缓存命中单价</dt>
+            <dd>
+              {evidence.cache_read_per_million === null
+                ? '未取得'
+                : budgetAmount(evidence.cache_read_per_million, currency)}{' '}
+              {unit} / 百万 Token
+            </dd>
+          </>
+        )}
         <dt>回执金额</dt>
         <dd>
           {evidence.actual === null

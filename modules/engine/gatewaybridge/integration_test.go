@@ -29,11 +29,11 @@ import (
 
 func TestGovernedPooledBifrostExecution(t *testing.T) {
 	for _, protocol := range []string{"chat", "responses", "embeddings"} {
-		t.Run(protocol, func(t *testing.T) { governedPooledExecution(t, protocol) })
+		t.Run(protocol, func(t *testing.T) { governedPooledExecution(t, protocol, false) })
 	}
 }
 
-func governedPooledExecution(t *testing.T, protocol string) {
+func governedPooledExecution(t *testing.T, protocol string, cached bool) {
 	modes := []string{"json", "stream", "binding failure", "completion persistence failure", "receipt failure", "completed then cancel", "json without finish", "missing usage", "duplicate usage", "upstream failure", "revoked key", "budget denial", "device denial", "audit unavailable", "small limit", "unauthorized model", "model permission removed", "malformed stream", "oversized stream", "usage then disconnect"}
 	if protocol == "responses" {
 		modes = append(modes, "no journal", "no settlement store", "stored responses", "responses tools")
@@ -42,7 +42,18 @@ func governedPooledExecution(t *testing.T, protocol string) {
 		modes = []string{"json", "binding failure", "completion persistence failure", "receipt failure", "completed then cancel", "missing usage", "duplicate usage", "upstream failure", "revoked key", "budget denial", "device denial", "audit unavailable", "unauthorized model", "model permission removed", "no journal", "no settlement store"}
 	}
 	modes = append(modes, "oversized json", "wrong media")
+	routeModel := "aliyun/fixture"
+	originalUsage := `{ "prompt_tokens":3, "completion_tokens":2, "total_tokens":5 }`
 	wantCost := int64(14)
+	if cached {
+		routeModel = "deepseek/fixture"
+		wantCost = 11
+		originalUsage = `{ "prompt_tokens":3, "completion_tokens":2, "total_tokens":5, "prompt_cache_hit_tokens":2, "prompt_cache_miss_tokens":1 }`
+		modes = []string{"json", "stream", "missing cache", "cache mismatch", "binding failure", "completion persistence failure", "receipt failure", "completed then cancel", "missing usage", "duplicate usage", "usage then disconnect", "budget denial", "revoked key", "device denial", "audit unavailable", "model permission removed", "no journal", "no settlement store"}
+		if protocol == "responses" {
+			modes = []string{"json", "stream", "missing cache", "receipt failure", "no journal", "no settlement store"}
+		}
+	}
 	replyText := "synthetic reply"
 	if protocol == "embeddings" {
 		wantCost = 6
@@ -65,16 +76,24 @@ func governedPooledExecution(t *testing.T, protocol string) {
 				cfg.Models[0].OutputPerMillion = 0
 				newCatalog = provider.NewEmbedded
 			}
+			if cached {
+				cfg.Models = cfg.Models[3:]
+				cfg.Models[0].CachePricing = &provider.CachePricing{ReadPerMillion: 500000}
+				newCatalog = provider.NewEmbedded
+			}
 			catalog, err := newCatalog(cfg, func(string) string { return "synthetic-route-key" }, &http.Client{Transport: forbiddenTransport{t}})
 			if err != nil {
 				t.Fatal(err)
 			}
-			route, _ := catalog.Find("aliyun/fixture")
+			route, _ := catalog.Find(routeModel)
 			var calls atomic.Int32
 			var cancelRequest context.CancelFunc
 			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calls.Add(1)
 				wantPath := "/compatible-mode/v1/chat/completions"
+				if cached {
+					wantPath = "/chat/completions"
+				}
 				if protocol == "embeddings" {
 					wantPath = "/compatible-mode/v1/embeddings"
 				}
@@ -111,7 +130,13 @@ func governedPooledExecution(t *testing.T, protocol string) {
 					fmt.Fprintf(w, `{"object":"list","model":"fixture-model","data":[{"object":"embedding","index":0,"embedding":[0.1,-0.2]}]%s}`, usage)
 					return
 				}
-				usage := `,"usage":{ "prompt_tokens":3, "completion_tokens":2, "total_tokens":5 }`
+				usage := `,"usage":` + originalUsage
+				if mode == "missing cache" {
+					usage = strings.ReplaceAll(usage, `, "prompt_cache_hit_tokens":2, "prompt_cache_miss_tokens":1`, "")
+				}
+				if mode == "cache mismatch" {
+					usage = strings.ReplaceAll(usage, `"prompt_cache_miss_tokens":1`, `"prompt_cache_miss_tokens":2`)
+				}
 				if mode == "missing usage" {
 					usage = ""
 				}
@@ -183,10 +208,10 @@ func governedPooledExecution(t *testing.T, protocol string) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := store.SetModels(ctx, actor, org.ID, project.ID, []string{"aliyun/fixture"}); err != nil {
+			if err := store.SetModels(ctx, actor, org.ID, project.ID, []string{routeModel}); err != nil {
 				t.Fatal(err)
 			}
-			key, err := store.CreateKey(ctx, actor, org.ID, project.ID, "fixture", []string{"aliyun/fixture"}, time.Hour)
+			key, err := store.CreateKey(ctx, actor, org.ID, project.ID, "fixture", []string{routeModel}, time.Hour)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -218,7 +243,7 @@ func governedPooledExecution(t *testing.T, protocol string) {
 			if mode == "small limit" {
 				maxTokens = 8
 			}
-			model := "aliyun/fixture"
+			model := routeModel
 			if mode == "unauthorized model" {
 				model = "zhipu/fixture"
 			}
@@ -263,7 +288,7 @@ func governedPooledExecution(t *testing.T, protocol string) {
 			}
 			id := w.Header().Get("X-Request-ID")
 			successful := mode == "json" || mode == "stream"
-			dispatched := mode == "oversized json" || mode == "wrong media" || successful || mode == "json without finish" || mode == "missing usage" || mode == "duplicate usage" || mode == "upstream failure" || mode == "malformed stream" || mode == "oversized stream" || mode == "usage then disconnect"
+			dispatched := mode == "missing cache" || mode == "cache mismatch" || mode == "oversized json" || mode == "wrong media" || successful || mode == "json without finish" || mode == "missing usage" || mode == "duplicate usage" || mode == "upstream failure" || mode == "malformed stream" || mode == "oversized stream" || mode == "usage then disconnect"
 			if dispatched || mode == "binding failure" || mode == "completion persistence failure" || mode == "receipt failure" || mode == "completed then cancel" {
 				wantCalls := int32(1)
 				if mode == "binding failure" {
@@ -297,7 +322,7 @@ func governedPooledExecution(t *testing.T, protocol string) {
 					t.Fatal("completion evidence/receipt mismatch")
 				}
 				if successful {
-					wantRaw := `{ "prompt_tokens":3, "completion_tokens":2, "total_tokens":5 }`
+					wantRaw := originalUsage
 					if protocol == "embeddings" {
 						wantRaw = `{ "prompt_tokens":3, "total_tokens":3 }`
 					}
@@ -411,4 +436,10 @@ func (e terminalCancelExecutor) Execute(ctx context.Context, r execution.Request
 		}
 		return emit(c, event)
 	})
+}
+
+func TestGovernedDeepSeekCacheExecution(t *testing.T) {
+	for _, protocol := range []string{"chat", "responses"} {
+		t.Run(protocol, func(t *testing.T) { governedPooledExecution(t, protocol, true) })
+	}
 }

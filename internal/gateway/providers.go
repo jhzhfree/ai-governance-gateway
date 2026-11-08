@@ -28,6 +28,10 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 		problem(w, 400, "unsupported_request", id)
 		return
 	}
+	if route.UsesReadOnlyCache() && !h.supportsPublicProtocol(route, req, r.URL.Path) {
+		problem(w, 400, "cache_requires_durable_execution", id)
+		return
+	}
 	if r.URL.Path == "/v1/responses" && !h.supportsPublicProtocol(route, req, r.URL.Path) {
 		problem(w, 400, "responses_requires_governed_execution", id)
 		return

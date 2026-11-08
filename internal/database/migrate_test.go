@@ -56,7 +56,7 @@ func TestFreshSchemaAndReadOnlyStatus(t *testing.T) {
 	pool := testutil.EmptyDatabase(t)
 	ctx := context.Background()
 	initial := status(t, pool)
-	if initial.Managed || initial.Ready || initial.CurrentVersion != 0 || len(initial.Pending) != 33 {
+	if initial.Managed || initial.Ready || initial.CurrentVersion != 0 || len(initial.Pending) != 34 {
 		t.Fatal("unexpected unmanaged status")
 	}
 	if relation(t, pool, "aigw_schema_migrations") {
@@ -69,7 +69,7 @@ func TestFreshSchemaAndReadOnlyStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := status(t, pool)
-	if !before.Ready || before.CurrentVersion != 33 || len(before.Applied) != 33 {
+	if !before.Ready || before.CurrentVersion != 34 || len(before.Applied) != 34 {
 		t.Fatal("fresh migration incomplete")
 	}
 	for _, a := range before.Applied {
@@ -203,7 +203,7 @@ func TestConcurrentMigrationsRunExactlyOnce(t *testing.T) {
 	close(start)
 	wg.Wait()
 	r := status(t, pool)
-	if len(r.Applied) != 33 || !r.Ready {
+	if len(r.Applied) != 34 || !r.Ready {
 		t.Fatal("concurrent migration history invalid")
 	}
 }
@@ -1203,7 +1203,7 @@ func TestEmbeddedEmbeddingsUpgradePreservesReceiptsAndRollsBack(t *testing.T) {
 	testutil.SeedEmbeddedCompletion(t, pool, scope, "before-embedding", "receipted")
 	testutil.RevertEmbeddedEmbeddingsMigration(t, pool)
 	before := status(t, pool)
-	if before.CurrentVersion != 32 || before.Ready || len(before.Pending) != 1 {
+	if before.CurrentVersion != 32 || before.Ready || len(before.Pending) != 2 {
 		t.Fatal("released schema not detected")
 	}
 	execSQL(t, pool, `ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v33 CHECK(version<>33)`)
@@ -1234,5 +1234,47 @@ func TestEmbeddedEmbeddingsUpgradePreservesReceiptsAndRollsBack(t *testing.T) {
 	execSQL(t, pool, `ALTER TABLE engine_execution_bindings DROP CONSTRAINT engine_execution_bindings_protocol_limits`)
 	if err := database.Check(ctx, pool); err == nil {
 		t.Fatal("protocol constraint drift accepted")
+	}
+}
+
+func TestEmbeddedCacheUpgradeRollbackAndReadiness(t *testing.T) {
+	pool, ledger, scope := testutil.Database(t)
+	ctx := context.Background()
+	scope.Currency = "CNY_MICRO"
+	testutil.Accounts(t, ledger, scope, 10000, 10000)
+	testutil.SeedEmbeddedCompletion(t, pool, scope, "before-cache-chat", "receipted")
+	testutil.SeedEmbeddedEmbeddingCompletion(t, pool, scope, "before-cache-embedding", "receipted")
+	testutil.RevertEmbeddedCacheMigration(t, pool)
+	before := status(t, pool)
+	if before.CurrentVersion != 33 || before.Ready || len(before.Pending) != 1 {
+		t.Fatal("v33 not detected")
+	}
+	execSQL(t, pool, `ALTER TABLE aigw_schema_migrations ADD CONSTRAINT reject_v34 CHECK(version<>34)`)
+	if err := database.Migrate(ctx, pool); err == nil {
+		t.Fatal("failed migration accepted")
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM pg_attribute WHERE attrelid='engine_execution_bindings'::regclass AND attname='cache_read_price' AND NOT attisdropped`).Scan(&count); err != nil || count != 0 {
+		t.Fatal("partial upgrade committed", err)
+	}
+	execSQL(t, pool, `ALTER TABLE aigw_schema_migrations DROP CONSTRAINT reject_v34`)
+	for range 2 {
+		if err := database.Migrate(ctx, pool); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := database.Check(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	for id, amount := range map[string]int64{"before-cache-chat": 14, "before-cache-embedding": 6} {
+		r, err := ledger.Get(ctx, id)
+		if err != nil || r.Actual == nil || *r.Actual != amount || r.State != "settled" {
+			t.Fatal("historical receipt changed", err)
+		}
+	}
+	testutil.SeedEmbeddedCacheCompletion(t, pool, scope, "after-cache-upgrade", "receipted")
+	execSQL(t, pool, `ALTER TABLE engine_completion_events DROP CONSTRAINT engine_completion_events_cache_counts`)
+	if err := database.Check(ctx, pool); err == nil {
+		t.Fatal("cache constraint drift accepted")
 	}
 }

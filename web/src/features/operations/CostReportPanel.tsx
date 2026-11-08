@@ -182,7 +182,8 @@ export function CostReportPanel({
             部门按入账时路径快照展示，后续移动/重命名不改旧账；历史未记录与入账时未分配分别统计。部门
             ID 包含当时的下级项目，不扩大当前项目访问权限。 已结算、估算终结和开放占额分列。缺少完整
             usage 的请求不计入已知 token
-            合计；未知归属表示未留下执行记录。鉴权或预算拒绝且未占额的请求不在本报表中。
+            合计；未知归属表示未留下执行记录。鉴权或预算拒绝且未占额的请求不在本报表中。缓存列仅覆盖单进程执行已结算的原始命中/未命中证据，未计量不代表零命中；现有
+            CSV 保持原列结构，缓存明细请查页面或 API。
           </p>
           <div className="table-scroll" role="region" aria-label="成本明细表" tabIndex={0}>
             <table>
@@ -202,6 +203,8 @@ export function CostReportPanel({
                     '已知用量覆盖',
                     '已知输入 token',
                     '已知输出 token',
+                    '单进程缓存计量覆盖',
+                    '缓存命中 / 未命中 token',
                   ].map((label) => (
                     <th key={label}>{label}</th>
                   ))}
@@ -233,6 +236,14 @@ export function CostReportPanel({
                     </td>
                     <td>{row.usage_known === 0 ? '未知' : row.input_tokens}</td>
                     <td>{row.usage_known === 0 ? '未知' : row.output_tokens}</td>
+                    <td>
+                      {row.cache_measured_requests} / {row.admitted}
+                    </td>
+                    <td>
+                      {row.cache_measured_requests === 0
+                        ? '未计量'
+                        : `${row.cache_read_tokens} / ${row.uncached_input_tokens}`}
+                    </td>
                   </tr>
                 ))}
               </tbody>

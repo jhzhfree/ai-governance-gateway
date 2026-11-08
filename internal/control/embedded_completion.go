@@ -5,16 +5,19 @@ import "time"
 // EmbeddedCompletion is scoped accounting metadata, never raw supplier payloads.
 // A receipt confirms posting, not client delivery or content-audit completeness.
 type EmbeddedCompletion struct {
-	Engine           string     `json:"engine"`
-	Protocol         string     `json:"protocol"`
-	State            string     `json:"state"`
-	InputPerMillion  int64      `json:"input_per_million"`
-	OutputPerMillion int64      `json:"output_per_million"`
-	InputTokens      *int64     `json:"input_tokens"`
-	OutputTokens     *int64     `json:"output_tokens"`
-	Actual           *int64     `json:"actual"`
-	RecordedAt       *time.Time `json:"recorded_at"`
-	ReceivedAt       *time.Time `json:"received_at"`
+	CacheReadPerMillion *int64     `json:"cache_read_per_million"`
+	CacheReadTokens     *int64     `json:"cache_read_tokens"`
+	UncachedInputTokens *int64     `json:"uncached_input_tokens"`
+	Engine              string     `json:"engine"`
+	Protocol            string     `json:"protocol"`
+	State               string     `json:"state"`
+	InputPerMillion     int64      `json:"input_per_million"`
+	OutputPerMillion    int64      `json:"output_per_million"`
+	InputTokens         *int64     `json:"input_tokens"`
+	OutputTokens        *int64     `json:"output_tokens"`
+	Actual              *int64     `json:"actual"`
+	RecordedAt          *time.Time `json:"recorded_at"`
+	ReceivedAt          *time.Time `json:"received_at"`
 }
 
 // Prefer posted original quantities after recovery, retaining the pre-existing

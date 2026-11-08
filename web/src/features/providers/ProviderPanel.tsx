@@ -8,6 +8,7 @@ import {
   type NewAPIChannel,
 } from '../../api';
 import { ErrorBox } from '../../shared/Feedback';
+import { EmbeddedCachePricing } from './EmbeddedCachePricing';
 import { NewAPIProviderPanel } from './NewAPIProviderPanel';
 
 const names: Record<string, string> = {
@@ -126,6 +127,12 @@ export function ProviderPanel({ identity, csrf }: { identity: string[]; csrf: st
                           </td>
                           <td>
                             {model.input_per_million} / {model.output_per_million}
+                            {model.cache_pricing && (
+                              <>
+                                <br />
+                                缓存命中 {model.cache_pricing.read_per_million}
+                              </>
+                            )}
                           </td>
                           <td>
                             {model.max_input_tokens} / {model.max_output_tokens}
@@ -227,7 +234,17 @@ export function ProviderEditor({
   const changeModel = (index: number, field: string, value: string | number) => {
     setDraft((old) => ({
       ...old,
-      models: old.models.map((model, i) => (i === index ? { ...model, [field]: value } : model)),
+      models: old.models.map((model, i) =>
+        i === index
+          ? {
+              ...model,
+              [field]: value,
+              ...(embedded && field === 'provider' && value !== 'deepseek'
+                ? { cache_pricing: undefined }
+                : {}),
+            }
+          : model,
+      ),
     }));
   };
   const save = async (event: FormEvent) => {
@@ -555,6 +572,20 @@ export function ProviderEditor({
                   </>
                 )}
               </>
+            )}
+            {embedded && model.provider === 'deepseek' && !model.api && (
+              <EmbeddedCachePricing
+                value={model.cache_pricing}
+                inputPrice={model.input_per_million}
+                onChange={(value) =>
+                  setDraft((old) => ({
+                    ...old,
+                    models: old.models.map((m, i) =>
+                      i === index ? { ...m, cache_pricing: value } : m,
+                    ),
+                  }))
+                }
+              />
             )}
             <label>
               价格版本

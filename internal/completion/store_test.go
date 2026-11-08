@@ -179,3 +179,35 @@ func TestReceiptRecoveryIsAtomicBoundAndIdempotent(t *testing.T) {
 		t.Fatal("tampered evidence settled")
 	}
 }
+
+func TestCacheRecoveryRevalidatesOriginalProjection(t *testing.T) {
+	db, ledger, scope := testutil.Database(t)
+	ctx := context.Background()
+	scope.Currency = provider.Currency
+	testutil.Accounts(t, ledger, scope, 10000, 10000)
+	testutil.SeedEmbeddedCacheCompletion(t, db, scope, "cache-damaged", "recorded")
+	testutil.SeedEmbeddedCacheCompletion(t, db, scope, "cache-healthy", "recorded")
+	if _, err := db.Exec(ctx, `UPDATE engine_completion_events SET cache_read_tokens=1,uncached_input_tokens=2 WHERE attempt_id='attempt-cache-damaged'`); err != nil {
+		t.Fatal(err)
+	}
+	journal := completion.New(db)
+	if n, err := journal.Recover(ctx, time.Now().Add(time.Minute)); n != 1 || err == nil {
+		t.Fatal("corrupted projection charged or blocked healthy item", n, err)
+	}
+	r, err := ledger.Get(ctx, "cache-damaged")
+	if err != nil || r.State != "uncertain" || r.Actual != nil {
+		t.Fatal("corrupted evidence released unknown hold")
+	}
+	if _, err := db.Exec(ctx, `UPDATE engine_completion_events SET cache_read_tokens=2,uncached_input_tokens=1 WHERE attempt_id='attempt-cache-damaged'`); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := journal.Recover(ctx, time.Now().Add(time.Minute)); n != 1 || err != nil {
+		t.Fatal("valid original evidence not recovered", n, err)
+	}
+	if err := journal.Settle(ctx, "cache-damaged", "attempt-cache-damaged", 14); err == nil {
+		t.Fatal("flat amount replaced immutable discount")
+	}
+	if err := journal.Settle(ctx, "cache-damaged", "attempt-cache-damaged", 11); err != nil {
+		t.Fatal("cache receipt not idempotent", err)
+	}
+}

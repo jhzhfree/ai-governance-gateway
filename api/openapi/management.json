@@ -15912,7 +15912,10 @@
           "released",
           "usage_known",
           "department_state",
-          "department_path"
+          "department_path",
+          "cache_measured_requests",
+          "cache_read_tokens",
+          "uncached_input_tokens"
         ],
         "properties": {
           "day": {
@@ -15981,8 +15984,22 @@
             "items": {
               "$ref": "#/components/schemas/Department"
             }
+          },
+          "cache_measured_requests": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "cache_read_tokens": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "uncached_input_tokens": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
           }
-        }
+        },
+        "description": "Cache quantities count only posted original embedded cache evidence; use cache_measured_requests to distinguish unmeasured rows. Existing CSV layout is unchanged and excludes these new cache columns."
       },
       "CostReport": {
         "type": "object",
@@ -18878,7 +18895,10 @@
           "output_tokens",
           "actual",
           "recorded_at",
-          "received_at"
+          "received_at",
+          "cache_read_per_million",
+          "cache_read_tokens",
+          "uncached_input_tokens"
         ],
         "properties": {
           "engine": {
@@ -18891,7 +18911,8 @@
             "type": "string",
             "enum": [
               "chat_v1",
-              "embeddings_v1"
+              "embeddings_v1",
+              "deepseek_cache_v1"
             ]
           },
           "state": {
@@ -18944,6 +18965,30 @@
             "type": "string",
             "format": "date-time",
             "nullable": true
+          },
+          "cache_read_per_million": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "nullable": true,
+            "description": "Explicit DeepSeek cache contract only; null for flat tariffs or missing original quantities."
+          },
+          "cache_read_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "nullable": true,
+            "description": "Explicit DeepSeek cache contract only; null for flat tariffs or missing original quantities."
+          },
+          "uncached_input_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "nullable": true,
+            "description": "Explicit DeepSeek cache contract only; null for flat tariffs or missing original quantities."
           }
         }
       }

@@ -82,6 +82,6 @@ fi
 
 # Optional pinned SDK contract gate shares the same isolated database lifecycle.
 if [[ "${AIGW_VERIFY_SDK:-0}" == 1 ]]; then
-  "$go_bin" -C modules/engine test -mod=readonly -race -tags=sdk_e2e -run '^TestEmbedded(Responses|Embeddings)PythonSDK$' -count=1 -timeout=120s -v ./gatewaybridge
+  "$go_bin" -C modules/engine test -mod=readonly -race -tags=sdk_e2e -run '^TestEmbedded(Responses|Embeddings|Cache)PythonSDK$' -count=1 -timeout=120s -v ./gatewaybridge
   "$go_bin" test -mod=readonly -race -tags=sdk_e2e -run '^Test(Responses|Messages)' -count=1 -timeout=120s -v ./internal/httpapi
 fi

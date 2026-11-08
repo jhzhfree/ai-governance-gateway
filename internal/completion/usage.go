@@ -9,7 +9,13 @@ import (
 )
 
 // Counters is the validated quantity projection of an original usage object.
-type Counters struct{ Input, Output, Total int64 }
+type Counters struct {
+	Input, Output, Total int64
+	Cache                *CacheCounts
+}
+
+// CacheCounts contains only categories explicitly reported by this protocol.
+type CacheCounts struct{ Read, Uncached int64 }
 
 // ChatUsage rejects duplicate keys, arbitrary nested content and non-integers.
 // Optional provider details are retained exactly, but do not imply a cache tariff.

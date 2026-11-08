@@ -1,6 +1,6 @@
 # 产品技术规格
 
-> 单进程分支提示（2026-11-08）：`feature/v1-single-process-commercial` 现在以进程内 Bifrost 为产品入口，并已开始提供对应候选安装包；下文四协议和双进程能力仍是旧分支基线，不等于新引擎已全部迁移。新引擎已接入受控文本 Chat、无状态文本 Responses JSON/SSE 和仅输入计费的文本 Embeddings JSON；Messages、工具和多模态仍在迁移。当前启动与安装以 [单进程入口](../engine-entrypoint.md)、[Linux 候选包](../linux-package.md) 和 [交付跟踪](../v1-delivery.md) 为准。
+> 单进程分支提示（2026-11-08）：`feature/v1-single-process-commercial` 现在以进程内 Bifrost 为产品入口，并已开始提供对应候选安装包；下文四协议和双进程能力仍是旧分支基线，不等于新引擎已全部迁移。新引擎已接入受控文本 Chat、无状态文本 Responses JSON/SSE 和仅输入计费的文本 Embeddings JSON；DeepSeek 文本 Chat/Responses 支持原始命中/未命中分项与冻结费率恢复（schema 0034）；Messages、工具和多模态仍在迁移。当前启动与安装以 [单进程入口](../engine-entrypoint.md)、[Linux 候选包](../linux-package.md) 和 [交付跟踪](../v1-delivery.md) 为准。
 
 适用版本见 [文档中心](README.md)。下列“已实现”表示基线代码具备该能力，不代表已经通过全部生产、合规或容量验收。
 

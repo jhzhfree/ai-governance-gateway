@@ -95,6 +95,7 @@ func MockInfo() ModelInfo {
 }
 
 type Route struct {
+	embedded    bool
 	model       Model
 	profile     Profile
 	key         string
@@ -173,8 +174,8 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 			return nil, errors.New("Messages streaming requires reviewed cache evidence")
 		}
 		if m.CachePricing != nil {
-			if requireCredential || m.API != "" || !m.CachePricing.valid() {
-				return nil, errors.New("cache pricing requires governed Chat with explicit nonnegative bounded rates")
+			if (requireCredential && !embedded) || m.API != "" || !m.CachePricing.valid() || (embedded && (m.Provider != "deepseek" || m.CachePricing.WritePerMillion != 0 || m.CachePricing.WriteTTL != nil)) {
+				return nil, errors.New("cache pricing requires reviewed Chat rates; embedded DeepSeek supports only cache reads")
 			}
 			m.CachePricing = m.CachePricing.clone()
 		}
@@ -226,6 +227,9 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 			canonical = append(canonical, []byte("\ncache-tariff-v1:")...)
 			canonical = append(canonical, prices...)
 		}
+		if embedded && m.CachePricing != nil {
+			canonical = append(canonical, []byte("\ndeepseek-cache-v1")...)
+		}
 		if embedded && embedding {
 			canonical = append(canonical, []byte("\nembeddings-v1")...)
 		}
@@ -249,7 +253,7 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 			canonical = append(append(canonical, '\n'), channelBinding...)
 		}
 		digest := sha256.Sum256(canonical)
-		route := &Route{m, p, key, client, cfg.DeploymentResidency, m.ID + "@" + m.PriceVersion + "#" + hex.EncodeToString(digest[:])}
+		route := &Route{embedded, m, p, key, client, cfg.DeploymentResidency, m.ID + "@" + m.PriceVersion + "#" + hex.EncodeToString(digest[:])}
 		if _, err := route.Bound(int(m.MaxOutputTokens)); err != nil {
 			return nil, err
 		}
@@ -320,6 +324,15 @@ func (r *Route) ValidateUsage(u *Usage, maxOutput int) (int64, error) {
 		if read < 0 || write < 0 || read > *u.PromptTokens || write > *u.PromptTokens-read || (details.CachedCreationTokensDetails != nil && (details.CachedCreationTokens == nil || !details.CachedCreationTokensDetails.valid(write))) {
 			return 0, errors.New("invalid cache quantities")
 		}
+	}
+	if r.UsesReadOnlyCache() {
+		d := u.PromptTokensDetails
+		if d == nil || d.CachedTokens == nil || d.CachedCreationTokens != nil || d.CachedCreationTokensDetails != nil {
+			return 0, errors.New("missing or incompatible original cache quantities")
+		}
+		// There is no write category in this tariff; do not invent a supplier
+		// write count. The bridge proves hit + miss against original evidence.
+		return TokenCost(*u.PromptTokens, *u.CompletionTokens, *d.CachedTokens, 0, r.model.InputPerMillion, r.model.OutputPerMillion, r.model.CachePricing)
 	}
 	if r.model.CachePricing != nil {
 		if u.PromptTokensDetails == nil || u.PromptTokensDetails.CachedTokens == nil || u.PromptTokensDetails.CachedCreationTokens == nil {
