@@ -28,7 +28,17 @@ import (
 )
 
 func TestGovernedPooledBifrostExecution(t *testing.T) {
-	for _, mode := range []string{"json", "stream", "binding failure", "completion persistence failure", "receipt failure", "completed then cancel", "json without finish", "missing usage", "duplicate usage", "upstream failure", "revoked key", "budget denial", "device denial", "audit unavailable", "small limit", "unauthorized model", "model permission removed", "malformed stream", "oversized stream", "usage then disconnect"} {
+	for _, protocol := range []string{"chat", "responses"} {
+		t.Run(protocol, func(t *testing.T) { governedPooledExecution(t, protocol) })
+	}
+}
+
+func governedPooledExecution(t *testing.T, protocol string) {
+	modes := []string{"json", "stream", "binding failure", "completion persistence failure", "receipt failure", "completed then cancel", "json without finish", "missing usage", "duplicate usage", "upstream failure", "revoked key", "budget denial", "device denial", "audit unavailable", "small limit", "unauthorized model", "model permission removed", "malformed stream", "oversized stream", "usage then disconnect"}
+	if protocol == "responses" {
+		modes = append(modes, "no journal", "no settlement store", "stored responses", "responses tools")
+	}
+	for _, mode := range modes {
 		t.Run(mode, func(t *testing.T) {
 			ctx := context.Background()
 			pool, ledger, _ := testutil.Database(t)
@@ -104,7 +114,9 @@ func TestGovernedPooledBifrostExecution(t *testing.T) {
 				if err != nil {
 					return nil, err
 				}
-				binding.binding.journal = journal
+				if mode != "no journal" {
+					binding.binding.journal = journal
+				}
 				return binding, nil
 			})
 			if err != nil {
@@ -152,6 +164,9 @@ func TestGovernedPooledBifrostExecution(t *testing.T) {
 				t.Fatal(err)
 			}
 			h := &gateway.Handler{Completions: journal, Providers: catalog, Executor: enginePool, Ledger: ledger, Authorize: store.ResolveKey, Attempts: recorder.New(pool), Admission: admission.New(pool), Circuits: circuit.New(pool), Content: audit, DeviceProof: store.VerifyDeviceRequest}
+			if mode == "no settlement store" {
+				h.Completions = nil
+			}
 			if mode == "audit unavailable" {
 				h.Content = contentaudit.New(pool, nil)
 			}
@@ -164,7 +179,19 @@ func TestGovernedPooledBifrostExecution(t *testing.T) {
 			if mode == "unauthorized model" {
 				model = "zhipu/fixture"
 			}
-			r := httptest.NewRequest("POST", "http://gateway.invalid/v1/chat/completions", strings.NewReader(fmt.Sprintf(`{"model":%q,"stream":%t,"max_tokens":%d,"messages":[{"role":"user","content":"synthetic question"}]}`, model, stream, maxTokens)))
+			path := "/v1/chat/completions"
+			raw := fmt.Sprintf(`{"model":%q,"stream":%t,"max_tokens":%d,"messages":[{"role":"user","content":"synthetic question"}]}`, model, stream, maxTokens)
+			if protocol == "responses" {
+				path = "/v1/responses"
+				raw = fmt.Sprintf(`{"model":%q,"stream":%t,"max_output_tokens":%d,"input":"synthetic question","store":false}`, model, stream, maxTokens)
+				if mode == "stored responses" {
+					raw = strings.Replace(raw, `"store":false`, `"store":true`, 1)
+				}
+				if mode == "responses tools" {
+					raw = strings.TrimSuffix(raw, "}") + `,"tools":[]}`
+				}
+			}
+			r := httptest.NewRequest("POST", "http://gateway.invalid"+path, strings.NewReader(raw))
 			if mode == "completed then cancel" {
 				requestCtx, cancel := context.WithCancel(r.Context())
 				cancelRequest = cancel
@@ -253,7 +280,12 @@ func TestGovernedPooledBifrostExecution(t *testing.T) {
 					t.Fatal("denied request succeeded")
 				}
 			}
-			if mode == "completed then cancel" {
+			if mode == "completed then cancel" || mode == "receipt failure" {
+				if mode == "receipt failure" {
+					if _, err := pool.Exec(ctx, "ALTER TABLE engine_completion_receipts DROP CONSTRAINT synthetic_failure"); err != nil {
+						t.Fatal(err)
+					}
+				}
 				if n, err := journal.Recover(ctx, time.Now().Add(time.Second)); err != nil || n != 1 {
 					t.Fatal("lost observed completion on client cancel", err)
 				}
@@ -266,8 +298,20 @@ func TestGovernedPooledBifrostExecution(t *testing.T) {
 				if w.Code != 200 || !strings.Contains(w.Body.String(), "synthetic reply") || strings.Contains(w.Body.String(), "fixture-model") {
 					t.Fatalf("normalized response invalid: status %d", w.Code)
 				}
-				if stream && !strings.HasSuffix(w.Body.String(), "data: [DONE]\n\n") {
-					t.Fatal("successful stream not sealed")
+				if stream {
+					terminal := strings.HasSuffix(w.Body.String(), "data: [DONE]\n\n")
+					if protocol == "responses" {
+						terminal = strings.Contains(w.Body.String(), "event: response.completed\n") && !strings.Contains(w.Body.String(), "[DONE]")
+					}
+					if !terminal {
+						t.Fatal("successful stream not sealed")
+					}
+				}
+				if protocol == "responses" && !stream {
+					var result provider.ResponsesResult
+					if json.Unmarshal(w.Body.Bytes(), &result) != nil || result.Status != "completed" || result.Usage.InputTokens != 3 || result.Usage.OutputTokens != 2 {
+						t.Fatal("invalid public Responses result")
+					}
 				}
 				err = pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
 					meta, err := contentaudit.ScanMeta(tx.QueryRow(ctx, `SELECT `+contentaudit.Columns+` FROM content_audit_records WHERE request_id=$1`, id))
@@ -283,7 +327,7 @@ func TestGovernedPooledBifrostExecution(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-			} else if strings.Contains(w.Body.String(), "synthetic-secret-error") || (stream && strings.Contains(w.Body.String(), "[DONE]")) {
+			} else if strings.Contains(w.Body.String(), "synthetic-secret-error") || (stream && (strings.Contains(w.Body.String(), "[DONE]") || strings.Contains(w.Body.String(), "event: response.completed\n"))) {
 				t.Fatal("error disclosed or incomplete stream marked done")
 			}
 		})

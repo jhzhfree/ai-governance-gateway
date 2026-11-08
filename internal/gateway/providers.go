@@ -28,7 +28,7 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 		problem(w, 400, "unsupported_request", id)
 		return
 	}
-	if r.URL.Path == "/v1/responses" && (h.Executor == nil || route.GovernanceChannelID() <= 0) {
+	if r.URL.Path == "/v1/responses" && !h.supportsResponses(route, req) {
 		problem(w, 400, "responses_requires_governed_execution", id)
 		return
 	}
@@ -278,6 +278,18 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 		w = &messagesStreamWriter{ResponseWriter: w, request: req, id: id, initial: initial}
 	}
 	outcome = streamProvider(w, response.Body, req, id, route, settle, h.report, trace, ctx, guard, initial)
+}
+
+func (h *Handler) supportsResponses(route *provider.Route, req Request) bool {
+	if h.Executor == nil {
+		return false
+	}
+	// Preserve the separately governed legacy data-plane contract.
+	if route.GovernanceChannelID() > 0 {
+		return true
+	}
+	executor, ok := h.Executor.(PublicProtocolExecutor)
+	return h.Completions != nil && ok && executor.SupportsPublicProtocol(route, req, "/v1/responses")
 }
 
 func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id string, route *provider.Route, settle func(int64) error, report func(string, string), trace *attemptTrace, ctx context.Context, guard *keyword.Session, initial *provider.MessagesUsage) circuit.Outcome {

@@ -41,3 +41,7 @@
 0032 迁移、`internal/completion` 和对应故障测试在本分支新增，组合本仓 `budget.ReconcileTx`、编号迁移和执行接口；Bifrost 适配仅增加完成标记及持久 Store 接线。原始计量白名单依据当前已验收的 Chat 字段契约实现，没有复制 new-api 源文件或新增第三方依赖，两个 `go.mod/go.sum` 与 Web 锁文件保持不变。旧 new-api 完成 outbox 的状态机经验用于区分供应商完成、客户端状态与预算回执，但没有把旧事件直接冒充新引擎证据。
 
 这说明本轮新增文件的实现方式，不补足继承业务模块、SDK 子依赖或最终商业分发条款的未决核验；完整门禁和源提交见交付跟踪。
+
+## 受控 Responses 增量
+
+本阶段直接复用仓库既有 `provider.ResponsesRequest`、`PublicResponses` 与 `gateway.responsesStreamWriter`，在执行接缝新增当前路由的持久能力检查；不复制其他项目的转换代码，也不启用 SDK 的完整原生 Responses 路径。新增真实嵌入式 SDK/流式/故障测试，沿用已经锁定的测试 SDK，运行时和前端依赖锁文件未改变。`chat_v1` 继续表示实际供应商计量格式，不新造一份 Responses 供应商计数。继承代码来源、嵌套依赖/素材、产品分发条款仍未因测试通过而自动获商业清查结论。

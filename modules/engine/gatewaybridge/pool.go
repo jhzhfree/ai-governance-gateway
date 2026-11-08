@@ -243,6 +243,16 @@ func (p *Pool) Validate(route *provider.Route, req provider.Request) error {
 	_, err := p.validateLocked(route, req)
 	return err
 }
+func (p *Pool) SupportsPublicProtocol(route *provider.Route, req provider.Request, path string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	e, err := p.validateLocked(route, req)
+	if err != nil {
+		return false
+	}
+	binding, ok := e.binding.(gateway.PublicProtocolExecutor)
+	return ok && binding.SupportsPublicProtocol(route, req, path)
+}
 func (p *Pool) Open(ctx context.Context, route *provider.Route, req provider.Request, id, attempt string) (*http.Response, error) {
 	return p.open(ctx, route, req, id, attempt, func() {})
 }

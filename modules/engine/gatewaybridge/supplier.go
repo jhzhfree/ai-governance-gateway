@@ -51,6 +51,9 @@ func (b *SupplierBinding) Validate(route *provider.Route, req provider.Request) 
 	}
 	return b.binding.Validate(route, req)
 }
+func (b *SupplierBinding) SupportsPublicProtocol(route *provider.Route, req provider.Request, path string) bool {
+	return !b.closed.Load() && b.binding.SupportsPublicProtocol(route, req, path)
+}
 func (b *SupplierBinding) Open(ctx context.Context, route *provider.Route, req provider.Request, id, attempt string) (*http.Response, error) {
 	if err := b.Validate(route, req); err != nil {
 		return nil, err

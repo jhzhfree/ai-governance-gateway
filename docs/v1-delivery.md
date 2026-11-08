@@ -42,7 +42,7 @@
 - 最终代码复查收紧 JSON 完成契约：原始单候选必须明确给出受支持的结束原因，不能仅凭 HTTP 200 和用量计数生成完成事件。新增适配器负向测试及治理回归，单独重跑最终嵌套模块完整门禁；该修正不改变根模块或前端代码。
 - 最终 `AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 bash scripts/verify.sh` 退出 0，使用固定 Go 1.27.3、Node 24.19.0、真实隔离 PostgreSQL 和干净 `934d85c` 对照夹具：模块/契约/格式/vet/race、冻结 Web 安装/构建、21 项浏览器检查（125.127 秒）和逻辑备份恢复通过。唯一顶层 SKIP 仍是子进程 helper，对应进程测试实际执行；本地未额外启用 SDK 专用门禁。日志 `/tmp/aigw-completion-final-verify.log`。JSON 边界最终修正后的 `bash modules/engine/scripts/verify.sh` 也退出 0（适配器 19.445 秒、桥接 44.000 秒，日志 `/tmp/aigw-completion-finish-verify.log`）；根业务和 Web 在补验期间未再修改。
 - 当前仍限文本 Chat、统一输入/输出单价；控制台完成证据展示、其他三类 API、工具/内联图片与缓存细分计费按后续阶段推进。真实供应商账单、目标机器、企业身份/终端、商业发行审查和生产发布不在本轮开发验证中。
-- 已核对远端提交 `1603aacbbdc589c99a677b1370cfdc73ed1f7979`；[CI 42428349399](https://github.com/jhzhfree/ai-governance-gateway/actions/runs/42428349399) 的后端/Web/SDK 主任务已 success，Linux 候选包任务仍在执行，工作流整体结果另行核对。
+- 已核对远端提交 `1603aacbbdc589c99a677b1370cfdc73ed1f7979`；[CI 42428349399](https://github.com/jhzhfree/ai-governance-gateway/actions/runs/42428349399) 的主测试和 Linux 候选包任务均已 success。
 
 ## 完成证据查询与费用分析（2026-11-08，本地验证通过）
 
@@ -52,6 +52,16 @@
 - 针对性真实数据库/管理 API 检查通过：三种证据状态、跨项目/组织拒绝、viewer 查看、推理 Key 拒绝、迟到恢复后报表更新且不重复计量、账单识别恢复后的用量差异。CLI/TUI 实际 API 检查也通过。
 - 首次新增 API 测试使用了只支持 MOCK 的历史组织辅助函数，改为显式 CNY 项目后通过；首次浏览器发现旧“待核对”标签对比度为 2.82:1，已加深该页面的警示文字颜色，保留 axe 门禁。定向浏览器检查通过后优化窄屏卡片布局；定向筛选运行不计为完整回归。最终 `AIGW_VERIFY_WEB=1 bash scripts/verify.sh` 退出 0：嵌套/根模块、真实 PostgreSQL、race/vet、契约、固定 Node 24.19.0 冻结安装/构建及 22 项浏览器检查（20＋1＋1，133.138 秒）通过。后端 HTTP API 346.756 秒、newapibridge 547.722 秒；唯一顶层 SKIP 是实际子进程测试使用的 helper。本地未另启用 SDK/备份恢复可选门禁，上一阶段有恢复验证。日志 `/tmp/aigw-evidence-full-verify.log`。最终补充的双来源不重复计量及历史记录不推测引擎测试另验通过（7.322 秒）；未改变上述已验证的业务实现。桌面/窄屏截图复查通过。
 - 当前未新增数据库迁移或第三方依赖；未调用真实模型、修改生产配置或完成外部商业发行验收。
+
+## 单进程受控 Responses（2026-11-08，本地检查通过）
+
+- 上一费用证据阶段已核对远端提交 `293c273cda26243fe9b75ab904042525a64ef116`；[CI 42430508026](https://github.com/jhzhfree/ai-governance-gateway/actions/runs/42430508026) 主测试与 Linux 候选包任务均已 success。
+- 复用已有 Responses 严格文本转换及治理 Handler，增加持久执行能力检查，当前快照及关闭状态逐层复核。实际 SDK 发出一个 Chat 请求，持久证据仍为原始 `chat_v1`，管理卡片明确标注上游计量协议；无新增迁移/依赖。详见 [ADR 0011](../modules/engine/docs/adr/0011-embedded-responses.md)。
+- Chat/Responses 治理矩阵 44 个子场景及两入口各 JSON/SSE 的四个实际强杀恢复场景通过（72.113 秒），覆盖拒绝、断流、证据/回执故障和取消，恢复不重放。真实 HTTP 屏障检查证明完成前可收到文本；能力随发布/关闭撤销，针对性 race 检查通过（3.956 秒）。首次实时测试误用了不存在的审计状态 `sealed`，改为实际 `complete` 后通过，未改生产审计逻辑。
+- 固定 OpenAI Python 3.46.0 连接真实嵌入式链路，JSON、低层 SSE、高级 stream、文本块及服务端状态拒绝通过；缺失原始用量时不能取得成功结果，费用保持未知且不重试。该测试接入根可选 SDK 门禁，旧数据面 SDK 仍独立保留。
+- 代码复查发现嵌入式执行尚缺派发前输入 Token 估算，当前仅有请求结构/大小和返回原始用量上界校验；下一阶段优先补准入，不把预估视作供应商计费事实。
+- `AIGW_VERIFY_WEB=1 AIGW_VERIFY_SDK=1 bash scripts/verify.sh` 已运行至全部检查结束。固定 Go 1.27.3、Node 24.19.0、真实隔离 PostgreSQL、干净 `934d85c` 对照夹具下：执行模块完整 race/vet（桥接 74.653 秒）、根后端（HTTP API 339.803 秒、旧桥接 539.671 秒）、冻结 Web 安装/契约/类型/Lint/构建、22 项浏览器（125.084 秒）、新增嵌入式 SDK（6.708 秒）及历史 SDK/协议检查（68.198 秒）均给出通过结果，日志 `/tmp/aigw-responses-full-verify.log`。唯一顶层 SKIP 仍为实际子进程套件使用的 helper。执行接口中途丢失会话句柄，未直接取回外层 shell 退出码；已核对日志包含最后一项 SDK 包的 PASS/ok 且脚本进程结束，不将最初句柄失效当作成功依据。后续远端 CI 独立核验确切提交。
+- 本轮无新迁移，未重复可选备份恢复；之前 0032 有恢复证据。无新第三方依赖，来源说明与 146 个文档相对链接核对通过。四协议或 V1.0 尚未全部完成；真实供应商与账单、目标机器、身份/终端及商业发行仍为外部验收。
 
 ---
 

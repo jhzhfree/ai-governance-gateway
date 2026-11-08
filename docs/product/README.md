@@ -1,6 +1,6 @@
 # 序衡 AI 治理网关 · 产品文档中心
 
-> 单进程分支提示（2026-11-07）：`feature/v1-single-process-commercial` 现在以进程内 Bifrost 为产品入口，并已开始提供对应候选安装包；下文四协议和双进程能力仍是旧分支基线，不等于新引擎已全部迁移。新引擎当前网关范围为受控文本 Chat JSON/SSE，工具、多模态及其他协议仍在迁移。当前启动与安装以 [单进程入口](../engine-entrypoint.md)、[Linux 候选包](../linux-package.md) 和 [交付跟踪](../v1-delivery.md) 为准。
+> 单进程分支提示（2026-11-08）：`feature/v1-single-process-commercial` 现在以进程内 Bifrost 为产品入口，并已开始提供对应候选安装包；下文四协议和双进程能力仍是旧分支基线，不等于新引擎已全部迁移。新引擎已接入受控文本 Chat 与无状态文本 Responses JSON/SSE；Embeddings、Messages、工具和多模态仍在迁移。当前启动与安装以 [单进程入口](../engine-entrypoint.md)、[Linux 候选包](../linux-package.md) 和 [交付跟踪](../v1-delivery.md) 为准。
 
 适用代码：`feature/newapi-foundation-validation`，四类协议能力基线 `db0f8320dfdfa063274fa8615623fa4c71f6c994`，配套数据面版本见包内 `deploy/newapi-compatibility.json`。文档日期：2026-11-07。文档版本：V1.0 开发候选版，**不是 V1.0 正式发布声明**。
 

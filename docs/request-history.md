@@ -61,3 +61,5 @@ CLI 可省略已通过 `context use` 保存的组织/项目，输出/退出码�
 后续已实现模型目录、独立 CNY_MICRO、价格指纹及三家[大陆供应商受控适配](mainland-providers.md)，真实账号/现价/驻留仍待验收；不能把现有 `MOCK` 数字直接解释成真实货币。完整调用结果、耗时、模型和 attempt 元数据将作为单独增量设计，与账本状态分开。
 
 阶段验证（2026-11-03）：最终完整校验通过 61 个后端顶层测试及 39 个子测试，另有浏览器 fixture 父测试与 4 个 Chromium 场景；无失败或跳过。冻结依赖、Go/Web 类型差异、vet/race、TS/ESLint/Prettier、生产构建和 CLI 构建/帮助冒烟均通过。桌面与移动端截图已生成，桌面布局已核对。
+
+`embedded_completion.protocol=chat_v1` 表示实际供应商的原始计量格式。受控 Responses 也使用同一 Chat 执行链，因此该字段不能用于统计客户端公共 API 类型；不是新增一次供应商调用或重复费用。

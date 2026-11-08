@@ -150,6 +150,15 @@ func (m *Managed) Validate(route *provider.Route, req provider.Request) error {
 	}
 	return m.pool.Validate(route, req)
 }
+func (m *Managed) SupportsPublicProtocol(route *provider.Route, req provider.Request, path string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.catalog == nil || route == nil {
+		return false
+	}
+	current, ok := m.catalog.Find(req.Model)
+	return ok && current.ExecutionIdentity() == route.ExecutionIdentity() && m.pool.SupportsPublicProtocol(route, req, path)
+}
 func (m *Managed) Open(ctx context.Context, route *provider.Route, req provider.Request, id, attempt string) (*http.Response, error) {
 	// The same read lock spans admission into the pool, so a failed refresh cannot
 	// race an unchecked old snapshot into a physical dispatch.

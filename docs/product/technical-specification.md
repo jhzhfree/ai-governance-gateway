@@ -1,6 +1,6 @@
 # 产品技术规格
 
-> 单进程分支提示（2026-11-07）：`feature/v1-single-process-commercial` 现在以进程内 Bifrost 为产品入口，并已开始提供对应候选安装包；下文四协议和双进程能力仍是旧分支基线，不等于新引擎已全部迁移。新引擎当前网关范围为受控文本 Chat JSON/SSE，工具、多模态及其他协议仍在迁移。当前启动与安装以 [单进程入口](../engine-entrypoint.md)、[Linux 候选包](../linux-package.md) 和 [交付跟踪](../v1-delivery.md) 为准。
+> 单进程分支提示（2026-11-08）：`feature/v1-single-process-commercial` 现在以进程内 Bifrost 为产品入口，并已开始提供对应候选安装包；下文四协议和双进程能力仍是旧分支基线，不等于新引擎已全部迁移。新引擎已接入受控文本 Chat 与无状态文本 Responses JSON/SSE；Embeddings、Messages、工具和多模态仍在迁移。当前启动与安装以 [单进程入口](../engine-entrypoint.md)、[Linux 候选包](../linux-package.md) 和 [交付跟踪](../v1-delivery.md) 为准。
 
 适用版本见 [文档中心](README.md)。下列“已实现”表示基线代码具备该能力，不代表已经通过全部生产、合规或容量验收。
 
@@ -59,7 +59,7 @@ flowchart TB
 
 请求先预留费用，再记录派发与物理 attempt，依据有效用量证据结算。request_id 与物理 attempt 是不同层级。请求上下文固定价格版本、周期和部门归属，避免事后配置变更覆盖历史事实。
 
-单进程分支追加 0032 完成证据：原始数值用量先落库，预算与回执原子提交，后台按原价格恢复，缺失证据继续占额且不重放。管理查询以独立证据对象展示记录/回执状态；报表和账单核对可使用已结算事件数量而不改写原请求结果。此增量当前仅适用于受控文本 Chat JSON/SSE；不把旧分支其他协议验收视为新引擎已完成迁移。详见 [完成证据 ADR](../../modules/engine/docs/adr/0010-durable-chat-completion.md)与[查询说明](../request-history.md#单进程供应商完成证据)。
+单进程分支追加 0032 完成证据：原始数值用量先落库，预算与回执原子提交，后台按原价格恢复，缺失证据继续占额且不重放。管理查询以独立证据对象展示记录/回执状态；报表和账单核对可使用已结算事件数量而不改写原请求结果。此增量适用于受控文本 Chat 与无状态文本 Responses JSON/SSE；不把旧分支其他协议验收视为新引擎已完成迁移。详见 [完成证据 ADR](../../modules/engine/docs/adr/0010-durable-chat-completion.md)与[查询说明](../request-history.md#单进程供应商完成证据)。
 
 异常恢复对已派发但结果不明的请求保留占额。标准账单对账需区分导入、审核和结算；双人审核及状态约束阻止未经核查直接修改余额。SDK 接收成功、HTTP 200、流开始返回均不能单独证明最终用量完整。
 
@@ -141,7 +141,7 @@ new-api 显式执行模式提供独立数据面、经审核的模型/渠道绑�
 受控 `POST /v1/embeddings` 支持文本批量和浮点向量，目录 `api=embeddings` 使用 input-only 费用快照、协议隔离、原始用量与同一审计/恢复链。v28 启动追加迁移支持输出价/上限成对为 0；完整边界见 [Embeddings 说明](../new-api-integration.md#受控文本-embeddings)。
 
 
-Responses 公共入口当前提供显式 `store:false` 的无状态文本 JSON/实时 SSE 子集，以审核 Chat 契约执行；不开放会话、历史检索、后台任务、工具或媒体。输出使用 Responses 形状与原始 token 事实，未知细分不估算；同一权限、设备证明、预算、关键词和内容审计链仍生效。具体请求约束与后续兼容边界见 [集成说明](../new-api-integration.md#无状态文本-responses-公共协议)。
+Responses 公共入口当前提供显式 `store:false` 的无状态文本 JSON/实时 SSE 子集，以审核 Chat 契约执行；不开放会话、历史检索、后台任务、工具或媒体。输出使用 Responses 形状与原始 token 事实，未知细分不估算；同一权限、设备证明、预算、关键词和内容审计链仍生效。当前单进程接线与验收见 [Responses ADR](../../modules/engine/docs/adr/0011-embedded-responses.md)，历史双进程约束见 [集成说明](../new-api-integration.md#无状态文本-responses-公共协议)。
 
 Messages 公共协议已提供文本 JSON 及显式审核的实时 SSE 子集。实时模式只支持能提供原始早期用量的 Anthropic 渠道，需要 `allow_messages_stream:true` 与缓存费率；不支持工具、媒体、thinking、beta 或托管状态。早期计数仅用于起始事件，最终费用仍依赖原始完成证明和持久回执；结束事件等待预算结算及审计封存。实时输出策略限字面量告警，阻断／脱敏策略在派发前拒绝。数据库保持 schema v30，未改变默认启动模式或生产发布门禁。
 

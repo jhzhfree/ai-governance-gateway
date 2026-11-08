@@ -47,6 +47,12 @@ func (b *Binding) Validate(route *provider.Route, req provider.Request) error {
 	return nil
 }
 
+func (b *Binding) SupportsPublicProtocol(route *provider.Route, req provider.Request, path string) bool {
+	// The public Responses subset is converted to the same physical Chat request
+	// and original chat_v1 evidence. Non-durable contract fixtures do not opt in.
+	return path == "/v1/responses" && b != nil && b.journal != nil && b.Validate(route, req) == nil
+}
+
 // Open adapts synchronous events to a bounded, unbuffered response body. Closing
 // the body cancels the engine and waits for its producer: no detached consumers.
 // The response opens only after the adapter supplies a successful upstream event.

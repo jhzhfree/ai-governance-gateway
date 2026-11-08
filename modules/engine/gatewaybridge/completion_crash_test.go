@@ -18,8 +18,12 @@ import (
 )
 
 func TestCompletedEvidenceSurvivesKilledSettlementProcess(t *testing.T) {
-	for _, stream := range []bool{false, true} {
-		t.Run(fmt.Sprintf("stream_%t", stream), func(t *testing.T) {
+	for _, scenario := range []struct {
+		protocol string
+		stream   bool
+	}{{"chat", false}, {"chat", true}, {"responses", false}, {"responses", true}} {
+		stream := scenario.stream
+		t.Run(fmt.Sprintf("%s_stream_%t", scenario.protocol, stream), func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			db, ledger, _ := testutil.Database(t)
@@ -90,7 +94,12 @@ func TestCompletedEvidenceSurvivesKilledSettlementProcess(t *testing.T) {
 			go func() {
 				defer close(finished)
 				raw := fmt.Sprintf(`{"model":"deepseek/fixture","stream":%t,"max_tokens":32,"messages":[{"role":"user","content":"synthetic"}]}`, stream)
-				r, _ := http.NewRequestWithContext(ctx, "POST", node.url+"/v1/chat/completions", strings.NewReader(raw))
+				path := "/v1/chat/completions"
+				if scenario.protocol == "responses" {
+					path = "/v1/responses"
+					raw = fmt.Sprintf(`{"model":"deepseek/fixture","stream":%t,"max_output_tokens":32,"store":false,"input":"synthetic"}`, stream)
+				}
+				r, _ := http.NewRequestWithContext(ctx, "POST", node.url+path, strings.NewReader(raw))
 				r.Header.Set("Authorization", "Bearer "+key.Secret)
 				response, err := http.DefaultClient.Do(r)
 				if err == nil {
@@ -122,7 +131,7 @@ func TestCompletedEvidenceSurvivesKilledSettlementProcess(t *testing.T) {
 			case <-ctx.Done():
 				t.Fatal("client not reclaimed")
 			}
-			if strings.Contains(string(body), "[DONE]") || (!stream && len(body) > 0) {
+			if (strings.Contains(string(body), "[DONE]") || strings.Contains(string(body), "event: response.completed\n")) || (!stream && len(body) > 0) {
 				t.Fatal("completion exposed before committed receipt")
 			}
 			r, err := ledger.Get(ctx, id)

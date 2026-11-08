@@ -40,6 +40,13 @@ type ProviderExecutor interface {
 	Open(context.Context, *provider.Route, Request, string, string) (*http.Response, error)
 }
 
+// PublicProtocolExecutor advertises reviewed public conversions for the current
+// immutable route. It must not dispatch or infer support from an SDK's API list.
+// Embedded conversions also require the Handler's durable completion store.
+type PublicProtocolExecutor interface {
+	SupportsPublicProtocol(*provider.Route, Request, string) bool
+}
+
 type Handler struct {
 	Completions *completion.Store
 	Executor    ProviderExecutor

@@ -57,3 +57,13 @@ SIGTERM/SIGINT 后先拒绝新请求，允许已有请求最多 10 秒完成；�
 文本 Chat 的产品执行链在派发前持久绑定价格/路由，在有效 JSON 完成或 SSE 实际结束后先保存原始数字用量，再提交费用与幂等回执。后台每分钟检查超过 3 分钟的记录，每轮最多处理 100 个过期派发和 100 个事件。没有有效完成证据的派发保留 unknown/uncertain 占额，不自动退款或重放；已知费用恢复不代表客户端收到成功响应或审计完整。恢复失败记录固定日志 `embedded completion recovery pending`，应结合费用核查处理，不能仅依据就绪探针认定历史账务全部清理。
 
 细节、开发故障证据和剩余限制见 [ADR 0010](../modules/engine/docs/adr/0010-durable-chat-completion.md)。本轮仍未开放其余公共协议或缓存差异价格。
+
+## 单进程 Responses 文本入口
+
+`/v1/responses` 复用现有身份、项目 Key、设备、预算和内容审计，必须显式 `store:false`，支持无状态有界文本 JSON/实时 SSE。配置仍使用审核的文本 Chat 模型，物理供应商请求及持久计量格式仍为 Chat；请求不得包含服务端状态、工具或媒体。缺失用量/结束证据不能产生成功终止。详情及 SDK/故障验证边界见 [ADR 0011](../modules/engine/docs/adr/0011-embedded-responses.md)。
+
+```json
+{"model":"deepseek/approved-model","input":"你好","max_output_tokens":128,"store":false,"stream":true}
+```
+
+模型名称仅为配置示例，使用管理目录中已审核并已授权的实际名称；厂商密钥由管理员托管，调用方仍使用企业项目 Key 或受控设备会话。
