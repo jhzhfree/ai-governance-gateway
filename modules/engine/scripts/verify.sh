@@ -20,6 +20,9 @@ if [[ -z "${TEST_DATABASE_URL:-}" ]]; then
 fi
 "$go_bin" mod verify
 "$go_bin" vet -mod=readonly ./...
-"$go_bin" test -mod=readonly -race -count=1 -timeout=120s ./...
+# Timeout covers the entire package. The three-protocol governance matrix plus
+# actual child-process recovery takes ~108s locally; retain scenario deadlines
+# while allowing CI headroom for cumulative PostgreSQL/race work.
+"$go_bin" test -mod=readonly -race -count=1 -timeout=180s ./...
 
 "$go_bin" build -mod=readonly -o /dev/null ./cmd/gateway-engine

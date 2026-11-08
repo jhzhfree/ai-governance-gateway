@@ -136,15 +136,21 @@ func ReadConfig(path string) (Config, error) {
 	return DecodeConfig(data)
 }
 func New(cfg Config, getenv func(string) string, transport *http.Client) (*Catalog, error) {
-	return newCatalog(cfg, getenv, transport, true)
+	return newCatalog(cfg, getenv, transport, true, false)
+}
+
+// NewEmbedded enables only the reviewed in-process API capabilities. It does
+// not broaden the legacy native transport or accept new-api channel settings.
+func NewEmbedded(cfg Config, getenv func(string) string, transport *http.Client) (*Catalog, error) {
+	return newCatalog(cfg, getenv, transport, true, true)
 }
 
 // NewGoverned creates a price/residency directory whose vendor credentials and
 // physical transport live exclusively in the new-api data plane.
 func NewGoverned(cfg Config) (*Catalog, error) {
-	return newCatalog(cfg, func(string) string { return "" }, nil, false)
+	return newCatalog(cfg, func(string) string { return "" }, nil, false, false)
 }
-func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, requireCredential bool) (*Catalog, error) {
+func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, requireCredential, embedded bool) (*Catalog, error) {
 
 	if cfg.Version != 1 || !cfg.DeploymentResidency.valid(time.Now()) || len(cfg.Models) < 1 || len(cfg.Models) > 32 || getenv == nil {
 		return nil, errors.New("provider configuration requires current mainland deployment/storage residency evidence and 1–32 models")
@@ -160,7 +166,7 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	catalog := &Catalog{routes: map[string]*Route{}}
 	for _, m := range cfg.Models {
-		if (!requireCredential && (m.NewAPIChannelID <= 0 || !channelRevisionPattern.MatchString(m.NewAPIChannelRevision))) || (requireCredential && (m.NewAPIChannelID != 0 || m.NewAPIChannelRevision != "" || m.AllowImages || m.AllowMessagesStream || len(m.AllowedTools) != 0 || m.API != "")) {
+		if (!requireCredential && (m.NewAPIChannelID <= 0 || !channelRevisionPattern.MatchString(m.NewAPIChannelRevision))) || (requireCredential && (m.NewAPIChannelID != 0 || m.NewAPIChannelRevision != "" || m.AllowImages || m.AllowMessagesStream || len(m.AllowedTools) != 0 || (m.API != "" && !embedded))) {
 			return nil, errors.New("newapi directory requires an explicit approved channel; native directories cannot specify one")
 		}
 		if m.AllowMessagesStream && (m.CachePricing == nil || m.API != "") {
@@ -183,6 +189,12 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 			}
 		}
 		embedding := m.API == "embeddings"
+		if embedded && !embedding && m.MaxOutputTokens < 16 {
+			return nil, errors.New("embedded Chat requires an output ceiling of at least 16")
+		}
+		if embedded && embedding && m.Provider != "aliyun" && m.Provider != "volcengine" && m.Provider != "zhipu" {
+			return nil, errors.New("unreviewed embedding supplier")
+		}
 		if (m.API != "" && !embedding) || (embedding && (m.AllowImages || m.AllowMessagesStream || len(m.AllowedTools) > 0 || m.MaxOutputTokens != 0 || m.OutputPerMillion != 0)) {
 			return nil, errors.New("invalid model API capability")
 		}
@@ -213,6 +225,9 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 			prices, _ := json.Marshal(m.CachePricing)
 			canonical = append(canonical, []byte("\ncache-tariff-v1:")...)
 			canonical = append(canonical, prices...)
+		}
+		if embedded && embedding {
+			canonical = append(canonical, []byte("\nembeddings-v1")...)
 		}
 		if !requireCredential {
 			canonical = append(canonical, []byte("\nchannel-config-v1:"+m.NewAPIChannelRevision)...)

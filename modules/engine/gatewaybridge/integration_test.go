@@ -28,7 +28,7 @@ import (
 )
 
 func TestGovernedPooledBifrostExecution(t *testing.T) {
-	for _, protocol := range []string{"chat", "responses"} {
+	for _, protocol := range []string{"chat", "responses", "embeddings"} {
 		t.Run(protocol, func(t *testing.T) { governedPooledExecution(t, protocol) })
 	}
 }
@@ -37,6 +37,15 @@ func governedPooledExecution(t *testing.T, protocol string) {
 	modes := []string{"json", "stream", "binding failure", "completion persistence failure", "receipt failure", "completed then cancel", "json without finish", "missing usage", "duplicate usage", "upstream failure", "revoked key", "budget denial", "device denial", "audit unavailable", "small limit", "unauthorized model", "model permission removed", "malformed stream", "oversized stream", "usage then disconnect"}
 	if protocol == "responses" {
 		modes = append(modes, "no journal", "no settlement store", "stored responses", "responses tools")
+	}
+	if protocol == "embeddings" {
+		modes = []string{"json", "binding failure", "completion persistence failure", "receipt failure", "completed then cancel", "missing usage", "duplicate usage", "upstream failure", "revoked key", "budget denial", "device denial", "audit unavailable", "unauthorized model", "model permission removed", "no journal", "no settlement store"}
+	}
+	wantCost := int64(14)
+	replyText := "synthetic reply"
+	if protocol == "embeddings" {
+		wantCost = 6
+		replyText = "embedding"
 	}
 	for _, mode := range modes {
 		t.Run(mode, func(t *testing.T) {
@@ -47,7 +56,15 @@ func governedPooledExecution(t *testing.T, protocol string) {
 			for i := range cfg.Models {
 				cfg.Models[i].MaxOutputTokens = 32
 			}
-			catalog, err := provider.New(cfg, func(string) string { return "synthetic-route-key" }, &http.Client{Transport: forbiddenTransport{t}})
+			newCatalog := provider.New
+			if protocol == "embeddings" {
+				cfg.Models = cfg.Models[:1]
+				cfg.Models[0].API = "embeddings"
+				cfg.Models[0].MaxOutputTokens = 0
+				cfg.Models[0].OutputPerMillion = 0
+				newCatalog = provider.NewEmbedded
+			}
+			catalog, err := newCatalog(cfg, func(string) string { return "synthetic-route-key" }, &http.Client{Transport: forbiddenTransport{t}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -56,7 +73,11 @@ func governedPooledExecution(t *testing.T, protocol string) {
 			var cancelRequest context.CancelFunc
 			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calls.Add(1)
-				if r.URL.Path != "/compatible-mode/v1/chat/completions" || r.Header.Get("Authorization") != "Bearer synthetic-route-key" {
+				wantPath := "/compatible-mode/v1/chat/completions"
+				if protocol == "embeddings" {
+					wantPath = "/compatible-mode/v1/embeddings"
+				}
+				if r.URL.Path != wantPath || r.Header.Get("Authorization") != "Bearer synthetic-route-key" {
 					t.Error("unexpected endpoint or credential")
 				}
 				var wire map[string]json.RawMessage
@@ -66,6 +87,18 @@ func governedPooledExecution(t *testing.T, protocol string) {
 				if mode == "upstream failure" {
 					w.WriteHeader(503)
 					_, _ = io.WriteString(w, "synthetic-secret-error")
+					return
+				}
+				if protocol == "embeddings" {
+					w.Header().Set("Content-Type", "application/json")
+					usage := `,"usage":{ "prompt_tokens":3, "total_tokens":3 }`
+					if mode == "missing usage" {
+						usage = ""
+					}
+					if mode == "duplicate usage" {
+						usage += usage
+					}
+					fmt.Fprintf(w, `{"object":"list","model":"fixture-model","data":[{"object":"embedding","index":0,"embedding":[0.1,-0.2]}]%s}`, usage)
 					return
 				}
 				usage := `,"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}`
@@ -170,7 +203,7 @@ func governedPooledExecution(t *testing.T, protocol string) {
 			if mode == "audit unavailable" {
 				h.Content = contentaudit.New(pool, nil)
 			}
-			stream := mode == "stream" || mode == "missing usage" || mode == "duplicate usage" || mode == "malformed stream" || mode == "oversized stream" || mode == "usage then disconnect"
+			stream := protocol != "embeddings" && (mode == "stream" || mode == "missing usage" || mode == "duplicate usage" || mode == "malformed stream" || mode == "oversized stream" || mode == "usage then disconnect")
 			maxTokens := 32
 			if mode == "small limit" {
 				maxTokens = 8
@@ -190,6 +223,10 @@ func governedPooledExecution(t *testing.T, protocol string) {
 				if mode == "responses tools" {
 					raw = strings.TrimSuffix(raw, "}") + `,"tools":[]}`
 				}
+			}
+			if protocol == "embeddings" {
+				path = "/v1/embeddings"
+				raw = fmt.Sprintf(`{"model":%q,"input":"synthetic question","encoding_format":"float"}`, model)
 			}
 			r := httptest.NewRequest("POST", "http://gateway.invalid"+path, strings.NewReader(raw))
 			if mode == "completed then cancel" {
@@ -249,7 +286,7 @@ func governedPooledExecution(t *testing.T, protocol string) {
 				if events != wantEvents || receipts != wantReceipts {
 					t.Fatal("completion evidence/receipt mismatch")
 				}
-				if successful && (reservation.Actual == nil || *reservation.Actual != 14) {
+				if successful && (reservation.Actual == nil || *reservation.Actual != wantCost) {
 					t.Fatal("wrong settled cost")
 				}
 				if !successful && reservation.Actual != nil {
@@ -290,12 +327,12 @@ func governedPooledExecution(t *testing.T, protocol string) {
 					t.Fatal("lost observed completion on client cancel", err)
 				}
 				r, err := ledger.Get(ctx, id)
-				if err != nil || r.State != "settled" || r.Actual == nil || *r.Actual != 14 || calls.Load() != 1 {
+				if err != nil || r.State != "settled" || r.Actual == nil || *r.Actual != wantCost || calls.Load() != 1 {
 					t.Fatal("canceled delivery evidence failed recovery")
 				}
 			}
 			if successful {
-				if w.Code != 200 || !strings.Contains(w.Body.String(), "synthetic reply") || strings.Contains(w.Body.String(), "fixture-model") {
+				if w.Code != 200 || !strings.Contains(w.Body.String(), replyText) || strings.Contains(w.Body.String(), "fixture-model") {
 					t.Fatalf("normalized response invalid: status %d", w.Code)
 				}
 				if stream {
@@ -319,7 +356,7 @@ func governedPooledExecution(t *testing.T, protocol string) {
 						return err
 					}
 					detail, err := audit.Decrypt(ctx, tx, meta)
-					if err == nil && (!strings.Contains(detail.Request.Content, "synthetic question") || detail.Response == nil || !strings.Contains(detail.Response.Content, "synthetic reply")) {
+					if err == nil && (!strings.Contains(detail.Request.Content, "synthetic question") || detail.Response == nil || !strings.Contains(detail.Response.Content, replyText)) {
 						t.Error("audit content not correlated")
 					}
 					return err

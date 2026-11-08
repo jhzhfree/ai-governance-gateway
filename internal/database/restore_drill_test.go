@@ -158,7 +158,7 @@ func TestLogicalBackupRestore(t *testing.T) {
 			var id int64
 			if !previous {
 				journal := completion.New(pool)
-				if n, err := journal.Recover(ctx, time.Now().Add(time.Minute)); err != nil || n != 1 {
+				if n, err := journal.Recover(ctx, time.Now().Add(time.Minute)); err != nil || n != 2 {
 					t.Fatal("restored completion could not reconcile", n, err)
 				}
 				for _, name := range []string{"restore_embedded_settled", "restore_embedded_waiting"} {
@@ -166,8 +166,11 @@ func TestLogicalBackupRestore(t *testing.T) {
 						t.Fatal("restored receipt was not idempotent", err)
 					}
 				}
+				if err := journal.Settle(ctx, "restore_embedding_waiting", "attempt-restore_embedding_waiting", 6); err != nil {
+					t.Fatal("restored embedding receipt differs", err)
+				}
 				var receipts int
-				if err := pool.QueryRow(ctx, `SELECT count(*) FROM engine_completion_receipts`).Scan(&receipts); err != nil || receipts != 2 {
+				if err := pool.QueryRow(ctx, `SELECT count(*) FROM engine_completion_receipts`).Scan(&receipts); err != nil || receipts != 3 {
 					t.Fatal("restored completion receipts differ")
 				}
 			}
@@ -193,6 +196,7 @@ func seedEmbeddedRestore(t *testing.T, pool *pgxpool.Pool, ledger *budget.Store)
 	}
 	route, _ := catalog.Find("deepseek/fixture")
 	req := provider.Request{Model: "deepseek/fixture", MaxTokens: 32, Messages: []provider.Message{{Role: "user", Content: "synthetic"}}}
+	testutil.SeedEmbeddedEmbeddingCompletion(t, pool, scope, "restore_embedding_waiting", "recorded")
 	journal := completion.New(pool)
 	for _, id := range []string{"restore_embedded_settled", "restore_embedded_waiting"} {
 		amount, err := route.Bound(32)

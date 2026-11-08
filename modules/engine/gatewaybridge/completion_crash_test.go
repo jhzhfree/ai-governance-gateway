@@ -21,7 +21,7 @@ func TestCompletedEvidenceSurvivesKilledSettlementProcess(t *testing.T) {
 	for _, scenario := range []struct {
 		protocol string
 		stream   bool
-	}{{"chat", false}, {"chat", true}, {"responses", false}, {"responses", true}} {
+	}{{"chat", false}, {"chat", true}, {"responses", false}, {"responses", true}, {"embeddings", false}} {
 		stream := scenario.stream
 		t.Run(fmt.Sprintf("%s_stream_%t", scenario.protocol, stream), func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -31,7 +31,20 @@ func TestCompletedEvidenceSurvivesKilledSettlementProcess(t *testing.T) {
 			cfg.Models = cfg.Models[3:]
 			cfg.Models[0].MaxOutputTokens = 32
 			actor := identity.Principal{Issuer: "synthetic", Subject: "owner"}
-			source := provider.NewManager(db, func(string) string { return "synthetic-cluster-key" }, nil, actor)
+			model := "deepseek/fixture"
+			path := "/chat/completions"
+			wantCost := int64(14)
+			if scenario.protocol == "embeddings" {
+				cfg = testutil.MainlandConfig()
+				cfg.Models = cfg.Models[:1]
+				cfg.Models[0].API = "embeddings"
+				cfg.Models[0].MaxOutputTokens = 0
+				cfg.Models[0].OutputPerMillion = 0
+				model = "aliyun/fixture"
+				path = "/compatible-mode/v1/embeddings"
+				wantCost = 6
+			}
+			source := provider.NewEmbeddedManager(db, func(string) string { return "synthetic-cluster-key" }, nil, actor)
 			if err := source.Publish(ctx, actor, 0, cfg); err != nil {
 				t.Fatal(err)
 			}
@@ -44,18 +57,23 @@ func TestCompletedEvidenceSurvivesKilledSettlementProcess(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := store.SetModels(ctx, actor, org.ID, project.ID, []string{"deepseek/fixture"}); err != nil {
+			if err := store.SetModels(ctx, actor, org.ID, project.ID, []string{model}); err != nil {
 				t.Fatal(err)
 			}
-			key, err := store.CreateKey(ctx, actor, org.ID, project.ID, "synthetic", []string{"deepseek/fixture"}, time.Hour)
+			key, err := store.CreateKey(ctx, actor, org.ID, project.ID, "synthetic", []string{model}, time.Hour)
 			if err != nil {
 				t.Fatal(err)
 			}
 			var calls atomic.Int32
 			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calls.Add(1)
-				if r.URL.Path != "/chat/completions" || r.Header.Get("Authorization") != "Bearer synthetic-cluster-key" {
+				if r.URL.Path != path || r.Header.Get("Authorization") != "Bearer synthetic-cluster-key" {
 					t.Error("unexpected provider request")
+				}
+				if scenario.protocol == "embeddings" {
+					w.Header().Set("Content-Type", "application/json")
+					fmt.Fprint(w, `{"object":"list","model":"fixture-model","data":[{"object":"embedding","index":0,"embedding":[0.1,-0.2]}],"usage":{"prompt_tokens":3,"total_tokens":3}}`)
+					return
 				}
 				if stream {
 					w.Header().Set("Content-Type", "text/event-stream")
@@ -98,6 +116,10 @@ func TestCompletedEvidenceSurvivesKilledSettlementProcess(t *testing.T) {
 				if scenario.protocol == "responses" {
 					path = "/v1/responses"
 					raw = fmt.Sprintf(`{"model":"deepseek/fixture","stream":%t,"max_output_tokens":32,"store":false,"input":"synthetic"}`, stream)
+				}
+				if scenario.protocol == "embeddings" {
+					path = "/v1/embeddings"
+					raw = `{"model":"aliyun/fixture","input":"synthetic"}`
 				}
 				r, _ := http.NewRequestWithContext(ctx, "POST", node.url+path, strings.NewReader(raw))
 				r.Header.Set("Authorization", "Bearer "+key.Secret)
@@ -159,7 +181,7 @@ func TestCompletedEvidenceSurvivesKilledSettlementProcess(t *testing.T) {
 				case <-tick.C:
 				}
 			}
-			if r.Actual == nil || *r.Actual != 14 || calls.Load() != 1 {
+			if r.Actual == nil || *r.Actual != wantCost || calls.Load() != 1 {
 				t.Fatal("recovery mischarged or replayed upstream")
 			}
 			var receipts int

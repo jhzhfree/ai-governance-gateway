@@ -121,7 +121,8 @@ export function ProviderPanel({ identity, csrf }: { identity: string[]; csrf: st
                           <td>
                             {model.id}
                             <br />
-                            {names[model.provider] ?? model.provider} · {model.region}
+                            {names[model.provider] ?? model.provider} · {model.region} ·{' '}
+                            {model.api === 'embeddings' ? '文本向量' : '对话'}
                           </td>
                           <td>
                             {model.input_per_million} / {model.output_per_million}
@@ -193,8 +194,10 @@ export function ProviderPanel({ identity, csrf }: { identity: string[]; csrf: st
         </div>
         <p>
           OpenAI 兼容 SDK 的 base_url 设置为当前网关 HTTPS 地址加 /v1，api_key 使用项目密钥，model
-          使用已发布并授权的别名。支持文本 Chat Completions JSON/SSE；尚不支持工具调用、多模态或
-          Embedding。
+          使用已发布并授权的别名。
+          {query.data?.execution_engine === 'bifrost'
+            ? '支持受控文本 Chat、Responses JSON/SSE 及文本 Embeddings；向量请求显式设置 encoding_format=float。工具、多模态和 Messages 尚未启用。'
+            : '支持文本 Chat Completions JSON/SSE。'}
         </p>
         <p>
           请求经过密钥认证、模型权限、共享限流、熔断和预算预留后，才用服务器上的厂商凭证发往固定大陆入口；失败不回退到模拟数据。
@@ -220,6 +223,7 @@ export function ProviderEditor({
   const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState('');
   const governed = status.execution_engine === 'newapi';
+  const embedded = status.execution_engine === 'bifrost';
   const changeModel = (index: number, field: string, value: string | number) => {
     setDraft((old) => ({
       ...old,
@@ -346,6 +350,55 @@ export function ProviderEditor({
                 onChange={(e) => changeModel(index, 'upstream_model', e.target.value)}
               />
             </label>
+            {(governed || embedded) && (
+              <>
+                <label>
+                  接口能力
+                  <select
+                    aria-label={`接口能力 ${index + 1}`}
+                    value={model.api ?? ''}
+                    onChange={(e) =>
+                      setDraft((old) => ({
+                        ...old,
+                        models: old.models.map((m, i) =>
+                          i === index
+                            ? {
+                                ...m,
+                                api: e.target.value as '' | 'embeddings',
+                                ...(e.target.value === 'embeddings'
+                                  ? {
+                                      max_output_tokens: 0,
+                                      output_per_million: 0,
+                                      allow_images: false,
+                                      allow_messages_stream: false,
+                                      allowed_tools: [],
+                                      cache_pricing: undefined,
+                                    }
+                                  : {}),
+                              }
+                            : m,
+                        ),
+                      }))
+                    }
+                  >
+                    <option value="">
+                      {governed
+                        ? 'Chat / 受控文本 Responses 与 Messages'
+                        : 'Chat / 受控文本 Responses'}
+                    </option>
+                    <option value="embeddings" disabled={embedded && model.provider === 'deepseek'}>
+                      文本 Embeddings
+                    </option>
+                  </select>
+                </label>
+                {embedded && (
+                  <p>
+                    文本向量仅计输入费用；支持阿里云、火山引擎、智谱。切回 Chat
+                    后请重新填写输出上限与输出单价。
+                  </p>
+                )}
+              </>
+            )}
             {governed && (
               <>
                 <label>
@@ -392,39 +445,6 @@ export function ProviderEditor({
                   审核指纹：<code>{model.newapi_channel_revision || '尚未选择'}</code>
                   。渠道变化后须重新选择并核对端点、凭证所属账号、模型与价格。
                 </p>
-                <label>
-                  接口能力
-                  <select
-                    aria-label={`接口能力 ${index + 1}`}
-                    value={model.api ?? ''}
-                    onChange={(e) =>
-                      setDraft((old) => ({
-                        ...old,
-                        models: old.models.map((m, i) =>
-                          i === index
-                            ? {
-                                ...m,
-                                api: e.target.value as '' | 'embeddings',
-                                ...(e.target.value === 'embeddings'
-                                  ? {
-                                      max_output_tokens: 0,
-                                      output_per_million: 0,
-                                      allow_images: false,
-                                      allow_messages_stream: false,
-                                      allowed_tools: [],
-                                      cache_pricing: undefined,
-                                    }
-                                  : {}),
-                              }
-                            : m,
-                        ),
-                      }))
-                    }
-                  >
-                    <option value="">Chat / 受控文本 Responses 与 Messages</option>
-                    <option value="embeddings">文本 Embeddings</option>
-                  </select>
-                </label>
                 {model.api !== 'embeddings' && (
                   <>
                     <label>
@@ -561,14 +581,20 @@ export function ProviderEditor({
                   type="number"
                   required
                   min={
-                    governed &&
+                    (governed || embedded) &&
                     model.api === 'embeddings' &&
                     (field === 'output_per_million' || field === 'max_output_tokens')
                       ? 0
-                      : 1
+                      : embedded && field === 'max_output_tokens'
+                        ? 16
+                        : 1
                   }
                   max={max}
                   step={1}
+                  readOnly={
+                    model.api === 'embeddings' &&
+                    (field === 'output_per_million' || field === 'max_output_tokens')
+                  }
                   value={
                     model.api === 'embeddings' &&
                     (field === 'output_per_million' || field === 'max_output_tokens')
@@ -714,6 +740,7 @@ function CredentialForm({
   return (
     <>
       <form
+        className="provider-credential-form"
         onSubmit={(event) => {
           void save(event);
         }}

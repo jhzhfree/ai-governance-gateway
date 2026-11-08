@@ -38,7 +38,17 @@ func New(route *provider.Route, executor execution.Executor) (*Binding, error) {
 }
 
 func (b *Binding) Validate(route *provider.Route, req provider.Request) error {
-	if b == nil || route == nil || !route.Ready() || route.PriceVersion() != b.price || route.ExecutionIdentity() != b.revision || req.Model != b.alias || req.MaxTokens < 16 || !provider.ValidateRequest(req) || req.IsEmbedding() || req.HasTools() || req.HasParts() {
+	if err := b.validateShape(route, req); err != nil {
+		return err
+	}
+	return route.CheckEstimatedInput(req)
+}
+
+func (b *Binding) validateShape(route *provider.Route, req provider.Request) error {
+	if b == nil || route == nil || !route.Ready() || route.PriceVersion() != b.price || route.ExecutionIdentity() != b.revision || req.Model != b.alias || !provider.ValidateRequest(req) || (req.IsEmbedding() != (route.API() == "embeddings")) || (!req.IsEmbedding() && req.MaxTokens < 16) || req.HasTools() || req.HasParts() {
+		return execution.ErrInvalidRequest
+	}
+	if req.IsEmbedding() && provider.ValidateEmbeddedEmbedding(route.Provider(), req) != nil {
 		return execution.ErrInvalidRequest
 	}
 	if _, err := route.Bound(req.MaxTokens); err != nil {
@@ -50,7 +60,7 @@ func (b *Binding) Validate(route *provider.Route, req provider.Request) error {
 func (b *Binding) SupportsPublicProtocol(route *provider.Route, req provider.Request, path string) bool {
 	// The public Responses subset is converted to the same physical Chat request
 	// and original chat_v1 evidence. Non-durable contract fixtures do not opt in.
-	return path == "/v1/responses" && b != nil && b.journal != nil && b.Validate(route, req) == nil
+	return ((path == "/v1/responses" && !req.IsEmbedding()) || (path == "/v1/embeddings" && req.IsEmbedding())) && b != nil && b.journal != nil && b.validateShape(route, req) == nil
 }
 
 // Open adapts synchronous events to a bounded, unbuffered response body. Closing
@@ -72,7 +82,12 @@ func (b *Binding) Open(ctx context.Context, route *provider.Route, req provider.
 		}
 	}
 	req.Model = b.upstream
-	payload, err := json.Marshal(req)
+	var wire any = req
+	if req.IsEmbedding() {
+		input, _ := json.Marshal(req.Input)
+		wire = provider.EmbeddingRequest{Model: req.Model, Input: input, EncodingFormat: req.EncodingFormat, Dimensions: req.Dimensions}
+	}
+	payload, err := json.Marshal(wire)
 	if err != nil {
 		return nil, execution.ErrInvalidRequest
 	}
@@ -106,7 +121,11 @@ func (b *Binding) Open(ctx context.Context, route *provider.Route, req provider.
 				}
 				usageSeen = true
 				if b.journal != nil {
-					c, err := completion.ChatUsage(u.Evidence)
+					protocol := "chat_v1"
+					if req.IsEmbedding() {
+						protocol = "embeddings_v1"
+					}
+					c, err := completion.ParseUsage(protocol, u.Evidence)
 					if err != nil || !event.Completed || c.Input != int64(u.InputTokens) || c.Output != int64(u.OutputTokens) || c.Total != int64(u.TotalTokens) {
 						return execution.ErrUpstream
 					}
@@ -119,7 +138,11 @@ func (b *Binding) Open(ctx context.Context, route *provider.Route, req provider.
 						return execution.ErrUpstream
 					}
 				}
-				raw, _ := json.Marshal(map[string]int{"prompt_tokens": u.InputTokens, "completion_tokens": u.OutputTokens, "total_tokens": u.TotalTokens})
+				projection := map[string]int{"prompt_tokens": u.InputTokens, "total_tokens": u.TotalTokens}
+				if !req.IsEmbedding() {
+					projection["completion_tokens"] = u.OutputTokens
+				}
+				raw, _ := json.Marshal(projection)
 				data["usage"] = raw
 			}
 			normalized, err := json.Marshal(data)

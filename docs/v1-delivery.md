@@ -65,6 +65,17 @@
 
 ---
 
+## 单进程文本 Embeddings 与输入准入（2026-11-08，本地验证通过）
+
+- 上阶段 Responses 提交 `a0addf188e5e86d9f1eea049c1606ddfc4e79b89` 已推送，远端 [CI 42432756790](https://github.com/jhzhfree/ai-governance-gateway/actions/runs/42432756790) 全部成功。
+- 单进程发布显式选用 embedded 目录；旧原生目录仍拒绝向量能力。新增阿里云/火山引擎/智谱受控文本 Embeddings，输入-only 价格与能力绑定。Chat/Responses/Embeddings 增加派发前本地保守输入估算，超限不预留、不派发；真实费用仍以原始用量为准。
+- 追加迁移 0033，不改 0032：绑定的原始协议决定用量解析、恢复及冻结费率；向量保留原始 prompt/total 对象，不补造 output 字段。沿用唯一预算账本、原子回执和恢复。管理 API/报表/对账、CLI/TUI 和控制台展示向量计量与零输出价格；详见 [ADR 0012](../modules/engine/docs/adr/0012-embedded-embeddings.md)。
+- 专项已通过：16 个向量治理场景（23.109 秒）；独立进程强杀恢复（3.848 秒）；32→33 升级/失败回滚/旧回执与漂移检查（2.707 秒）；原始用量、边界估算、三供应商路径、非法向量/重复用量/超大字节/取消；请求详情权限和恢复报表/账单数量检查；固定 OpenAI Python 3.46.0 的 Responses/Embeddings（9.525 秒）；真实 PostgreSQL/OIDC/浏览器模型发布→实际嵌入式推理→费用回执（8.654 秒），含 axe 与窄屏检查，截图复查通过；逻辑备份恢复（5.925 秒）含向量待恢复事件。
+- 首次试用 SDK EmbeddingRequest 时，原始空白超限场景失败：SDK capture 先压缩 JSON，不能证明网络字节上限。改为复用已有 SDK 安全 HTTP client/生命周期及本仓校验器，在解析前限长并保留原始 usage；没有失败后重发或修改上游。Chat 非流式仍存在 capture 空白压缩边界，列为下一阶段收紧项，不能声称原始网络逐字取证。
+- 首次页面验证发现零输出字段仍受 min=1 限制，已改为输入-only 只读零值；随后发现未启用凭证存储时禁用按钮对比度不足，已补范围内样式并保留无障碍门禁。首次编译的局部变量错误也已修正。失败运行不计为通过。
+- 最终 `AIGW_VERIFY_WEB=1 AIGW_VERIFY_RESTORE=1 AIGW_VERIFY_SDK=1 bash scripts/verify.sh` 退出 0（`/tmp/aigw-embedding-full-verify.log`）：固定 Go 1.27.3、Node 24.19.0、真实隔离 PostgreSQL、模块/契约/格式/vet/race、冻结 Web 安装/构建、23 项浏览器检查、备份恢复和两组固定 SDK 门禁全部通过。HTTP API 396.993 秒、旧 new-api 兼容包 572.012 秒；新增嵌入式浏览器 9.423 秒、原浏览器 131.576 秒、恢复 6.035 秒、嵌入 SDK 9.483 秒、旧 SDK/协议 68.098 秒。唯一顶层 SKIP 是由实际子进程场景调用的 helper，不是省略数据库或进程验证。嵌套适配器 19.762 秒、桥接 107.660 秒；包级 timeout 从 120 秒增至 180 秒为新增 60 场景与真实进程恢复留出 CI 余量，场景/请求截止时间不变，这轮桥接仍在原 120 秒内通过。完整运行开始后仅整理文档和调整该包级上限，没有再修改业务/测试实现。本阶段远端 CI 须按新提交独立核验。
+- 本轮无新增第三方依赖、素材或 new-api 源码复制。目标硬件、真实供应商/账单、企业身份/终端、完整权属与商业许可、生产发布仍单列验收；Messages、工具/图片、缓存细分和统一审核渠道继续推进，不发布 V1.0 标签。
+
 以下为历史双进程分支记录，不是当前单进程产品状态。该历史控制面分支为 `feature/newapi-foundation-validation`，配套 new-api 数据面为 `feature/enterprise-governance-integration`。此前 `feature/v1.0-enterprise-gateway` 从主线 b4e4bc983f3058cd88ec0cc5ddcf0649d2014300 创建；下文保留其历史阶段证据。当前接入与部署约束以 [new-api 集成](new-api-integration.md) 的最新章节为准。
 
 ## 基线与原则

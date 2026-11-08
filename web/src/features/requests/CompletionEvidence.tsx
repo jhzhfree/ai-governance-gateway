@@ -30,7 +30,11 @@ export function CompletionEvidence({
       <div className="panel-heading">
         <div>
           <h4>供应商完成证据</h4>
-          <p>单进程执行 · 上游 Chat 计量 · 沿用派发价格快照</p>
+          <p>
+            单进程执行 ·{' '}
+            {evidence.protocol === 'embeddings_v1' ? '文本向量 · 仅输入计费' : '上游 Chat 计量'} ·
+            沿用派发价格快照
+          </p>
         </div>
         <Tag theme={evidence.state === 'receipted' ? 'success' : 'warning'} variant="light">
           {labels[evidence.state]}

@@ -32,9 +32,18 @@ func supplier(id string) (supplierProfile, bool) {
 	}
 }
 func resolveSupplier(cfg Config) (Config, supplierProfile, error) {
+	if cfg.API != "" && cfg.API != "chat" && cfg.API != "embeddings" {
+		return cfg, supplierProfile{}, errors.New("unsupported API")
+	}
 	p, ok := supplier(cfg.Supplier)
 	if !ok {
 		return cfg, p, errors.New("unsupported supplier profile")
+	}
+	if cfg.API == "embeddings" {
+		if p.id != "aliyun" && p.id != "volcengine" && p.id != "zhipu" {
+			return cfg, p, errors.New("unreviewed embeddings profile")
+		}
+		p.path = strings.TrimSuffix(p.path, "chat/completions") + "embeddings"
 	}
 	if p.id == "" {
 		return cfg, p, nil

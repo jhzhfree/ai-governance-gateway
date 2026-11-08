@@ -42,19 +42,27 @@ type responsesProductFixture struct {
 // Only the provider network origin and fixture credentials are synthetic.
 func embeddedResponsesFixture(t *testing.T, upstream http.Handler) *responsesProductFixture {
 	t.Helper()
-	ctx := context.Background()
-	db, ledger, _ := testutil.Database(t)
-	f := &responsesProductFixture{db: db, actor: identity.Principal{Issuer: "synthetic", Subject: "owner"}}
 	cfg := testutil.MainlandConfig()
 	cfg.Models = cfg.Models[3:]
 	cfg.Models[0].MaxOutputTokens = 32
-	f.source = provider.NewManager(db, func(string) string { return "synthetic-responses-key" }, nil, f.actor)
+	return embeddedProductFixture(t, cfg, "/chat/completions", upstream)
+}
+func embeddedProductFixture(t *testing.T, cfg provider.Config, path string, upstream http.Handler) *responsesProductFixture {
+	t.Helper()
+	return embeddedProductFixtureAs(t, cfg, path, upstream, identity.Principal{Issuer: "synthetic", Subject: "owner"})
+}
+func embeddedProductFixtureAs(t *testing.T, cfg provider.Config, path string, upstream http.Handler, actor identity.Principal) *responsesProductFixture {
+	t.Helper()
+	ctx := context.Background()
+	db, ledger, _ := testutil.Database(t)
+	f := &responsesProductFixture{db: db, actor: actor}
+	f.source = provider.NewEmbeddedManager(db, func(string) string { return "synthetic-responses-key" }, nil, f.actor)
 	if err := f.source.Publish(ctx, f.actor, 0, cfg); err != nil {
 		t.Fatal(err)
 	}
 	supplier := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.calls.Add(1)
-		if r.URL.Path != "/chat/completions" || r.Header.Get("Authorization") != "Bearer synthetic-responses-key" {
+		if r.URL.Path != path || r.Header.Get("Authorization") != "Bearer synthetic-responses-key" {
 			t.Error("unexpected physical path or credentials")
 		}
 		upstream.ServeHTTP(w, r)
@@ -90,10 +98,10 @@ func embeddedResponsesFixture(t *testing.T, upstream http.Handler) *responsesPro
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = store.SetModels(ctx, f.actor, org.ID, project.ID, []string{"deepseek/fixture"}); err != nil {
+	if err = store.SetModels(ctx, f.actor, org.ID, project.ID, []string{cfg.Models[0].ID}); err != nil {
 		t.Fatal(err)
 	}
-	key, err := store.CreateKey(ctx, f.actor, org.ID, project.ID, "Responses", []string{"deepseek/fixture"}, time.Hour)
+	key, err := store.CreateKey(ctx, f.actor, org.ID, project.ID, "Responses", []string{cfg.Models[0].ID}, time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}

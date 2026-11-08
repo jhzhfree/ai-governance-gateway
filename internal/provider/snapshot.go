@@ -23,7 +23,7 @@ func (m *Manager) ExecutionSnapshot(ctx context.Context) (*Catalog, error) {
 		if err != nil {
 			return ErrCredentialStorageUnavailable
 		}
-		catalog, err = New(cfg, getter, m.transport)
+		catalog, err = m.catalog(cfg, getter)
 		if err != nil {
 			return ErrConfigurationInvalid
 		}

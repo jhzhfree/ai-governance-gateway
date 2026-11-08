@@ -196,7 +196,11 @@ func run(ctx context.Context, c config, factory EngineFactory, listener net.List
 		store = control.NewWithCatalog(pool, providers)
 	}
 	if c.executionEngine != "newapi" && !c.mockOnly && c.providerConfig == "" {
-		manager := provider.NewManager(pool, os.Getenv, nil, identity.Principal{Issuer: os.Getenv("AIGW_PROVIDER_ADMIN_ISSUER"), Subject: os.Getenv("AIGW_PROVIDER_ADMIN_SUBJECT")})
+		newManager := provider.NewManager
+		if c.executionEngine == "bifrost" {
+			newManager = provider.NewEmbeddedManager
+		}
+		manager := newManager(pool, os.Getenv, nil, identity.Principal{Issuer: os.Getenv("AIGW_PROVIDER_ADMIN_ISSUER"), Subject: os.Getenv("AIGW_PROVIDER_ADMIN_SUBJECT")})
 		var management control.ProviderManagement = manager
 		providers = manager
 		if c.executionEngine == "bifrost" {

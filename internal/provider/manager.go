@@ -48,6 +48,7 @@ type ConfigurationStatus struct {
 // Manager reads the database on every acquisition: no stale local cache or plaintext secret persistence.
 // Only deployment-bound OIDC principals can publish a platform-wide configuration.
 type Manager struct {
+	embedded      bool
 	pool          *pgxpool.Pool
 	getenv        func(string) string
 	transport     *http.Client
@@ -56,6 +57,19 @@ type Manager struct {
 
 func NewManager(pool *pgxpool.Pool, getenv func(string) string, transport *http.Client, administrator identity.Principal) *Manager {
 	return &Manager{pool: pool, getenv: getenv, transport: transport, administrator: administrator}
+}
+
+// NewEmbeddedManager publishes catalogs for the single-process execution engine.
+func NewEmbeddedManager(pool *pgxpool.Pool, getenv func(string) string, transport *http.Client, administrator identity.Principal) *Manager {
+	m := NewManager(pool, getenv, transport, administrator)
+	m.embedded = true
+	return m
+}
+func (m *Manager) catalog(cfg Config, getter func(string) string) (*Catalog, error) {
+	if m.embedded {
+		return NewEmbedded(cfg, getter, m.transport)
+	}
+	return New(cfg, getter, m.transport)
 }
 func (m *Manager) CanManage(p identity.Principal) bool {
 	return m != nil && m.administrator.Issuer != "" && m.administrator.Subject != "" && m.administrator == p
@@ -90,6 +104,9 @@ func (m *Manager) Status(ctx context.Context, p identity.Principal) (Configurati
 		return ConfigurationStatus{}, err
 	}
 	status := ConfigurationStatus{Managed: true, CanManage: m.CanManage(p), Revision: rev, Models: []ModelInfo{}, Suppliers: []SupplierStatus{}}
+	if m.embedded {
+		status.ExecutionEngine = "bifrost"
+	}
 	_, _, keyErr := m.encryptionKeys()
 	status.CredentialStorageReady = keyErr == nil
 	getter, metadata, credentialErr := m.credentials(ctx, m.pool)
@@ -120,7 +137,7 @@ func (m *Manager) Status(ctx context.Context, p identity.Principal) (Configurati
 		status.Suppliers = append(status.Suppliers, SupplierStatus{ID: profile.ID, Region: profile.Region, Endpoint: profile.Endpoint, KeyEnvironment: profile.KeyEnvironment, CredentialConfigured: info.configured, CredentialRevision: info.revision, CredentialSource: info.source})
 	}
 	if rev > 0 {
-		if c, e := New(cfg, getter, m.transport); e == nil {
+		if c, e := m.catalog(cfg, getter); e == nil {
 			status.Ready = c.Ready()
 			status.Models = c.Models()
 		}
@@ -141,7 +158,7 @@ func (m *Manager) Publish(ctx context.Context, p identity.Principal, expected in
 	if err != nil {
 		return ErrCredentialStorageUnavailable
 	}
-	if _, err := New(cfg, getter, m.transport); err != nil {
+	if _, err := m.catalog(cfg, getter); err != nil {
 		return ErrConfigurationInvalid
 	}
 	raw, err := json.Marshal(cfg)
@@ -187,7 +204,7 @@ func (m *Manager) ModelsIn(ctx context.Context, tx pgx.Tx) []ModelInfo {
 	if err != nil {
 		return []ModelInfo{}
 	}
-	catalog, err := New(cfg, getter, m.transport)
+	catalog, err := m.catalog(cfg, getter)
 	if err != nil {
 		return []ModelInfo{}
 	}

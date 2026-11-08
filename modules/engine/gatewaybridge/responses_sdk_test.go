@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/jhzhfree/ai-governance-gateway/internal/testutil"
 	"net/http"
 	"os"
 	"os/exec"
@@ -20,7 +21,11 @@ func TestEmbeddedResponsesPythonSDK(t *testing.T) {
 	}
 	for _, missing := range []bool{false, true} {
 		t.Run(fmt.Sprintf("missing_usage_%t", missing), func(t *testing.T) {
-			f := embeddedResponsesFixture(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			cfg := testutil.MainlandConfig()
+			cfg.Models = cfg.Models[3:]
+			cfg.Models[0].MaxOutputTokens = 32
+			cfg.Models[0].MaxInputTokens = 256
+			f := embeddedProductFixture(t, cfg, "/chat/completions", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				var body struct {
 					Model     string            `json:"model"`
 					Stream    bool              `json:"stream"`

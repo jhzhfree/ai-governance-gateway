@@ -28,8 +28,12 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 		problem(w, 400, "unsupported_request", id)
 		return
 	}
-	if r.URL.Path == "/v1/responses" && !h.supportsResponses(route, req) {
+	if r.URL.Path == "/v1/responses" && !h.supportsPublicProtocol(route, req, r.URL.Path) {
 		problem(w, 400, "responses_requires_governed_execution", id)
+		return
+	}
+	if req.IsEmbedding() && !h.supportsPublicProtocol(route, req, r.URL.Path) {
+		problem(w, 400, "embeddings_requires_governed_execution", id)
 		return
 	}
 	if r.URL.Path == "/v1/messages" && (h.Executor == nil || route.GovernanceChannelID() <= 0 || !route.RequiresCacheEvidence()) {
@@ -40,9 +44,15 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 		problem(w, 503, "residency_review_required", id)
 		return
 	}
-	if h.Executor != nil && h.Executor.Validate(route, req) != nil {
-		problem(w, 400, "unsupported_execution_request", id)
-		return
+	if h.Executor != nil {
+		if err := h.Executor.Validate(route, req); err != nil {
+			code := "unsupported_execution_request"
+			if errors.Is(err, provider.ErrEstimatedInputLimit) {
+				code = "estimated_input_limit_exceeded"
+			}
+			problem(w, 400, code, id)
+			return
+		}
 	}
 	amount, err := route.Bound(req.MaxTokens)
 	if err != nil {
@@ -280,7 +290,7 @@ func (h *Handler) serveProvider(w http.ResponseWriter, r *http.Request, id, toke
 	outcome = streamProvider(w, response.Body, req, id, route, settle, h.report, trace, ctx, guard, initial)
 }
 
-func (h *Handler) supportsResponses(route *provider.Route, req Request) bool {
+func (h *Handler) supportsPublicProtocol(route *provider.Route, req Request, path string) bool {
 	if h.Executor == nil {
 		return false
 	}
@@ -289,7 +299,7 @@ func (h *Handler) supportsResponses(route *provider.Route, req Request) bool {
 		return true
 	}
 	executor, ok := h.Executor.(PublicProtocolExecutor)
-	return h.Completions != nil && ok && executor.SupportsPublicProtocol(route, req, "/v1/responses")
+	return h.Completions != nil && ok && executor.SupportsPublicProtocol(route, req, path)
 }
 
 func streamProvider(w http.ResponseWriter, body io.Reader, req Request, id string, route *provider.Route, settle func(int64) error, report func(string, string), trace *attemptTrace, ctx context.Context, guard *keyword.Session, initial *provider.MessagesUsage) circuit.Outcome {

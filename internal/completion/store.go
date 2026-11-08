@@ -28,22 +28,26 @@ func RouteDigest(route *provider.Route) [32]byte { return sha256.Sum256([]byte(r
 
 // Bind is a once-only pre-dispatch fence. A duplicate must never authorize replay.
 func (s *Store) Bind(ctx context.Context, route *provider.Route, req provider.Request, requestID, attemptID string) error {
-	if s == nil || s.pool == nil || route == nil || !route.Ready() || !idPattern.MatchString(requestID) || !idPattern.MatchString(attemptID) || req.IsEmbedding() || req.HasTools() || req.HasParts() || req.MaxTokens < 16 || !provider.ValidateRequest(req) {
+	if s == nil || s.pool == nil || route == nil || !route.Ready() || !idPattern.MatchString(requestID) || !idPattern.MatchString(attemptID) || req.HasTools() || req.HasParts() || (!req.IsEmbedding() && req.MaxTokens < 16) || !provider.ValidateRequest(req) {
 		return ErrInvalid
 	}
 	p := route.PriceSnapshot()
 	alias, upstream := route.ExecutionModel()
 	revision := RouteDigest(route)
-	if alias != req.Model || p.CachePricing != nil || route.GovernanceChannelID() != 0 {
+	if req.IsEmbedding() != (route.API() == "embeddings") || alias != req.Model || p.CachePricing != nil || route.GovernanceChannelID() != 0 {
 		return ErrInvalid
 	}
 	if _, err := route.Bound(req.MaxTokens); err != nil {
 		return ErrInvalid
 	}
+	protocol := "chat_v1"
+	if req.IsEmbedding() {
+		protocol = "embeddings_v1"
+	}
 	r, err := s.pool.Exec(ctx, `INSERT INTO engine_execution_bindings(attempt_id,request_id,engine,protocol,model,upstream_model,supplier,route_digest,price_version,input_price,output_price,max_input,max_output,stream)
- SELECT a.attempt_id,a.request_id,'bifrost','chat_v1',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12 FROM inference_attempts a JOIN budget_reservations r ON r.request_id=a.request_id
+ SELECT a.attempt_id,a.request_id,'bifrost',$14,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12 FROM inference_attempts a JOIN budget_reservations r ON r.request_id=a.request_id
  WHERE a.attempt_id=$1 AND a.request_id=$2 AND a.model=$3 AND a.provider=$5 AND a.stream=$12 AND a.outcome='unfinished' AND r.state='dispatched' AND r.price_version=$7 AND r.currency=$13
- ON CONFLICT DO NOTHING`, attemptID, requestID, alias, upstream, route.Provider(), revision[:], p.PriceVersion, p.InputPerMillion, p.OutputPerMillion, p.MaxInputTokens, req.MaxTokens, req.Stream, provider.Currency)
+ ON CONFLICT DO NOTHING`, attemptID, requestID, alias, upstream, route.Provider(), revision[:], p.PriceVersion, p.InputPerMillion, p.OutputPerMillion, p.MaxInputTokens, req.MaxTokens, req.Stream, provider.Currency, protocol)
 	if err != nil {
 		return err
 	}
@@ -59,23 +63,23 @@ func (s *Store) Record(ctx context.Context, requestID, attemptID string, revisio
 	if s == nil || s.pool == nil || !idPattern.MatchString(requestID) || !idPattern.MatchString(attemptID) {
 		return ErrInvalid
 	}
-	c, err := ChatUsage(raw)
-	if err != nil {
-		return err
-	}
 	sum := sha256.Sum256(raw)
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		var id string
+		var id, protocol string
 		var digest []byte
 		var maxIn, maxOut int64
-		if err := tx.QueryRow(ctx, `SELECT request_id,route_digest,max_input,max_output FROM engine_execution_bindings WHERE attempt_id=$1 FOR UPDATE`, attemptID).Scan(&id, &digest, &maxIn, &maxOut); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT request_id,route_digest,max_input,max_output,protocol FROM engine_execution_bindings WHERE attempt_id=$1 FOR UPDATE`, attemptID).Scan(&id, &digest, &maxIn, &maxOut, &protocol); err != nil {
+			return err
+		}
+		c, err := ParseUsage(protocol, raw)
+		if err != nil {
 			return err
 		}
 		if id != requestID || !bytes.Equal(digest, revision[:]) || c.Input > maxIn || c.Output > maxOut {
 			return ErrInvalid
 		}
 		var old []byte
-		err := tx.QueryRow(ctx, `SELECT raw_usage FROM engine_completion_events WHERE attempt_id=$1`, attemptID).Scan(&old)
+		err = tx.QueryRow(ctx, `SELECT raw_usage FROM engine_completion_events WHERE attempt_id=$1`, attemptID).Scan(&old)
 		if err == nil {
 			if bytes.Equal(old, raw) {
 				return nil
@@ -99,13 +103,13 @@ func (s *Store) apply(ctx context.Context, requestID, attemptID string, expected
 		return ErrInvalid
 	}
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		var id string
+		var id, protocol string
 		var inPrice, outPrice, maxIn, maxOut, input, output int64
 		var raw, hash []byte
-		if err := tx.QueryRow(ctx, `SELECT b.request_id,b.input_price,b.output_price,b.max_input,b.max_output,e.raw_usage,e.usage_sha256,e.input_tokens,e.output_tokens FROM engine_execution_bindings b JOIN engine_completion_events e USING(attempt_id) WHERE b.attempt_id=$1 FOR UPDATE OF b`, attemptID).Scan(&id, &inPrice, &outPrice, &maxIn, &maxOut, &raw, &hash, &input, &output); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT b.request_id,b.input_price,b.output_price,b.max_input,b.max_output,e.raw_usage,e.usage_sha256,e.input_tokens,e.output_tokens,b.protocol FROM engine_execution_bindings b JOIN engine_completion_events e USING(attempt_id) WHERE b.attempt_id=$1 FOR UPDATE OF b`, attemptID).Scan(&id, &inPrice, &outPrice, &maxIn, &maxOut, &raw, &hash, &input, &output, &protocol); err != nil {
 			return err
 		}
-		c, err := ChatUsage(raw)
+		c, err := ParseUsage(protocol, raw)
 		sum := sha256.Sum256(raw)
 		if err != nil || id != requestID || !bytes.Equal(sum[:], hash) || c.Input != input || c.Output != output || input > maxIn || output > maxOut {
 			return ErrInvalid

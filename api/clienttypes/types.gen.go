@@ -171,7 +171,8 @@ const (
 
 // Defines values for EmbeddedCompletionProtocol.
 const (
-	ChatV1 EmbeddedCompletionProtocol = "chat_v1"
+	ChatV1       EmbeddedCompletionProtocol = "chat_v1"
+	EmbeddingsV1 EmbeddedCompletionProtocol = "embeddings_v1"
 )
 
 // Defines values for EmbeddedCompletionState.

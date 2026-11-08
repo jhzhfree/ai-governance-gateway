@@ -1,5 +1,5 @@
 // Package bifrost adapts the pinned upstream SDK. This M0 adapter supports
-// OpenAI chat only and is not an authenticated, production gateway.
+// reviewed OpenAI-compatible Chat and text Embeddings only and is not an authenticated, production gateway.
 package bifrost
 
 import (
@@ -22,6 +22,8 @@ import (
 const MaxRequestBytes = 1 << 20
 
 type Config struct {
+	// API selects a server-owned operation; empty is legacy Chat.
+	API string
 	// Supplier selects fixed server-owned mainland wire behavior. Empty keeps
 	// generic OpenAI Chat. No client request field can change this selection.
 	Supplier string
@@ -44,7 +46,7 @@ type Executor struct {
 	client               *core.Bifrost
 	streamHTTP           *http.Client
 	streamURL, streamKey string
-	model                string
+	api, model           string
 	maxOutputTokens      int
 	lifecycle            *lifecycle
 	profile              supplierProfile
@@ -74,10 +76,10 @@ func New(ctx context.Context, cfg Config) (*Executor, error) {
 	if cfg.Model == "" || strings.Contains(cfg.Model, "/") || cfg.APIKey == "" {
 		return nil, errors.New("model and upstream credential required")
 	}
-	if cfg.MaxOutputTokens == 0 {
+	if cfg.API != "embeddings" && cfg.MaxOutputTokens == 0 {
 		cfg.MaxOutputTokens = 4096
 	}
-	if cfg.MaxOutputTokens < 16 || cfg.MaxOutputTokens > 1000000 {
+	if (cfg.API == "embeddings" && cfg.MaxOutputTokens != 0) || (cfg.API != "embeddings" && (cfg.MaxOutputTokens < 16 || cfg.MaxOutputTokens > 1000000)) {
 		return nil, errors.New("invalid output token ceiling")
 	}
 	if cfg.MaxConcurrent == 0 {
@@ -86,16 +88,26 @@ func New(ctx context.Context, cfg Config) (*Executor, error) {
 	if cfg.MaxConcurrent < 1 || cfg.MaxConcurrent > 1024 {
 		return nil, errors.New("invalid execution concurrency")
 	}
-	a := &account{cfg: cfg}
-	client, err := core.Init(ctx, schemas.BifrostConfig{Account: a, Logger: core.NewNoOpLogger(), InitialPoolSize: 8, DropExcessRequests: true})
-	if err != nil {
-		return nil, errors.New("execution engine initialization failed")
+	e := &Executor{api: cfg.API, streamHTTP: streamClient(cfg.TestLoopback), profile: profile, streamURL: strings.TrimRight(cfg.BaseURL, "/") + profile.path, streamKey: cfg.APIKey, model: cfg.Model, maxOutputTokens: cfg.MaxOutputTokens, lifecycle: newLifecycle(ctx, cfg.MaxConcurrent)}
+	// Embeddings uses the bounded receiver and SDK network protections only;
+	// do not allocate an idle Chat SDK pool for an input-only route.
+	if cfg.API != "embeddings" {
+		client, err := core.Init(ctx, schemas.BifrostConfig{Account: &account{cfg: cfg}, Logger: core.NewNoOpLogger(), InitialPoolSize: 8, DropExcessRequests: true})
+		if err != nil {
+			e.Close()
+			return nil, errors.New("execution engine initialization failed")
+		}
+		e.client = client
 	}
-	return &Executor{streamHTTP: streamClient(cfg.TestLoopback), profile: profile, streamURL: strings.TrimRight(cfg.BaseURL, "/") + profile.path, streamKey: cfg.APIKey, client: client, model: cfg.Model, maxOutputTokens: cfg.MaxOutputTokens, lifecycle: newLifecycle(ctx, cfg.MaxConcurrent)}, nil
+	return e, nil
 }
-
 func (e *Executor) Close() {
-	e.lifecycle.close(func() { e.streamHTTP.CloseIdleConnections(); e.client.Shutdown() })
+	e.lifecycle.close(func() {
+		e.streamHTTP.CloseIdleConnections()
+		if e.client != nil {
+			e.client.Shutdown()
+		}
+	})
 }
 
 func (e *Executor) Execute(ctx context.Context, req execution.Request, emit execution.Emit) error {
@@ -104,6 +116,9 @@ func (e *Executor) Execute(ctx context.Context, req execution.Request, emit exec
 	}
 	if req.RequestID == "" || req.AttemptID == "" || emit == nil || len(req.Body) == 0 || len(req.Body) > MaxRequestBytes {
 		return execution.ErrInvalidRequest
+	}
+	if e.api == "embeddings" {
+		return e.embedding(ctx, req, emit)
 	}
 	maxOutput, valid := validateRequest(req.Body, e.model, e.maxOutputTokens)
 	if !valid {
@@ -197,8 +212,12 @@ func (a *account) GetConfigForProvider(p schemas.ModelProvider) (*schemas.Provid
 		return nil, fmt.Errorf("provider not configured")
 	}
 	var custom *schemas.CustomProviderConfig
-	if profile, ok := supplier(a.cfg.Supplier); ok && profile.id != "" {
-		custom = &schemas.CustomProviderConfig{BaseProviderType: schemas.OpenAI, RequestPathOverrides: map[schemas.RequestType]string{schemas.ChatCompletionRequest: profile.path}}
+	if _, profile, err := resolveSupplier(a.cfg); err == nil && profile.id != "" {
+		operation := schemas.ChatCompletionRequest
+		if a.cfg.API == "embeddings" {
+			operation = schemas.EmbeddingRequest
+		}
+		custom = &schemas.CustomProviderConfig{BaseProviderType: schemas.OpenAI, RequestPathOverrides: map[schemas.RequestType]string{operation: profile.path}}
 	}
 	return &schemas.ProviderConfig{
 		CustomProviderConfig:     custom,

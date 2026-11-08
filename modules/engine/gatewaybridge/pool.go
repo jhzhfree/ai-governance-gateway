@@ -119,7 +119,7 @@ func (p *Pool) Publish(ctx context.Context, version uint64, routes []*provider.R
 	next := make(map[string]*poolEntry, len(routes))
 	needed := make(map[string]*provider.Route)
 	for _, r := range routes {
-		if r == nil || !r.Ready() || r.ExecutionSettings().MaxOutputTokens < 16 {
+		if r == nil || !r.Ready() || (r.API() != "embeddings" && r.ExecutionSettings().MaxOutputTokens < 16) {
 			p.mu.Unlock()
 			return execution.ErrInvalidRequest
 		}
@@ -220,7 +220,7 @@ func (p *Pool) reclaim(e *poolEntry) {
 	delete(p.all, e)
 	p.mu.Unlock()
 }
-func (p *Pool) validateLocked(route *provider.Route, req provider.Request) (*poolEntry, error) {
+func (p *Pool) entryLocked(route *provider.Route) (*poolEntry, error) {
 	if p.closed || p.ctx.Err() != nil {
 		return nil, execution.ErrClosed
 	}
@@ -231,6 +231,13 @@ func (p *Pool) validateLocked(route *provider.Route, req provider.Request) (*poo
 	e := p.current[alias]
 	if e == nil || e.identity != route.ExecutionIdentity() {
 		return nil, execution.ErrInvalidRequest
+	}
+	return e, nil
+}
+func (p *Pool) validateLocked(route *provider.Route, req provider.Request) (*poolEntry, error) {
+	e, err := p.entryLocked(route)
+	if err != nil {
+		return nil, err
 	}
 	if err := e.binding.Validate(route, req); err != nil {
 		return nil, err
@@ -246,7 +253,7 @@ func (p *Pool) Validate(route *provider.Route, req provider.Request) error {
 func (p *Pool) SupportsPublicProtocol(route *provider.Route, req provider.Request, path string) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	e, err := p.validateLocked(route, req)
+	e, err := p.entryLocked(route)
 	if err != nil {
 		return false
 	}

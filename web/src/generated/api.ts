@@ -3515,7 +3515,7 @@ export interface components {
             /** @enum {string} */
             engine: "bifrost";
             /** @enum {string} */
-            protocol: "chat_v1";
+            protocol: "chat_v1" | "embeddings_v1";
             /** @enum {string} */
             state: "awaiting_usage" | "recorded" | "receipted";
             /** Format: int64 */

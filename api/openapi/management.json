@@ -18890,7 +18890,8 @@
           "protocol": {
             "type": "string",
             "enum": [
-              "chat_v1"
+              "chat_v1",
+              "embeddings_v1"
             ]
           },
           "state": {

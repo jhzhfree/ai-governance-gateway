@@ -68,3 +68,32 @@ func TestEmbeddingResponseShapeAndEvidence(t *testing.T) {
 		t.Fatal("wrong dimensions accepted")
 	}
 }
+
+func TestEmbeddedCatalogDoesNotBroadenLegacyOrUnknownSuppliers(t *testing.T) {
+	cfg := testutil.MainlandConfig()
+	cfg.Models = cfg.Models[:1]
+	cfg.Models[0].API = "embeddings"
+	cfg.Models[0].MaxOutputTokens = 0
+	cfg.Models[0].OutputPerMillion = 0
+	if _, err := provider.New(cfg, func(string) string { return "synthetic" }, nil); err == nil {
+		t.Fatal("legacy native catalog accepted embedding")
+	}
+	for _, supplier := range []string{"aliyun", "volcengine", "zhipu", "deepseek"} {
+		cfg.Models[0].Provider = supplier
+		cfg.Models[0].ID = supplier + "/fixture"
+		c, err := provider.NewEmbedded(cfg, func(string) string { return "synthetic" }, nil)
+		if supplier == "deepseek" {
+			if err == nil {
+				t.Fatal("unreviewed supplier enabled")
+			}
+			continue
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		route, _ := c.Find(cfg.Models[0].ID)
+		if route.ExecutionSettings().API != "embeddings" || route.PriceSnapshot().OutputPerMillion != 0 {
+			t.Fatal("execution snapshot lost operation")
+		}
+	}
+}

@@ -62,7 +62,7 @@ func clusterChild(t *testing.T) {
 		t.Fatal(err)
 	}
 	journal := completion.New(db)
-	source := provider.NewManager(db, func(string) string { return "synthetic-cluster-key" }, nil, identity.Principal{})
+	source := provider.NewEmbeddedManager(db, func(string) string { return "synthetic-cluster-key" }, nil, identity.Principal{})
 	engines, err := newPool(ctx, PoolConfig{4, 4}, func(ctx context.Context, r *provider.Route, n int) (ownedBinding, error) {
 		b, err := newSupplier(ctx, r, n, func(ctx context.Context, cfg adapter.Config) (execution.Executor, error) {
 			cfg.BaseURL = os.Getenv("AIGW_CLUSTER_UPSTREAM")

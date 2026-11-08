@@ -70,6 +70,7 @@ if [[ "${AIGW_VERIFY_WEB:-0}" == 1 ]]; then
   npm --prefix web ci --no-audit --no-fund
   npm --prefix web run api:check
   npm --prefix web run build
+  "$go_bin" -C modules/engine test -mod=readonly -race -tags=web_e2e -run '^TestEmbeddedConsoleBrowser$' -count=1 -timeout=120s -v ./gatewaybridge
   "$go_bin" test -mod=readonly -race -tags=web_e2e -run '^Test(ConsoleBrowser|LocalConsoleBrowser|NewAPIConsoleBrowser)$' -count=1 -timeout=360s -v ./internal/browser
 fi
 
@@ -81,6 +82,6 @@ fi
 
 # Optional pinned SDK contract gate shares the same isolated database lifecycle.
 if [[ "${AIGW_VERIFY_SDK:-0}" == 1 ]]; then
-  "$go_bin" -C modules/engine test -mod=readonly -race -tags=sdk_e2e -run '^TestEmbeddedResponsesPythonSDK$' -count=1 -timeout=120s -v ./gatewaybridge
+  "$go_bin" -C modules/engine test -mod=readonly -race -tags=sdk_e2e -run '^TestEmbedded(Responses|Embeddings)PythonSDK$' -count=1 -timeout=120s -v ./gatewaybridge
   "$go_bin" test -mod=readonly -race -tags=sdk_e2e -run '^Test(Responses|Messages)' -count=1 -timeout=120s -v ./internal/httpapi
 fi

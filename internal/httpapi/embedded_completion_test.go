@@ -96,3 +96,51 @@ func TestEmbeddedCompletionMetadataReportsAndScope(t *testing.T) {
 		t.Fatal("late receipt changed client semantics")
 	}
 }
+
+func TestEmbeddedEmbeddingEvidenceScopesAndRecoveredReports(t *testing.T) {
+	f := providerSetup(t, testutil.SupplierFixture(t))
+	o, p, key := providerProject(f)
+	ctx := context.Background()
+	scope := budget.Scope{Organization: o.ID, Project: p.ID, Period: o.Period, Currency: o.Currency}
+	base := projectPath(o, p)
+	for _, state := range []string{"awaiting_usage", "recorded", "receipted"} {
+		id := "embedding-" + state
+		testutil.SeedEmbeddedEmbeddingCompletion(t, f.pool, scope, id, state)
+		data := f.request(f.token("alice"), "GET", base+"/requests/"+id, nil, 200)
+		record := parse[control.RequestRecord](t, data)
+		e := record.EmbeddedCompletion
+		if e == nil || e.Protocol != "embeddings_v1" || e.State != state || e.OutputPerMillion != 0 || record.Attempt == nil || record.Attempt.Outcome != "unfinished" {
+			t.Fatal("embedding protocol or client outcome lost")
+		}
+		if state != "awaiting_usage" && (e.InputTokens == nil || *e.InputTokens != 3 || e.OutputTokens == nil || *e.OutputTokens != 0) {
+			t.Fatal("input-only quantities incorrect")
+		}
+		if strings.Contains(string(data), "raw_usage") || strings.Contains(string(data), "synthetic metadata fixture") {
+			t.Fatal("evidence content leaked")
+		}
+	}
+	other := f.project("alice", o)
+	f.request(f.token("alice"), "GET", projectPath(o, other)+"/requests/embedding-receipted", nil, 404)
+	f.request(f.token("outsider"), "GET", base+"/requests/embedding-receipted", nil, 404)
+	f.request(key.Secret, "GET", base+"/requests/embedding-receipted", nil, 401)
+	if _, err := f.pool.Exec(ctx, `UPDATE budget_reservations SET created_at='2026-11-03T10:00:00Z' WHERE organization_id=$1`, o.ID); err != nil {
+		t.Fatal(err)
+	}
+	check := func(cost, input string, known int64) {
+		t.Helper()
+		r := parse[control.CostReport](t, f.request(f.token("alice"), "GET", base+"/cost-report?from=2026-11-03&to=2026-11-04", nil, 200))
+		if len(r.Rows) != 1 || r.Rows[0].SettledAmount != cost || r.Rows[0].InputTokens != input || r.Rows[0].OutputTokens != "0" || r.Rows[0].UsageKnown != known {
+			t.Fatal("input-only report mismatch")
+		}
+	}
+	check("6", "3", 1)
+	if n, err := completion.New(f.pool).Recover(ctx, time.Now().Add(time.Minute)); err != nil || n != 1 {
+		t.Fatal("embedding recovery failed", err)
+	}
+	check("12", "6", 2)
+	f.request(f.token("alice"), "POST", base+"/billing/imports", billImport("embedding-invoice,embedding-recorded,2026-11,CNY_MICRO,6,3,1"), 200)
+	bills := parse[billPage](t, f.request(f.token("alice"), "GET", base+"/billing/records", nil, 200))
+	if len(bills.Data) != 1 || len(bills.Data[0].Issues) != 1 || bills.Data[0].Issues[0] != "usage_mismatch" {
+		t.Fatal("embedding invoice output discrepancy ignored")
+	}
+}

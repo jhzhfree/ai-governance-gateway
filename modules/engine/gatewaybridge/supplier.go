@@ -28,10 +28,10 @@ func newSupplier(ctx context.Context, route *provider.Route, maxConcurrent int, 
 		return nil, execution.ErrInvalidRequest
 	}
 	settings := route.ExecutionSettings()
-	if settings.MaxOutputTokens < 16 {
+	if (settings.API != "embeddings" && settings.MaxOutputTokens < 16) || (settings.API == "embeddings" && settings.MaxOutputTokens != 0) {
 		return nil, execution.ErrInvalidRequest
 	}
-	engine, err := create(ctx, adapter.Config{Supplier: settings.Supplier, Model: settings.Model, APIKey: settings.APIKey, MaxOutputTokens: settings.MaxOutputTokens, MaxConcurrent: maxConcurrent})
+	engine, err := create(ctx, adapter.Config{API: settings.API, Supplier: settings.Supplier, Model: settings.Model, APIKey: settings.APIKey, MaxOutputTokens: settings.MaxOutputTokens, MaxConcurrent: maxConcurrent})
 	if err != nil {
 		return nil, err
 	}

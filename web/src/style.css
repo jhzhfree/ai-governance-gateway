@@ -1306,6 +1306,10 @@ fieldset.model-selection {
   font-size: 18px;
 }
 
+.provider-credential-form .t-button.t-is-disabled .t-button__text {
+  color: #30415b;
+}
+
 .context-actions .t-button.t-is-disabled .t-button__text {
   color: #62717c;
 }

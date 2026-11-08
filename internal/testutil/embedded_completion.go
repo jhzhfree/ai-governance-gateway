@@ -16,18 +16,37 @@ import (
 // a killed request process independently of supplier evidence and recovery.
 func SeedEmbeddedCompletion(t *testing.T, pool *pgxpool.Pool, scope budget.Scope, id, state string) {
 	t.Helper()
+	seedEmbeddedCompletion(t, pool, scope, id, state, false)
+}
+func SeedEmbeddedEmbeddingCompletion(t testing.TB, pool *pgxpool.Pool, scope budget.Scope, id, state string) {
+	t.Helper()
+	seedEmbeddedCompletion(t, pool, scope, id, state, true)
+}
+func seedEmbeddedCompletion(t testing.TB, pool *pgxpool.Pool, scope budget.Scope, id, state string, embedding bool) {
+	t.Helper()
 	ctx := context.Background()
 	cfg := MainlandConfig()
 	for i := range cfg.Models {
 		cfg.Models[i].MaxOutputTokens = 32
 	}
-	catalog, err := provider.New(cfg, func(string) string { return "synthetic-metadata-fixture" }, nil)
+	newCatalog := provider.New
+	if embedding {
+		cfg.Models = cfg.Models[:1]
+		cfg.Models[0].API = "embeddings"
+		cfg.Models[0].MaxOutputTokens = 0
+		cfg.Models[0].OutputPerMillion = 0
+		newCatalog = provider.NewEmbedded
+	}
+	catalog, err := newCatalog(cfg, func(string) string { return "synthetic-metadata-fixture" }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	route, _ := catalog.Find("aliyun/fixture")
 	req := provider.Request{Model: "aliyun/fixture", MaxTokens: 32, Messages: []provider.Message{{Role: "user", Content: "synthetic metadata fixture"}}}
-	amount, err := route.Bound(32)
+	if embedding {
+		req = provider.Request{API: "embeddings", Model: "aliyun/fixture", Input: []string{"synthetic metadata fixture"}}
+	}
+	amount, err := route.Bound(req.MaxTokens)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,14 +65,20 @@ func SeedEmbeddedCompletion(t *testing.T, pool *pgxpool.Pool, scope budget.Scope
 	if err := journal.Bind(ctx, route, req, id, attempt); err != nil {
 		t.Fatal(err)
 	}
+	usage := `{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}`
+	actual := int64(14)
+	if embedding {
+		usage = `{ "prompt_tokens":3, "total_tokens":3 }`
+		actual = 6
+	}
 	if state != "awaiting_usage" {
-		if err := journal.Record(ctx, id, attempt, completion.RouteDigest(route), []byte(`{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}`)); err != nil {
+		if err := journal.Record(ctx, id, attempt, completion.RouteDigest(route), []byte(usage)); err != nil {
 			t.Fatal(err)
 		}
 	}
 	switch state {
 	case "receipted":
-		err = journal.Settle(ctx, id, attempt, 14)
+		err = journal.Settle(ctx, id, attempt, actual)
 	case "recorded", "awaiting_usage":
 		err = ledger.MarkUncertain(ctx, id)
 	default:
