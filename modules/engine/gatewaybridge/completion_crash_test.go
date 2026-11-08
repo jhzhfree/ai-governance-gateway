@@ -21,7 +21,7 @@ func TestCompletedEvidenceSurvivesKilledSettlementProcess(t *testing.T) {
 	for _, scenario := range []struct {
 		protocol string
 		stream   bool
-	}{{"chat", false}, {"chat", true}, {"responses", false}, {"responses", true}, {"embeddings", false}, {"cache", false}, {"cache", true}, {"messages", false}} {
+	}{{"chat", false}, {"chat", true}, {"responses", false}, {"responses", true}, {"embeddings", false}, {"cache", false}, {"cache", true}, {"messages", false}, {"messages", true}} {
 		stream := scenario.stream
 		t.Run(fmt.Sprintf("%s_stream_%t", scenario.protocol, stream), func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -42,6 +42,7 @@ func TestCompletedEvidenceSurvivesKilledSettlementProcess(t *testing.T) {
 			}
 			if scenario.protocol == "messages" {
 				cfg.Models[0].API = "messages"
+				cfg.Models[0].AllowMessagesStream = stream
 				path = "/anthropic/v1/messages"
 				usage = `{ "input_tokens":1, "output_tokens":2, "cache_read_input_tokens":2, "cache_creation_input_tokens":0 }`
 			}
@@ -82,6 +83,11 @@ func TestCompletedEvidenceSurvivesKilledSettlementProcess(t *testing.T) {
 					t.Error("unexpected provider request")
 				}
 				if scenario.protocol == "messages" {
+					if stream {
+						w.Header().Set("Content-Type", "text/event-stream")
+						fmt.Fprint(w, testutil.EmbeddedMessagesStream(strings.Replace(usage, `"output_tokens":2`, `"output_tokens":0`, 1), usage, "synthetic"))
+						return
+					}
 					w.Header().Set("Content-Type", "application/json")
 					fmt.Fprintf(w, `{"id":"msg_crash","type":"message","role":"assistant","model":"fixture-model","content":[{"type":"text","text":"synthetic"}],"stop_reason":"end_turn","stop_sequence":null,"usage":%s}`, usage)
 					return
@@ -172,7 +178,7 @@ func TestCompletedEvidenceSurvivesKilledSettlementProcess(t *testing.T) {
 			case <-ctx.Done():
 				t.Fatal("client not reclaimed")
 			}
-			if (strings.Contains(string(body), "[DONE]") || strings.Contains(string(body), "event: response.completed\n")) || (!stream && len(body) > 0) {
+			if (strings.Contains(string(body), "[DONE]") || strings.Contains(string(body), "event: response.completed\n") || strings.Contains(string(body), "event: message_stop\n")) || (!stream && len(body) > 0) {
 				t.Fatal("completion exposed before committed receipt")
 			}
 			r, err := ledger.Get(ctx, id)

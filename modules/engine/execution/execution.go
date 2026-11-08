@@ -30,6 +30,9 @@ type Usage struct {
 }
 
 type Event struct {
+	// InitialUsage is original provisional evidence, allowed only on the first
+	// reviewed native Messages stream event; it never authorizes settlement.
+	InitialUsage json.RawMessage
 	// Completed proves adapter protocol completion, not client delivery or audit sealing.
 	Completed bool
 	// UpstreamStatus is evidence from the adapter, never a synthesized envelope.

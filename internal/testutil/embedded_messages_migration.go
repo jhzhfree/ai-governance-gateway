@@ -9,6 +9,7 @@ import (
 // RevertEmbeddedMessagesMigration constructs only disposable released-v34 schemas.
 func RevertEmbeddedMessagesMigration(t testing.TB, pool *pgxpool.Pool) {
 	t.Helper()
+	RevertEmbeddedMessagesStreamMigration(t, pool)
 	_, err := pool.Exec(context.Background(), `ALTER TABLE engine_execution_bindings DROP CONSTRAINT engine_execution_bindings_protocol_check;
  ALTER TABLE engine_execution_bindings DROP CONSTRAINT engine_execution_bindings_protocol_limits;
  ALTER TABLE engine_execution_bindings ADD CONSTRAINT engine_execution_bindings_protocol_check CHECK(protocol IN ('chat_v1','embeddings_v1','deepseek_cache_v1'));

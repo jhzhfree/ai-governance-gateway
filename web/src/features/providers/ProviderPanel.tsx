@@ -126,7 +126,9 @@ export function ProviderPanel({ identity, csrf }: { identity: string[]; csrf: st
                             {model.api === 'embeddings'
                               ? '文本向量'
                               : model.api === 'messages'
-                                ? '原生 Messages · JSON'
+                                ? model.allow_messages_stream
+                                  ? '原生 Messages · JSON / 实时流'
+                                  : '原生 Messages · JSON'
                                 : '对话'}
                           </td>
                           <td>
@@ -207,7 +209,7 @@ export function ProviderPanel({ identity, csrf }: { identity: string[]; csrf: st
           OpenAI 兼容 SDK 的 base_url 设置为当前网关 HTTPS 地址加 /v1，api_key 使用项目密钥，model
           使用已发布并授权的别名。
           {query.data?.execution_engine === 'bifrost'
-            ? '支持受控文本 Chat、Responses JSON/SSE 及文本 Embeddings；向量请求显式设置 encoding_format=float。工具、多模态和 Messages 尚未启用。'
+            ? '支持受控文本 Chat、Responses JSON/SSE、文本 Embeddings，以及已审核的 DeepSeek 原生 Messages。Messages 实时流须单独审核启用；向量请求显式设置 encoding_format=float。工具和多模态尚未启用。'
             : '支持文本 Chat Completions JSON/SSE。'}
         </p>
         <p>
@@ -246,6 +248,7 @@ export function ProviderEditor({
               ...(embedded && field === 'provider' && value !== 'deepseek'
                 ? {
                     cache_pricing: undefined,
+                    allow_messages_stream: false,
                     ...(model.api === 'messages' ? { api: '' as const } : {}),
                   }
                 : {}),
@@ -389,6 +392,7 @@ export function ProviderEditor({
                             ? {
                                 ...m,
                                 api: e.target.value as '' | 'embeddings' | 'messages',
+                                ...(embedded ? { allow_messages_stream: false } : {}),
                                 ...(e.target.value === 'messages'
                                   ? {
                                       cache_pricing: m.cache_pricing ?? {
@@ -423,7 +427,7 @@ export function ProviderEditor({
                     </option>
                     {embedded && (
                       <option value="messages" disabled={model.provider !== 'deepseek'}>
-                        原生 Messages · 文本 JSON
+                        原生 Messages · 文本
                       </option>
                     )}
                     <option value="embeddings" disabled={embedded && model.provider === 'deepseek'}>
@@ -435,7 +439,7 @@ export function ProviderEditor({
                   <p>
                     文本向量仅计输入费用；支持阿里云、火山引擎、智谱。切回 Chat
                     后请重新填写输出上限与输出单价。原生 Messages 当前只支持 DeepSeek 文本
-                    JSON，需原始缓存计量；实时流尚未开放。
+                    JSON；实时流需显式审核原始起始用量与结束证明。
                   </p>
                 )}
               </>
@@ -614,6 +618,24 @@ export function ProviderEditor({
                   }
                 />
               )}
+            {embedded && model.api === 'messages' && (
+              <label>
+                <input
+                  type="checkbox"
+                  aria-label={`审核原生 Messages 实时流 ${index + 1}`}
+                  checked={model.allow_messages_stream ?? false}
+                  onChange={(event) =>
+                    setDraft((old) => ({
+                      ...old,
+                      models: old.models.map((m, i) =>
+                        i === index ? { ...m, allow_messages_stream: event.target.checked } : m,
+                      ),
+                    }))
+                  }
+                />
+                已核验供应商原始起始用量与完整结束事件，启用文本实时流
+              </label>
+            )}
             <label>
               价格版本
               <input

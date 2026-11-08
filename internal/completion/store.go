@@ -40,7 +40,7 @@ func (s *Store) Bind(ctx context.Context, route *provider.Route, req provider.Re
 	if _, err := route.Bound(req.MaxTokens); err != nil {
 		return ErrInvalid
 	}
-	if route.UsesNativeMessages() && provider.ValidateEmbeddedMessages(req) != nil {
+	if route.UsesNativeMessages() && (provider.ValidateEmbeddedMessages(req) != nil || (req.Stream && !route.AllowsMessagesStream())) {
 		return ErrInvalid
 	}
 	protocol := Protocol(route)

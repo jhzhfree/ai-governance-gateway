@@ -62,3 +62,7 @@
 ### 原生 Messages 增量（2026-11-08）
 
 本阶段直接调用固定 Bifrost v1.14.1 `openai.OpenAIChatRequest.ToBifrostChatRequest`、`anthropic.ToAnthropicChatRequest`、`AnthropicMessageResponse.ToBifrostChatResponse`；源码实现保留在模块依赖，未复制或补丁上游。新增有限适配只负责服务端能力白名单、原始计数/模型/完成边界、有界接收和现有账本对接。协议事实参考 DeepSeek 官方接口说明，见 ADR 0015。未新增或更新 Go/npm 锁定项、UI 素材或复制 new-api 源码。新增 SDK 公开转换包的实际链接依赖由候选包清单和通知收集核对，不能由锁文件未变推断链接组成完全相同。此来源记录不替代固定 SDK 全依赖、历史自有代码权属与发行义务的完整审查，不据此声明可商业分发。
+
+### 原生 Messages 实时流增量（2026-11-08）
+
+复用固定 SDK 的 `AnthropicStreamEvent.ToBifrostChatCompletionStream`、`NewAnthropicStreamState` 和公开结束原因映射，协议原始证据边界使用本仓有界分帧与有限状态校验；没有复制上游实现或改动依赖锁文件。客户端协议、预算、内容审计、恢复、页面和迁移均沿用现有实现。SDK 转换不承担完成证明，不声称复用 Core worker 或全部供应商能力。实际发行组成仍以构建清单为准，来源权属、嵌套通知和商业条款核验继续保留。详见 [ADR 0016](../../modules/engine/docs/adr/0016-embedded-messages-realtime.md)。

@@ -51,7 +51,7 @@ func (b *Binding) validateShape(route *provider.Route, req provider.Request) err
 	if route.UsesEmbeddedCacheEvidence() && b.journal == nil {
 		return execution.ErrInvalidRequest
 	}
-	if route.UsesNativeMessages() && provider.ValidateEmbeddedMessages(req) != nil {
+	if route.UsesNativeMessages() && (provider.ValidateEmbeddedMessages(req) != nil || (req.Stream && !route.AllowsMessagesStream())) {
 		return execution.ErrInvalidRequest
 	}
 	if req.IsEmbedding() && provider.ValidateEmbeddedEmbedding(route.Provider(), req) != nil {
@@ -101,6 +101,8 @@ func (b *Binding) Open(ctx context.Context, route *provider.Route, req provider.
 	reader, writer := io.Pipe()
 	done := make(chan struct{})
 	ready := make(chan error, 1)
+	var initialHeader string
+	var nativeInitial *provider.MessagesUsage
 	stop := context.AfterFunc(ctx, func() { _ = writer.CloseWithError(ctx.Err()) })
 	body := &responseBody{PipeReader: reader, cancel: cancel, done: done}
 	go func() {
@@ -112,6 +114,27 @@ func (b *Binding) Open(ctx context.Context, route *provider.Route, req provider.
 		usageSeen := false
 		err := b.executor.Execute(ctx, execution.Request{RequestID: requestID, AttemptID: attemptID, Body: payload}, func(ctx context.Context, event execution.Event) error {
 			if event.UpstreamStatus != http.StatusOK || event.RequestID != requestID || event.AttemptID != attemptID || len(event.Payload) > 1<<20 || (!req.Stream && count != 0) {
+				return execution.ErrUpstream
+			}
+			if len(event.InitialUsage) != 0 {
+				if count != 0 || !req.Stream || !route.UsesNativeMessages() || event.Completed || event.Usage != nil {
+					return execution.ErrUpstream
+				}
+				c, err := completion.MessagesUsage(event.InitialUsage)
+				if err != nil {
+					return execution.ErrUpstream
+				}
+				early := provider.MessagesUsage{InputTokens: c.Cache.Uncached, OutputTokens: c.Output, CacheReadInputTokens: c.Cache.Read, CacheCreationInputTokens: *c.Cache.Creation}
+				raw, err := json.Marshal(early)
+				if err != nil {
+					return execution.ErrUpstream
+				}
+				nativeInitial, err = provider.DecodeMessagesInitialUsage(string(raw), route.PriceSnapshot().MaxInputTokens, int64(req.MaxTokens))
+				if err != nil {
+					return execution.ErrUpstream
+				}
+				initialHeader = string(raw)
+			} else if count == 0 && req.Stream && route.UsesNativeMessages() {
 				return execution.ErrUpstream
 			}
 			var data map[string]json.RawMessage
@@ -132,6 +155,12 @@ func (b *Binding) Open(ctx context.Context, route *provider.Route, req provider.
 					c, err := completion.ParseUsage(protocol, u.Evidence)
 					if err != nil || !event.Completed || c.Input != int64(u.InputTokens) || c.Output != int64(u.OutputTokens) || c.Total != int64(u.TotalTokens) {
 						return execution.ErrUpstream
+					}
+					if req.Stream && route.UsesNativeMessages() {
+						check := &provider.Usage{PromptTokens: &c.Input, CompletionTokens: &c.Output, TotalTokens: &c.Total, PromptTokensDetails: &provider.InputTokenDetails{CachedTokens: &c.Cache.Read, CachedCreationTokens: c.Cache.Creation}}
+						if !nativeInitial.MatchesFinal(check) {
+							return execution.ErrUpstream
+						}
 					}
 					cache = c.Cache
 					// Persist already observed completion despite downstream cancellation.
@@ -213,7 +242,11 @@ func (b *Binding) Open(ctx context.Context, route *provider.Route, req provider.
 	if req.Stream {
 		media = "text/event-stream"
 	}
-	return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{media}}, Body: body}, nil
+	header := http.Header{"Content-Type": []string{media}}
+	if initialHeader != "" {
+		header.Set("X-Aigw-Initial-Usage", initialHeader)
+	}
+	return &http.Response{StatusCode: http.StatusOK, Header: header, Body: body}, nil
 }
 
 type responseBody struct {

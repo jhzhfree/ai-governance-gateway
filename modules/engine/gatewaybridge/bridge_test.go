@@ -91,7 +91,7 @@ func TestBridgeDoesNotPromotePayloadUsageOrHideLateErrors(t *testing.T) {
 	}
 }
 func TestBridgeRejectsUncorrelatedAndDuplicateEvents(t *testing.T) {
-	for _, mode := range []string{"identity", "status", "second response", "invalid usage", "oversized"} {
+	for _, mode := range []string{"identity", "status", "second response", "invalid usage", "oversized", "foreign initial"} {
 		t.Run(mode, func(t *testing.T) {
 			b, route, req := bridgeFixture(t, func(ctx context.Context, r execution.Request, emit execution.Emit) error {
 				e := event(r)
@@ -100,6 +100,8 @@ func TestBridgeRejectsUncorrelatedAndDuplicateEvents(t *testing.T) {
 					e.AttemptID = "different"
 				case "status":
 					e.UpstreamStatus = 0
+				case "foreign initial":
+					e.InitialUsage = json.RawMessage(`{"input_tokens":1,"output_tokens":0,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}`)
 				case "invalid usage":
 					e.Usage = &execution.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 3}
 				case "oversized":

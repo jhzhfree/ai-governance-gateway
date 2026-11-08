@@ -26,6 +26,22 @@ func TestEmbeddedMessagesOperationSnapshot(t *testing.T) {
 	if r.API() != "messages" || r.ExecutionSettings().API != "messages" || !r.UsesNativeMessages() || r.UsesReadOnlyCache() || r.PriceVersion() == chatRoute.PriceVersion() {
 		t.Fatal("native operation lost from execution snapshot or identity")
 	}
+	cfg.Models[0].AllowMessagesStream = true
+	streaming, err := provider.NewEmbedded(cfg, getenv, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	live, _ := streaming.Find("deepseek/fixture")
+	if !live.AllowsMessagesStream() || live.PriceVersion() == r.PriceVersion() || r.AllowsMessagesStream() {
+		t.Fatal("stream review not immutable")
+	}
+	cfg.Models[0].API = ""
+	if _, err := provider.NewEmbedded(cfg, getenv, nil); err == nil {
+		t.Fatal("Chat route borrowed native early-usage review")
+	}
+	cfg.Models[0].API = "messages"
+	cfg.Models[0].AllowMessagesStream = false
+
 	if _, err := provider.New(cfg, getenv, nil); err == nil {
 		t.Fatal("legacy transport inherited native operation")
 	}

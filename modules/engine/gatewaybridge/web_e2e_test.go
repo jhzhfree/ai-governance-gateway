@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,7 +26,7 @@ import (
 )
 
 func TestEmbeddedConsoleBrowser(t *testing.T) {
-	for _, protocol := range []string{"embeddings", "cache", "messages"} {
+	for _, protocol := range []string{"embeddings", "cache", "messages", "messages-stream"} {
 		t.Run(protocol, func(t *testing.T) { embeddedConsoleBrowser(t, protocol) })
 	}
 }
@@ -36,16 +37,21 @@ func embeddedConsoleBrowser(t *testing.T, protocol string) {
 	cfg.Models = cfg.Models[:1]
 	cfg.Models[0].MaxOutputTokens = 32
 	path := "/compatible-mode/v1/embeddings"
-	if protocol == "cache" || protocol == "messages" {
+	if protocol == "cache" || strings.HasPrefix(protocol, "messages") {
 		cfg.Models[0].ID, cfg.Models[0].Provider = "deepseek/fixture", "deepseek"
 		path = "/chat/completions"
 	}
-	if protocol == "messages" {
+	if strings.HasPrefix(protocol, "messages") {
 		path = "/anthropic/v1/messages"
 	}
 	f := embeddedProductFixtureAs(t, cfg, path, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if protocol == "messages" {
+		if protocol == "messages-stream" {
+			w.Header().Set("Content-Type", "text/event-stream")
+			io.WriteString(w, testutil.EmbeddedMessagesStream(`{"input_tokens":1,"output_tokens":0,"cache_read_input_tokens":2,"cache_creation_input_tokens":0}`, `{"input_tokens":1,"output_tokens":2,"cache_read_input_tokens":2,"cache_creation_input_tokens":0}`, "synthetic native response"))
+			return
+		}
+		if strings.HasPrefix(protocol, "messages") {
 			io.WriteString(w, `{"id":"msg_browser","type":"message","role":"assistant","model":"fixture-model","content":[{"type":"text","text":"synthetic native response"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":1,"output_tokens":2,"cache_read_input_tokens":2,"cache_creation_input_tokens":0}}`)
 			return
 		}
@@ -96,7 +102,7 @@ func embeddedConsoleBrowser(t *testing.T, protocol string) {
 	if protocol == "cache" {
 		wantProtocol, wantCost = "deepseek_cache_v1", 11
 	}
-	if protocol == "messages" {
+	if strings.HasPrefix(protocol, "messages") {
 		wantProtocol, wantCost = "deepseek_messages_v1", 11
 	}
 	var events, receipts int

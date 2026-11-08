@@ -5,7 +5,7 @@ import "errors"
 // ValidateEmbeddedMessages limits the reviewed native conversion to ordered text
 // conversation. System relocation and adjacent-role merging cannot change semantics.
 func ValidateEmbeddedMessages(req Request) error {
-	if req.Stream || req.IsEmbedding() || req.HasTools() || req.HasParts() || !ValidateRequest(req) || req.MaxTokens < 16 {
+	if req.IsEmbedding() || req.HasTools() || req.HasParts() || !ValidateRequest(req) || req.MaxTokens < 16 {
 		return errors.New("unsupported native Messages request")
 	}
 	i := 0

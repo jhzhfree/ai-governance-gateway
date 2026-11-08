@@ -167,10 +167,10 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	catalog := &Catalog{routes: map[string]*Route{}}
 	for _, m := range cfg.Models {
-		if (!requireCredential && (m.NewAPIChannelID <= 0 || !channelRevisionPattern.MatchString(m.NewAPIChannelRevision))) || (requireCredential && (m.NewAPIChannelID != 0 || m.NewAPIChannelRevision != "" || m.AllowImages || m.AllowMessagesStream || len(m.AllowedTools) != 0 || (m.API != "" && !embedded))) {
+		if (!requireCredential && (m.NewAPIChannelID <= 0 || !channelRevisionPattern.MatchString(m.NewAPIChannelRevision))) || (requireCredential && (m.NewAPIChannelID != 0 || m.NewAPIChannelRevision != "" || m.AllowImages || (m.AllowMessagesStream && !(embedded && m.API == "messages")) || len(m.AllowedTools) != 0 || (m.API != "" && !embedded))) {
 			return nil, errors.New("newapi directory requires an explicit approved channel; native directories cannot specify one")
 		}
-		if m.AllowMessagesStream && (m.CachePricing == nil || m.API != "") {
+		if m.AllowMessagesStream && (m.CachePricing == nil || (m.API != "" && !(embedded && m.API == "messages"))) {
 			return nil, errors.New("Messages streaming requires reviewed cache evidence")
 		}
 		if m.CachePricing != nil {
@@ -230,6 +230,9 @@ func newCatalog(cfg Config, getenv func(string) string, transport *http.Client, 
 			prices, _ := json.Marshal(m.CachePricing)
 			canonical = append(canonical, []byte("\ncache-tariff-v1:")...)
 			canonical = append(canonical, prices...)
+		}
+		if messages && m.AllowMessagesStream {
+			canonical = append(canonical, []byte("\ndeepseek-messages-stream-v1")...)
 		}
 		if messages {
 			canonical = append(canonical, []byte("\ndeepseek-messages-json-v1")...)

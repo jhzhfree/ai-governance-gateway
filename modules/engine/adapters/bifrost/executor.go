@@ -102,7 +102,7 @@ func (e *Executor) Execute(ctx context.Context, req execution.Request, emit exec
 		return execution.ErrInvalidRequest
 	}
 	if e.api == "messages" {
-		return e.messagesJSON(ctx, req, emit)
+		return e.messagesExecute(ctx, req, emit)
 	}
 	if e.api == "embeddings" {
 		return e.embedding(ctx, req, emit)

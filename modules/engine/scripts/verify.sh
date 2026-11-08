@@ -21,8 +21,9 @@ fi
 "$go_bin" mod verify
 "$go_bin" vet -mod=readonly ./...
 # Timeout covers the whole package: the existing matrix measured up to 148s,
-# and cache governance plus two SIGKILL paths adds ~40s locally. Keep request
+# and native Messages JSON measured 195s. The new native stream/fault matrix
+# adds ~50s locally. Keep request
 # and per-scenario deadlines unchanged; budget cumulative PostgreSQL/race work.
-"$go_bin" test -mod=readonly -race -count=1 -timeout=300s ./...
+"$go_bin" test -mod=readonly -race -count=1 -timeout=360s ./...
 
 "$go_bin" build -mod=readonly -o /dev/null ./cmd/gateway-engine

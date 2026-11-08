@@ -66,4 +66,6 @@ CLI 可省略已通过 `context use` 保存的组织/项目，输出/退出码�
 
 `embedded_completion.protocol=embeddings_v1` 表示仅输入计费的文本向量，输出数量为零，冻结输出价格和上限也为零。页面明确标注该协议；原始 usage 没有输出字段时不会补写伪造字段。金额、统计和账单仍复用同一结算回执，恢复后不会重复累计。
 
-`embedded_completion.protocol=deepseek_messages_v1` 表示单进程原生 Messages 完成证据（0035），当前仅 JSON。`input_tokens` 是总输入，`uncached_input_tokens` 是原生普通输入，`cache_read_tokens` 是原始命中；`cache_write_tokens` 只有明确取得原始零值才为 0，其他协议和未完成状态保持 null。旧 Chat 命中计量不能推导该写入零值。该字段也不表示客户端入口类型：同一原生路由可承载受控 Messages、Chat 或 Responses JSON。
+`embedded_completion.protocol=deepseek_messages_v1` 表示单进程原生 Messages 完成证据（0035）；0036 起可由显式审核的实时流产生。`input_tokens` 是总输入，`uncached_input_tokens` 是原生普通输入，`cache_read_tokens` 是原始命中；`cache_write_tokens` 只有明确取得原始零值才为 0，其他协议和未完成状态保持 null。旧 Chat 命中计量不能推导该写入零值。该字段也不表示客户端入口类型：同一原生路由可承载受控 Messages、Chat 或 Responses JSON。
+
+原生实时流的早期计数不创建 `embedded_completion` 完成事件；调用绑定仍显示未取得完成证据，直到原始结束事件验证并落库。客户端输出、审计状态与费用回执保持独立。供应商最终计数是累计值，不能与起始计数相加；恢复使用已保存的最终原始字节及派发费率，不重新调用模型。

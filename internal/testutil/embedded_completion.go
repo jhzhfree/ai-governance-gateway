@@ -25,6 +25,10 @@ func SeedEmbeddedEmbeddingCompletion(t testing.TB, pool *pgxpool.Pool, scope bud
 func seedEmbeddedCompletion(t testing.TB, pool *pgxpool.Pool, scope budget.Scope, id, state string, protocol string) {
 	t.Helper()
 	ctx := context.Background()
+	nativeStream := protocol == "messages_stream"
+	if nativeStream {
+		protocol = "messages"
+	}
 	embedding := protocol == "embeddings"
 	cached := protocol == "cache" || protocol == "messages"
 	cfg := MainlandConfig()
@@ -49,13 +53,14 @@ func seedEmbeddedCompletion(t testing.TB, pool *pgxpool.Pool, scope budget.Scope
 	}
 	if protocol == "messages" {
 		cfg.Models[0].API = "messages"
+		cfg.Models[0].AllowMessagesStream = nativeStream
 	}
 	catalog, err := newCatalog(cfg, func(string) string { return "synthetic-metadata-fixture" }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	route, _ := catalog.Find(alias)
-	req := provider.Request{Model: alias, MaxTokens: 32, Messages: []provider.Message{{Role: "user", Content: "synthetic metadata fixture"}}}
+	req := provider.Request{Model: alias, MaxTokens: 32, Stream: nativeStream, MessagesStream: nativeStream, Messages: []provider.Message{{Role: "user", Content: "synthetic metadata fixture"}}}
 	if embedding {
 		req = provider.Request{API: "embeddings", Model: alias, Input: []string{"synthetic metadata fixture"}}
 	}
@@ -68,7 +73,7 @@ func seedEmbeddedCompletion(t testing.TB, pool *pgxpool.Pool, scope budget.Scope
 		t.Fatal(err)
 	}
 	attempt := "attempt-" + id
-	if err := execution.New(pool).Begin(ctx, execution.Start{AttemptID: attempt, RequestID: id, Model: req.Model, Provider: route.Provider(), Region: route.Region()}); err != nil {
+	if err := execution.New(pool).Begin(ctx, execution.Start{AttemptID: attempt, RequestID: id, Model: req.Model, Provider: route.Provider(), Region: route.Region(), Stream: req.Stream}); err != nil {
 		t.Fatal(err)
 	}
 	if err := ledger.Dispatch(ctx, id); err != nil {
@@ -117,4 +122,9 @@ func SeedEmbeddedCacheCompletion(t testing.TB, pool *pgxpool.Pool, scope budget.
 func SeedEmbeddedMessagesCompletion(t testing.TB, pool *pgxpool.Pool, scope budget.Scope, id, state string) {
 	t.Helper()
 	seedEmbeddedCompletion(t, pool, scope, id, state, "messages")
+}
+
+func SeedEmbeddedMessagesStreamCompletion(t testing.TB, pool *pgxpool.Pool, scope budget.Scope, id, state string) {
+	t.Helper()
+	seedEmbeddedCompletion(t, pool, scope, id, state, "messages_stream")
 }

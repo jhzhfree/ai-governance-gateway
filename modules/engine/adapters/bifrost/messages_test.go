@@ -24,7 +24,7 @@ func TestNativeMessagesSDKConversionAndEvidence(t *testing.T) {
 					t.Error("unreviewed transport")
 				}
 				var wire map[string]json.RawMessage
-				if json.NewDecoder(r.Body).Decode(&wire) != nil || string(wire["model"]) != `"fixture-model"` || string(wire["max_tokens"]) != "32" || string(wire["thinking"]) != `{"type":"disabled"}` || string(wire["stream"]) != "false" {
+				if json.NewDecoder(r.Body).Decode(&wire) != nil || string(wire["model"]) != `"fixture-model"` || string(wire["max_tokens"]) != "32" || string(wire["thinking"]) != `{"type":"disabled"}` || string(wire["stream"]) != map[bool]string{true: "true", false: "false"}[mode == "stream"] {
 					t.Error("SDK changed approved model/cap/thinking")
 				}
 				rawUsage := usage
@@ -65,7 +65,7 @@ func TestNativeMessagesSDKConversionAndEvidence(t *testing.T) {
 			}
 			defer e.Close()
 			body := `{"model":"fixture-model","max_tokens":32,"stream":false,"messages":[{"role":"system","content":"synthetic system"},{"role":"user","content":"first"},{"role":"assistant","content":"response"},{"role":"user","content":"last"}]}`
-			rejected := mode == "stream" || mode == "system order" || mode == "prefill" || mode == "adjacent roles"
+			rejected := mode == "system order" || mode == "prefill" || mode == "adjacent roles"
 			switch mode {
 			case "stream":
 				body = strings.Replace(body, `"stream":false`, `"stream":true`, 1)

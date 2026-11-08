@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 
 	"github.com/jhzhfree/ai-governance-gateway/internal/completion"
 	"github.com/jhzhfree/ai-governance-gateway/internal/provider"
@@ -15,7 +16,7 @@ import (
 
 // Messages uses public SDK converters within the same guarded, bounded receiver.
 // Conversion does not grant completion or manufacture original usage evidence.
-func (e *Executor) messagesJSON(ctx context.Context, req execution.Request, emit execution.Emit) error {
+func (e *Executor) messagesExecute(ctx context.Context, req execution.Request, emit execution.Emit) error {
 	maxOutput, valid := validateRequest(req.Body, e.model, e.maxOutputTokens)
 	v, ok := object(req.Body, "model", "messages", "max_tokens", "stream")
 	if !valid || !ok {
@@ -47,7 +48,7 @@ func (e *Executor) messagesJSON(ctx context.Context, req execution.Request, emit
 		return execution.ErrInvalidRequest
 	}
 	wire.Model, wire.MaxTokens = e.model, maxOutput
-	wire.Stream = schemas.Ptr(false)
+	wire.Stream = schemas.Ptr(governed.Stream)
 	wire.Thinking = &anthropic.AnthropicThinking{Type: "disabled"}
 	payload, err := json.Marshal(wire)
 	if err != nil {
@@ -75,6 +76,11 @@ func (e *Executor) messagesJSON(ctx context.Context, req execution.Request, emit
 		return err
 	}
 	defer release()
+	if governed.Stream {
+		return e.receiveSSE(ctx, payload, func(ctx context.Context, body io.Reader) error {
+			return e.receiveMessages(ctx, bctx, body, req, maxOutput, emit)
+		})
+	}
 	raw, err := e.receiveJSON(ctx, payload)
 	if err != nil {
 		return err

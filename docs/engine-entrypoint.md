@@ -26,13 +26,13 @@ cd ../..
 ## 启用条件
 
 - 有效的部署及供应商驻留审查、密钥、模型映射和经核验的预算费率。
-- 当前开放受控文本 Chat/Responses JSON/SSE、文本 Embeddings JSON，以及 DeepSeek 原生 Messages JSON；生成接口 max_tokens 至少为 16。原生 Messages 流式、工具、多模态、思考输出未通过网关验收。
+- 当前开放受控文本 Chat/Responses JSON/SSE、文本 Embeddings JSON，以及 DeepSeek 原生 Messages JSON/显式审核 SSE；生成接口 max_tokens 至少为 16。工具、多模态、思考输出未通过网关验收。
 - 四家固定配置包括 DeepSeek；DeepSeek Chat/Responses 可显式开启原始命中计费，原生 Messages 必须配置命中费率并取得显式写入零值。其他缓存类别与分时价格尚未开放。
 - max-bindings 包含现用、构建与排空实例，应预留轮换容量；默认 64 为最多 32 个模型的一轮完整替换预留空间，不代表经过容量压测。
 
 ## 探针、升级与退出
 
-数据库按默认 auto 模式完成升级后才监听，版本/校验和/结构漂移检查保持；可用 --schema-mode=check 分离权限。单进程完成证据为迁移 0032，文本 Embeddings 追加 0033、命中计费 0034、原生 Messages JSON 0035；实际最新版本以迁移命令为准。
+数据库按默认 auto 模式完成升级后才监听，版本/校验和/结构漂移检查保持；可用 --schema-mode=check 分离权限。单进程完成证据为迁移 0032，文本 Embeddings 追加 0033、命中计费 0034、原生 Messages JSON 0035、实时流 0036；实际最新版本以迁移命令为准。
 
 未配置供应商时管理服务可启动，`/health/live` 为 204、`/health/ready` 为 503；完成受保护的配置发布后刷新就绪状态。ready 同时依赖执行器、数据库、审计和设备条件；不能用 live 代替 ready。
 
@@ -75,3 +75,5 @@ SIGTERM/SIGINT 后先拒绝新请求，允许已有请求最多 10 秒完成；�
 ## 原生 Messages 文本 JSON
 
 采用 [ADR 0015](../modules/engine/docs/adr/0015-embedded-messages-json.md) 的 `api:messages` 服务端路由，仅 DeepSeek 固定 `/anthropic/v1/messages`。SDK 复用公开请求/响应转换，不依赖 Core worker 或第二进程。四个原始计数、模型标识与完成原因经过严格校验后保存；失败与未知费用沿用现有账本。当前真实供应商账户兼容及账单仍须外部验收。管理步骤见[操作手册](product/user-guide.md#单进程原生-messages-接入)。
+
+原生 Messages 文本 SSE 另须 `allow_messages_stream:true`，该审核位改变不可变路由指纹；仅服务端审核模型可使用。早期用量由适配器解析原始 message_start，内部桥接再次核验；最终费用等待原始累计 usage 与 message_stop。共用网络/帧上限，不把初始 usage 或 EOF 当作完成。实际范围及拒绝边界见 [实时流 ADR](../modules/engine/docs/adr/0016-embedded-messages-realtime.md)。

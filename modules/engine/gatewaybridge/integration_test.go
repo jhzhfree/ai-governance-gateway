@@ -34,6 +34,10 @@ func TestGovernedPooledBifrostExecution(t *testing.T) {
 }
 
 func governedPooledExecution(t *testing.T, protocol string, cached bool) {
+	nativeStream := strings.HasPrefix(protocol, "native-stream-")
+	if nativeStream {
+		protocol = strings.Replace(protocol, "native-stream-", "native-", 1)
+	}
 	native := strings.HasPrefix(protocol, "native-")
 	if native {
 		protocol = strings.TrimPrefix(protocol, "native-")
@@ -71,6 +75,12 @@ func governedPooledExecution(t *testing.T, protocol string, cached bool) {
 			modes = []string{"json", "receipt failure", "native stream refusal"}
 		}
 	}
+	if nativeStream {
+		modes = []string{"stream", "missing initial", "missing cache", "cache mismatch", "missing usage", "duplicate usage", "usage then disconnect", "binding failure", "completion persistence failure", "receipt failure", "completed then cancel", "budget denial", "revoked key", "device denial", "audit unavailable", "model permission removed", "no journal", "no settlement store", "native stream refusal"}
+		if protocol != "messages" {
+			modes = []string{"stream", "cache mismatch", "receipt failure", "native stream refusal"}
+		}
+	}
 	for _, mode := range modes {
 		t.Run(mode, func(t *testing.T) {
 			ctx := context.Background()
@@ -93,6 +103,7 @@ func governedPooledExecution(t *testing.T, protocol string, cached bool) {
 				cfg.Models[0].CachePricing = &provider.CachePricing{ReadPerMillion: 500000}
 				if native {
 					cfg.Models[0].API = "messages"
+					cfg.Models[0].AllowMessagesStream = nativeStream && mode != "native stream refusal"
 				}
 				newCatalog = provider.NewEmbedded
 			}
@@ -135,6 +146,32 @@ func governedPooledExecution(t *testing.T, protocol string, cached bool) {
 					w.Header().Set("Content-Type", jsonMedia)
 					w.(http.Flusher).Flush()
 					io.WriteString(w, strings.Repeat(" ", 1<<20))
+				}
+				if nativeStream {
+					if mode == "missing initial" {
+						w.Header().Set("X-Aigw-Initial-Usage", `{"input_tokens":1,"output_tokens":0,"cache_read_input_tokens":2,"cache_creation_input_tokens":0}`)
+					}
+					w.Header().Set("Content-Type", "text/event-stream")
+					early := strings.Replace(originalUsage, `"output_tokens":2`, `"output_tokens":0`, 1)
+					final := originalUsage
+					switch mode {
+					case "missing initial":
+						early = "null"
+					case "missing cache":
+						final = strings.Replace(final, `, "cache_creation_input_tokens":0`, "", 1)
+					case "cache mismatch":
+						final = strings.Replace(final, `"input_tokens":1`, `"input_tokens":2`, 1)
+					case "missing usage":
+						final = "null"
+					case "duplicate usage":
+						final = strings.Replace(final, `"input_tokens":1`, `"input_tokens":1,"input_tokens":1`, 1)
+					}
+					body := testutil.EmbeddedMessagesStream(early, final, "synthetic reply")
+					if mode == "usage then disconnect" {
+						body = strings.Split(body, "event: message_stop")[0]
+					}
+					io.WriteString(w, body)
+					return
 				}
 				if native {
 					w.Header().Set("Content-Type", jsonMedia)
@@ -272,7 +309,7 @@ func governedPooledExecution(t *testing.T, protocol string, cached bool) {
 				h.Content = contentaudit.New(pool, nil)
 			}
 			stream := !native && protocol != "embeddings" && (mode == "stream" || mode == "missing usage" || mode == "duplicate usage" || mode == "malformed stream" || mode == "oversized stream" || mode == "usage then disconnect")
-			if mode == "native stream refusal" {
+			if nativeStream || mode == "native stream refusal" {
 				stream = true
 			}
 			maxTokens := 32
@@ -310,6 +347,9 @@ func governedPooledExecution(t *testing.T, protocol string, cached bool) {
 				r = r.WithContext(requestCtx)
 			}
 			r.Header.Set("Authorization", "Bearer "+key.Secret)
+			if mode == "missing initial" {
+				r.Header.Set("X-Aigw-Initial-Usage", `{"input_tokens":1,"output_tokens":0,"cache_read_input_tokens":2,"cache_creation_input_tokens":0}`)
+			}
 			if mode == "device denial" {
 				r.Header.Set("Authorization", "DPoP aigw_dt_invalid")
 			}
@@ -327,7 +367,7 @@ func governedPooledExecution(t *testing.T, protocol string, cached bool) {
 			}
 			id := w.Header().Get("X-Request-ID")
 			successful := mode == "json" || mode == "stream"
-			dispatched := mode == "missing cache" || mode == "cache mismatch" || mode == "oversized json" || mode == "wrong media" || successful || mode == "json without finish" || mode == "missing usage" || mode == "duplicate usage" || mode == "upstream failure" || mode == "malformed stream" || mode == "oversized stream" || mode == "usage then disconnect"
+			dispatched := mode == "missing initial" || mode == "missing cache" || mode == "cache mismatch" || mode == "oversized json" || mode == "wrong media" || successful || mode == "json without finish" || mode == "missing usage" || mode == "duplicate usage" || mode == "upstream failure" || mode == "malformed stream" || mode == "oversized stream" || mode == "usage then disconnect"
 			if dispatched || mode == "binding failure" || mode == "completion persistence failure" || mode == "receipt failure" || mode == "completed then cancel" {
 				wantCalls := int32(1)
 				if mode == "binding failure" {
@@ -424,6 +464,9 @@ func governedPooledExecution(t *testing.T, protocol string, cached bool) {
 					if protocol == "responses" {
 						terminal = strings.Contains(w.Body.String(), "event: response.completed\n") && !strings.Contains(w.Body.String(), "[DONE]")
 					}
+					if protocol == "messages" {
+						terminal = strings.Contains(w.Body.String(), "event: message_stop\n") && !strings.Contains(w.Body.String(), "[DONE]")
+					}
 					if !terminal {
 						t.Fatal("successful stream not sealed")
 					}
@@ -448,7 +491,7 @@ func governedPooledExecution(t *testing.T, protocol string, cached bool) {
 				if err != nil {
 					t.Fatal(err)
 				}
-			} else if strings.Contains(w.Body.String(), "synthetic-secret-error") || (stream && (strings.Contains(w.Body.String(), "[DONE]") || strings.Contains(w.Body.String(), "event: response.completed\n"))) {
+			} else if strings.Contains(w.Body.String(), "synthetic-secret-error") || (stream && (strings.Contains(w.Body.String(), "[DONE]") || strings.Contains(w.Body.String(), "event: response.completed\n") || strings.Contains(w.Body.String(), "event: message_stop\n"))) {
 				t.Fatal("error disclosed or incomplete stream marked done")
 			}
 		})
@@ -486,5 +529,11 @@ func TestGovernedDeepSeekCacheExecution(t *testing.T) {
 func TestGovernedNativeMessagesJSONExecution(t *testing.T) {
 	for _, protocol := range []string{"messages", "chat", "responses"} {
 		t.Run(protocol, func(t *testing.T) { governedPooledExecution(t, "native-"+protocol, true) })
+	}
+}
+
+func TestGovernedNativeMessagesRealtimeExecution(t *testing.T) {
+	for _, protocol := range []string{"messages", "chat", "responses"} {
+		t.Run(protocol, func(t *testing.T) { governedPooledExecution(t, "native-stream-"+protocol, true) })
 	}
 }

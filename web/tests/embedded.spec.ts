@@ -4,9 +4,16 @@ import AxeBuilder from '@axe-core/playwright';
 test('embedded model editor publishes reviewed pricing and shows durable evidence', async ({
   page,
 }) => {
-  const native = process.env.AIGW_E2E_EMBEDDED_PROTOCOL === 'messages';
+  const streaming = process.env.AIGW_E2E_EMBEDDED_PROTOCOL === 'messages-stream';
+  const native = streaming || process.env.AIGW_E2E_EMBEDDED_PROTOCOL === 'messages';
   const cached = native || process.env.AIGW_E2E_EMBEDDED_PROTOCOL === 'cache';
-  const label = native ? 'messages' : cached ? 'cache' : 'embedding';
+  const label = streaming
+    ? 'messages-stream'
+    : native
+      ? 'messages'
+      : cached
+        ? 'cache'
+        : 'embedding';
   await page.goto('/');
   await page.getByRole('link', { name: /使用组织账号登录/ }).click();
   await page.getByRole('button', { name: '供应商配置', exact: true }).click();
@@ -20,6 +27,7 @@ test('embedded model editor publishes reviewed pricing and shows durable evidenc
     );
     await page.getByLabel('缓存命中单价（微元/百万 Token）', { exact: true }).fill('500000');
     await page.getByLabel('价格版本 1', { exact: true }).fill('embedded-cache-v1');
+    if (streaming) await page.getByLabel('审核原生 Messages 实时流 1', { exact: true }).check();
   } else {
     await page.getByLabel('接口能力 1', { exact: true }).selectOption('embeddings');
     await expect(page.getByLabel('最大输出 token 1', { exact: true })).toHaveValue('0');
@@ -44,6 +52,10 @@ test('embedded model editor publishes reviewed pricing and shows durable evidenc
   expect(a11y.violations.map((v) => ({ id: v.id, nodes: v.nodes.map((n) => n.target) }))).toEqual(
     [],
   );
+  if (native)
+    await expect(page.getByLabel('审核原生 Messages 实时流 1', { exact: true })).toBeChecked({
+      checked: streaming,
+    });
   const response = await page.request.post(
     native ? '/v1/messages' : cached ? '/v1/chat/completions' : '/v1/embeddings',
     {
@@ -52,12 +64,18 @@ test('embedded model editor publishes reviewed pricing and shows durable evidenc
         ? {
             model: 'deepseek/fixture',
             max_tokens: 32,
+            stream: streaming,
             messages: [{ role: 'user', content: 'synthetic' }],
           }
         : { model: 'aliyun/fixture', input: 'synthetic', encoding_format: 'float' },
     },
   );
   expect(response.status()).toBe(200);
+  if (streaming) {
+    const text = await response.text();
+    expect(text).toContain('event: message_stop');
+    expect(text).not.toContain('[DONE]');
+  }
   const requestID = response.headers()['x-request-id'];
   const organizations = await (await page.request.get('/api/v1/organizations')).json();
   const org = organizations.data[0].id;

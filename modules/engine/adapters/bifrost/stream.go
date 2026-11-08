@@ -1,7 +1,6 @@
 package bifrost
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -10,7 +9,6 @@ import (
 	"mime"
 	"net/http"
 	"time"
-	"unicode/utf8"
 
 	"github.com/jhzhfree/ai-governance-gateway/modules/engine/execution"
 	"github.com/maximhq/bifrost/core/network"
@@ -29,13 +27,17 @@ func streamClient(testLoopback bool) *http.Client {
 }
 
 func (e *Executor) stream(ctx context.Context, req execution.Request, maxOutput int, emit execution.Emit) error {
-	parent := ctx
-	ctx, cancel := context.WithCancelCause(ctx)
-	defer cancel(nil)
 	payload, err := e.profile.wireBody(req.Body, true)
 	if err != nil {
 		return execution.ErrInvalidRequest
 	}
+	return e.receiveSSE(ctx, payload, func(ctx context.Context, body io.Reader) error { return receiveStream(ctx, body, req, maxOutput, emit) })
+}
+
+func (e *Executor) receiveSSE(ctx context.Context, payload []byte, receive func(context.Context, io.Reader) error) error {
+	parent := ctx
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
 	upstream, err := http.NewRequestWithContext(ctx, http.MethodPost, e.streamURL, bytes.NewReader(payload))
 	if err != nil {
 		return execution.ErrInvalidRequest
@@ -58,7 +60,7 @@ func (e *Executor) stream(ctx context.Context, req execution.Request, maxOutput 
 		return execution.ErrUpstream
 	}
 	read := &idleReader{Reader: response.Body, cancel: cancel}
-	err = receiveStream(ctx, read, req, maxOutput, emit)
+	err = receive(ctx, read)
 	if err != nil {
 		return streamError(parent, ctx, err)
 	}
@@ -96,99 +98,40 @@ const maxStreamBytes = 16 << 20
 // Every byte, including comments and unknown fields, counts against limits.
 // A terminal event is accepted only after a real finish_reason. EOF is never DONE.
 func receiveStream(ctx context.Context, body io.Reader, req execution.Request, maxOutput int, emit execution.Emit) error {
-	reader := bufio.NewReaderSize(body, 4096)
 	evidence := &usageEvidence{stream: true}
 	var terminalUsage *execution.Event
-	var data []byte
-	frameBytes, totalBytes := 0, 0
-	for {
-		if err := ctx.Err(); err != nil {
-			return err
+	return readSSEFrames(ctx, body, func(name string, data json.RawMessage) (bool, error) {
+		if name != "" && name != "message" {
+			return false, execution.ErrUpstream
 		}
-		// ReadSlice bounds allocation before a delimiter; long lines are accumulated
-		// only up to the frame cap, unlike Scanner limits applied after allocation.
-		var line []byte
-		for {
-			part, err := reader.ReadSlice('\n')
-			frameBytes += len(part)
-			totalBytes += len(part)
-			if frameBytes > maxStreamFrame || totalBytes > maxStreamBytes {
-				return execution.ErrUpstream
+		if bytes.Equal(data, []byte("[DONE]")) {
+			if !evidence.finished {
+				return false, execution.ErrUpstream
 			}
-			line = append(line, part...)
-			if err == bufio.ErrBufferFull {
-				continue
+			if terminalUsage != nil {
+				terminalUsage.Completed = true
+				return true, emit(ctx, *terminalUsage)
 			}
-			if err != nil {
-				return execution.ErrUpstream
-			}
-			break
+			return true, nil
 		}
-		line = bytes.TrimSuffix(line, []byte{'\n'})
-		line = bytes.TrimSuffix(line, []byte{'\r'})
-		if !utf8.Valid(line) {
-			return execution.ErrUpstream
+		if err := validateStreamFrame(data, evidence.finished); err != nil {
+			return false, err
 		}
-		if len(line) == 0 {
-			frameBytes = 0
-			if len(data) == 0 {
-				continue
-			}
-			data = bytes.TrimSuffix(data, []byte{'\n'})
-			if bytes.Equal(data, []byte("[DONE]")) {
-				if !evidence.finished {
-					return execution.ErrUpstream
-				}
-				if terminalUsage != nil {
-					terminalUsage.Completed = true
-					return emit(ctx, *terminalUsage)
-				}
-				return nil
-			}
-			if err := validateStreamFrame(data, evidence.finished); err != nil {
-				return err
-			}
-			previous := evidence.usage
-			if err := evidence.observe(json.RawMessage(data), maxOutput); err != nil {
-				return err
-			}
-			var usage *execution.Usage
-			if evidence.usage != previous {
-				usage = evidence.usage
-			}
-			// Copy because consumers may retain payload after returning.
-			event := execution.Event{UpstreamStatus: 200, RequestID: req.RequestID, AttemptID: req.AttemptID, Payload: append(json.RawMessage(nil), data...), Usage: usage}
-			if usage != nil {
-				terminalUsage = &event
-				data = nil
-				continue
-			}
-			if err := emit(ctx, event); err != nil {
-				return err
-			}
-			data = nil
-			continue
+		previous := evidence.usage
+		if err := evidence.observe(data, maxOutput); err != nil {
+			return false, err
 		}
-		if line[0] == ':' {
-			continue
+		var usage *execution.Usage
+		if evidence.usage != previous {
+			usage = evidence.usage
 		}
-		field, value, found := bytes.Cut(line, []byte{':'})
-		if !found {
-			value = nil
+		event := execution.Event{UpstreamStatus: 200, RequestID: req.RequestID, AttemptID: req.AttemptID, Payload: append(json.RawMessage(nil), data...), Usage: usage}
+		if usage != nil {
+			terminalUsage = &event
+			return false, nil
 		}
-		value = bytes.TrimPrefix(value, []byte{' '})
-		switch string(field) {
-		case "data":
-			data = append(data, value...)
-			data = append(data, '\n')
-		case "event":
-			if string(value) != "message" {
-				return execution.ErrUpstream
-			}
-		default:
-			return execution.ErrUpstream
-		}
-	}
+		return false, emit(ctx, event)
+	})
 }
 
 func validateStreamFrame(data []byte, finished bool) error {

@@ -1,6 +1,6 @@
 # 页面操作手册
 
-> 单进程分支提示（2026-11-08）：`feature/v1-single-process-commercial` 现在以进程内 Bifrost 为产品入口，并已开始提供对应候选安装包；下文四协议和双进程能力仍是旧分支基线，不等于新引擎已全部迁移。新引擎已接入受控文本 Chat、无状态文本 Responses JSON/SSE 和仅输入计费的文本 Embeddings JSON；原生 DeepSeek Messages 文本 JSON 已接入 0035；Messages 实时流、工具和多模态仍在迁移。当前启动与安装以 [单进程入口](../engine-entrypoint.md)、[Linux 候选包](../linux-package.md) 和 [交付跟踪](../v1-delivery.md) 为准。
+> 单进程分支提示（2026-11-08）：`feature/v1-single-process-commercial` 现在以进程内 Bifrost 为产品入口，并已开始提供对应候选安装包；下文四协议和双进程能力仍是旧分支基线，不等于新引擎已全部迁移。新引擎已接入受控文本 Chat、无状态文本 Responses JSON/SSE 和仅输入计费的文本 Embeddings JSON；原生 DeepSeek Messages 文本 JSON 已接入 0035，0036 增加显式审核的实时流；工具和多模态仍在迁移。当前启动与安装以 [单进程入口](../engine-entrypoint.md)、[Linux 候选包](../linux-package.md) 和 [交付跟踪](../v1-delivery.md) 为准。
 
 版本和适用范围见 [文档中心](README.md)。页面名称以当前导航为准。金额、请求状态和审计内容是不同事实，不应互相代替。
 
@@ -20,11 +20,11 @@
 
 ## 单进程原生 Messages 接入
 
-供应商配置中选择 DeepSeek，将“接口能力”设为“原生 Messages · 文本 JSON”，填写供应商实际模型名和经核验的缓存命中费率后发布；不使用 `claude*` 映射别名。同一模型不能同时标为 Chat 和 Messages 上游能力，需要两种协议时建立不同模型条目。继承的输入价格只是编辑初值，发布前需核对合同与版本；当前仅支持原始缓存写入计数明确为零的响应。
+供应商配置中选择 DeepSeek，将“接口能力”设为“原生 Messages · 文本”，填写供应商实际模型名和经核验的缓存命中费率后发布；不使用 `claude*` 映射别名。同一模型不能同时标为 Chat 和 Messages 上游能力，需要两种协议时建立不同模型条目。继承的输入价格只是编辑初值，发布前需核对合同与版本；当前仅支持原始缓存写入计数明确为零的响应。
 
-授权项目模型后，客户端使用网关项目 Key，调用 `POST /v1/messages`，字段为 `model`、`max_tokens`、`messages`，可加 `system`；使用 `anthropic-version: 2023-06-01`，Key 放 `x-api-key` 或 Bearer 其中一种。支持字符串/纯 text 块；规范化后必须是可选首条 system、交替 user/assistant，并以 user 结束。SDK 多轮历史同样受模型输入估算上限限制。此原生模型也可承载受控 Chat/Responses JSON；本阶段任何入口的 `stream:true` 均在预留/派发前拒绝，工具、图片、thinking、beta 等尚未开放。
+授权项目模型后，客户端使用网关项目 Key，调用 `POST /v1/messages`，字段为 `model`、`max_tokens`、`messages`，可加 `system`；使用 `anthropic-version: 2023-06-01`，Key 放 `x-api-key` 或 Bearer 其中一种。支持字符串/纯 text 块；规范化后必须是可选首条 system、交替 user/assistant，并以 user 结束。SDK 多轮历史同样受模型输入估算上限限制。此原生模型也可承载受控 Chat/Responses。实时流默认关闭；经核验供应商原始早期计数、最终累计计数与完整结束事件后，在同一页面勾选“已核验供应商原始起始用量与完整结束事件，启用文本实时流”并发布。随后三个公共入口均可使用 `stream:true`；未经审核的请求在预留/派发前拒绝。工具、图片、thinking、beta 等尚未开放。
 
-完成后在“调用账本 → 详情 → 供应商完成证据”核对“原生 Messages · 缓存命中计费”、总输入/输出、缓存命中/未命中、原始缓存写入 0、冻结单价与回执。计数缺失会保留未知费用，不能把未取得当作零；成本报表只把已记账且匹配原始证据的记录纳入缓存覆盖。具体完成契约见 [ADR 0015](../../modules/engine/docs/adr/0015-embedded-messages-json.md)。
+完成后在“调用账本 → 详情 → 供应商完成证据”核对“原生 Messages · 缓存命中计费”、总输入/输出、缓存命中/未命中、原始缓存写入 0、冻结单价与回执。计数缺失会保留未知费用，不能把未取得当作零；成本报表只把已记账且匹配原始证据的记录纳入缓存覆盖。具体完成契约见 [ADR 0015](../../modules/engine/docs/adr/0015-embedded-messages-json.md)。实时流细节见 [ADR 0016](../../modules/engine/docs/adr/0016-embedded-messages-realtime.md)：起始数量仅供展示，最终数量不能相加；缺少 message_stop 不生成完成事件。原生流只接受从空 text 起始、顺序编号的纯文本 delta；部分输出已经送达后发生错误仍可能保留未知费用。最终审计失败不会伪装成功，也不会丢弃已经确认的供应商费用。
 
 ## 1. 使用前准备
 
